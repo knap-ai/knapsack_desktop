@@ -20,5 +20,6 @@
   {"path":"dist/server-context-DxDoSex8.js","required":["`headless:${options.headless}`","openTabInflight"],"forbidden":["function ensureOptionsKey(options) {\n\treturn \"default\";"]},
   {"path":"dist/server.impl-BCpatfdp.js","required":["startDesktopManagedBrowserControlService","desktop-managed core gateway methods failed to load after listen"],"forbidden":[]},
   {"path":"dist/knapsack-desktop-readiness.js","required":["export const ensureKnapsackDesktopReady","createDesktopReadiness"],"forbidden":[]},
-  {"path":"dist/openai-transport-stream-Pgx5hpN7.js","required":["await ensureKnapsackDesktopReady(model, (requestInit ?? init)?.signal)"],"forbidden":[]}
+  {"path":"dist/openai-transport-stream-Pgx5hpN7.js","required":["await ensureKnapsackDesktopReady(model, (requestInit ?? init)?.signal)"],"forbidden":[]},
+  {"path":"dist/model-ref-shared-BkjJfDrJ.js","required":["function isGroqCompoundModel(provider, model)","if (isGroqCompoundModel(providerId, modelId)) return `${providerId}/${modelId}`;"],"forbidden":[]}
 ]

@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 use tauri::api::process::Command;
-use tokio::runtime::Runtime;
 use tokio::sync::Semaphore;
 use tokio::time::{sleep, Duration};
 use wasapi::*;
@@ -109,7 +108,7 @@ impl AudioRecorder {
               let transcription_job = begin_transcription_job();
               std::thread::spawn(move || {
                 let _transcription_job = transcription_job;
-                let rt = Runtime::new().unwrap();
+                let rt = crate::utils::runtime::background_runtime().unwrap();
                 rt.block_on(async {
                   let samples_i32: Vec<i32> = samples_to_save
                     .iter()
@@ -262,7 +261,7 @@ impl AudioRecorder {
     let transcription_job = begin_transcription_job();
     std::thread::spawn(move || {
       let _transcription_job = transcription_job;
-      let rt = Runtime::new().unwrap();
+      let rt = crate::utils::runtime::background_runtime().unwrap();
       rt.block_on(async {
         let permit = semaphore.acquire().await.unwrap();
 

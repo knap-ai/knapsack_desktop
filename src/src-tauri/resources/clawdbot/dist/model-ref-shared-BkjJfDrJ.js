@@ -75,11 +75,16 @@ function normalizeProviderModelIdWithManifest(params) {
 }
 //#endregion
 //#region src/agents/model-ref-shared.ts
+// Groq Compound's provider API ID itself contains the provider prefix.
+function isGroqCompoundModel(provider, model) {
+  return provider.toLowerCase() === "groq" && /^groq\/compound(?:-mini)?$/i.test(model);
+}
 function modelKey(provider, model) {
 	const providerId = provider.trim();
 	const modelId = model.trim();
 	if (!providerId) return modelId;
 	if (!modelId) return providerId;
+	if (isGroqCompoundModel(providerId, modelId)) return `${providerId}/${modelId}`;
 	return normalizeLowercaseStringOrEmpty(modelId).startsWith(`${normalizeLowercaseStringOrEmpty(providerId)}/`) ? modelId : `${providerId}/${modelId}`;
 }
 function normalizeStaticProviderModelId(provider, model, options = {}) {
@@ -95,6 +100,7 @@ function normalizeStaticProviderModelId(provider, model, options = {}) {
 	}) ?? model);
 }
 function normalizeBuiltInProviderModelId(provider, model) {
+	if (provider === "groq" && /^compound(?:-mini)?$/i.test(model)) return `groq/${model}`;
 	if (provider === "google" || provider === "google-gemini-cli" || provider === "google-vertex") return normalizeGooglePreviewModelId(model);
 	return model;
 }

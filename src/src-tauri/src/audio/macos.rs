@@ -16,7 +16,6 @@ use super::transcribe::{begin_transcription_job, finalize_chunk};
 use crate::utils::log::knap_log_error;
 use flacenc::config::Encoder;
 use flacenc::error::Verify;
-use tokio::runtime::Runtime;
 use tokio::sync::Semaphore;
 
 lazy_static::lazy_static! {
@@ -243,7 +242,7 @@ fn save_chunk_async(chunk: Vec<f32>, counter: u32) {
   let transcription_job = begin_transcription_job();
   std::thread::spawn(move || {
     let _transcription_job = transcription_job;
-    let rt = Runtime::new().unwrap();
+    let rt = crate::utils::runtime::background_runtime().unwrap();
     rt.block_on(async {
       let samples_16bit: Vec<i32> = chunk
         .iter()
