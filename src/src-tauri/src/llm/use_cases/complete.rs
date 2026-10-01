@@ -987,6 +987,8 @@ async fn knapsack_completion(
     "model": &provider.model,
   });
 
+  crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &token)
+    .map_err(LLMError::ProviderNotConfigured)?;
   let mut resp = client
     .post(format!("{}/chat/completions", &provider.base_url))
     .header("Authorization", format!("Bearer {}", token))
@@ -1005,6 +1007,8 @@ async fn knapsack_completion(
     );
     std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
     token = resolve_knapsack_bearer_token(email).await?;
+    crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &token)
+      .map_err(LLMError::ProviderNotConfigured)?;
     resp = client
       .post(format!("{}/chat/completions", &provider.base_url))
       .header("Authorization", format!("Bearer {}", token))
