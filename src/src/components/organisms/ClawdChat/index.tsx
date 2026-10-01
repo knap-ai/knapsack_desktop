@@ -1,3 +1,4 @@
+import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
 import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
 import { GEMINI_MODELS } from 'src/utils/geminiModels'
@@ -1912,6 +1913,7 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
   return (
     <div className="ClawdChannelGuide" style={{ borderTop: '1px solid #e2e8f0', marginTop: 8 }}>
       <div className="ClawdChannelGuideTitle">{title}</div>
+      {channel === 'slack' && <SlackAdminSettings />}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {DM_POLICIES.map(p => (
           <button

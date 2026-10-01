@@ -893,23 +893,14 @@ function App() {
       'provider-fallback',
       (event: Event<{ from: string; to: string; reason: string }>) => {
         const { from, to, reason } = event.payload
-        const lowerReason = reason.toLowerCase()
-        const isSpendingCap = lowerReason.includes('spending cap') || lowerReason.includes('monthly')
-        const retriedMatch = reason.match(/after (\d+) retries? over ([0-9.]+)s/i)
-        const retryLabel = retriedMatch
-          ? ` after ${retriedMatch[1]} retries over ${retriedMatch[2]}s`
-          : ''
-        const causeLabel = isSpendingCap
-          ? `${from} hit its monthly spending cap`
-          : `${from} stayed rate-limited${retryLabel}`
         setToastrState({
           message: (
             <>
-              <strong>⚠️ Auto-switched AI provider:</strong> {causeLabel}, so your request was retried with <strong>{to}</strong>. To change this behaviour, go to Settings → Provider.
+              Using {to} to keep your conversation going. You can manage fallback providers in Settings → Provider.
             </>
           ) as ReactElement,
-          alertType: 'warning',
-          autoHideDuration: 12000,
+          alertType: 'info',
+          autoHideDuration: 6000,
           icon: false,
         })
         console.warn(`[provider-fallback] ${from} → ${to}: ${reason}`)

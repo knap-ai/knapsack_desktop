@@ -6,7 +6,7 @@
 export function isKnapsackIdentitySensitiveTool(serverName, toolName) {
   return (serverName === "snowflake" && toolName === "snowflake_query") ||
     (serverName === "studio" &&
-      (toolName === "list_connector_tools" || toolName === "call_connector_tool" || toolName === "gmail_read"));
+      (toolName === "list_connector_tools" || toolName === "call_connector_tool" || toolName === "gmail_read" || toolName === "slack_allowlist_add"));
 }
 
 export function hasTrustedKnapsackSessionContext(runtime) {
