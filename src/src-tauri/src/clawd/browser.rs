@@ -1265,6 +1265,17 @@ fn native_workspace_capability_reply(user_email: &str, request: &str) -> Option<
   None
 }
 
+fn allows_native_capability_shortcuts(body: &JsonValue) -> bool {
+  if is_group_agent_request(body) || body.get("requestOrigin").and_then(JsonValue::as_str) == Some("notification") {
+    return false;
+  }
+  // Older clients send the entire notification wrapper as userText. Words in
+  // its guardrails ("access", "account", "email") are not an inventory request.
+  let request = body.get("userText").or_else(|| body.get("text")).and_then(JsonValue::as_str).unwrap_or("");
+  !(request.starts_with("Show me the relevant information for the notification below.")
+    && request.contains("prepare_read_only_notification_response"))
+}
+
 fn is_group_agent_request(body: &JsonValue) -> bool {
   body
     .get("teamMembers")
@@ -1590,10 +1601,27 @@ fn summarize_provider_error(err: &str) -> String {
   }
 }
 
+fn provider_model_for_privacy(prov: &str, key: &str, model: &str, ollama_base: &str) -> Result<String, String> {
+  let knapsack_endpoint = knapsack_base_url();
+  let endpoint = match prov {
+    "ollama" => ollama_base,
+    "knapsack" => &knapsack_endpoint,
+    "groq" => "https://api.groq.com/openai/v1",
+    "trustedrouter" => "https://api.trustedrouter.com/v1",
+    _ => "https://unapproved.invalid",
+  };
+  crate::privacy_mode::enforce_route(prov, model, endpoint, key)
+}
+
 fn fallback_failure_message(
   configured_fallback_count: usize,
   attempted_fallback_count: usize,
+  primary_error: &str,
 ) -> String {
+  let lower = primary_error.to_lowercase();
+  if lower.contains("bedrock") && (lower.contains("recovery probe") || lower.contains("cooldown")) {
+    return "Knapsack inference is temporarily recovering after upstream model failures. Please try again shortly. No eligible backup completed this request; your privacy settings remain enforced.".to_string();
+  }
   if configured_fallback_count == 0 {
     "Your active provider failed and no backup providers are configured in Settings. Please try again in a moment, or add another provider in Settings for automatic failover.".to_string()
   } else if attempted_fallback_count == 0 {
@@ -3448,7 +3476,7 @@ pub async fn agent_chat(
   // mentions Gmail, Calendar, or Drive can otherwise be consumed by the
   // single-agent capability shortcut and returned as a non-gateway response,
   // which the group UI correctly rejects as a runtime failure.
-  if !is_group_agent_request(&body) {
+  if allows_native_capability_shortcuts(&body) {
     if let Some(reply) = native_connection_owner
       .as_deref()
       .and_then(|email| native_workspace_capability_reply(email, user_text))
@@ -6761,14 +6789,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     _retry_rate_limits: bool,
   ) -> anyhow::Result<chat_agent::OaiChatResp> {
     let knapsack_endpoint = knapsack_base_url();
-    let endpoint = match prov {
-      "ollama" => ollama_base,
-      "knapsack" => &knapsack_endpoint,
-      "groq" => "https://api.groq.com/openai/v1",
-      "trustedrouter" => "https://api.trustedrouter.com/v1",
-      _ => "https://unapproved.invalid",
-    };
-    let private_model = crate::privacy_mode::enforce_route(prov, model, endpoint, key)
+    let private_model = provider_model_for_privacy(prov, key, model, ollama_base)
       .map_err(anyhow::Error::msg)?;
     let model = private_model.as_str();
     match prov {
@@ -7298,7 +7319,6 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             err_lower = err_str.to_lowercase();
           }
         } else if !should_attempt_fallback_for_provider_error(&err_lower) {
-        } else if !should_attempt_fallback_for_provider_error(&err_lower) {
           return HttpResponse::InternalServerError().json(
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
           );
@@ -7367,6 +7387,12 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
                 "[clawd/chat] Trying fallback provider={} model={}",
                 fb_provider, fb_model
               );
+              // A configured key is not an eligible network attempt in private mode.
+              // Recheck inside call_provider too, in case policy changes meanwhile.
+              if let Err(reason) = provider_model_for_privacy(fb_provider, fb_key, &fb_model, &current_ollama_base) {
+                failed_fallbacks.push(format!("{} skipped: {}", fb_provider, reason));
+                continue;
+              }
               attempted_fallbacks.push(format!("{}/{}", fb_provider, fb_model));
               match call_provider(
                 &app_handle,
@@ -7408,7 +7434,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             Some(r) => r,
             None => {
               let failure_message =
-                fallback_failure_message(configured_fallbacks.len(), attempted_fallbacks.len());
+                fallback_failure_message(configured_fallbacks.len(), attempted_fallbacks.len(), &err_str);
               sentry::with_scope(
                 |scope| {
                   scope.set_tag("component", "clawd_chat");
@@ -8924,15 +8950,44 @@ mod tests {
 
   #[test]
   fn fallback_failure_message_is_specific_when_no_backup_provider_exists() {
-    let message = fallback_failure_message(0, 0);
+    let message = fallback_failure_message(0, 0, "timeout");
     assert!(message.contains("no backup providers are configured"));
     assert!(!message.contains("All AI providers are currently unavailable"));
   }
 
   #[test]
   fn fallback_failure_message_uses_global_outage_copy_when_backups_were_attempted() {
-    let message = fallback_failure_message(2, 2);
+    let message = fallback_failure_message(2, 2, "timeout");
     assert!(message.contains("All AI providers are currently unavailable"));
+  }
+
+  #[test]
+  fn notification_prep_bypasses_account_inventory_shortcut() {
+    assert!(!super::allows_native_capability_shortcuts(&json!({
+      "requestOrigin": "notification",
+      "userText": "Show notes for my calendar meeting"
+    })));
+    assert!(!super::allows_native_capability_shortcuts(&json!({
+      "userText": "Show me the relevant information for the notification below. email calendar account access prepare_read_only_notification_response"
+    })));
+    assert!(super::allows_native_capability_shortcuts(&json!({
+      "userText": "Which Google accounts are connected?"
+    })));
+  }
+
+  #[test]
+  fn fallback_preserves_recovery_cause_and_distinguishes_ineligible_backups() {
+    for error in [
+      "HTTP 500: All Bedrock fallback models are waiting on recovery probes; try again shortly",
+      "HTTP 503: Bedrock models are in cooldown",
+      "A Bedrock recovery probe is still running; try again shortly",
+    ] {
+      let message = fallback_failure_message(2, 0, error);
+      assert!(message.contains("Knapsack inference is temporarily recovering"));
+      assert!(!message.contains("All AI providers"));
+      assert!(!message.contains("Add"));
+    }
+    assert!(fallback_failure_message(2, 0, "timeout").contains("no eligible backup"));
   }
 
   #[test]
