@@ -237,7 +237,8 @@ function pluginAllowlistIncludesChannel(pluginAllowlist) {
   return ["slack", "telegram", "whatsapp"].some((channel) => plugins.has(channel));
 }
 
-function qaStartupModelForProvider(provider) {
+function qaStartupModelForProvider(provider, modelOverride) {
+  if (modelOverride) return `${provider}/${modelOverride}`;
   const models = {
     anthropic: "anthropic/claude-sonnet-4-6",
     gemini: "google/gemini-2.5-flash",
@@ -252,12 +253,12 @@ function qaStartupModelForProvider(provider) {
   return models[String(provider || "").trim().toLowerCase()] || null;
 }
 
-function patchOpenClawConfigForQa({ pluginAllowlist, provider }) {
+function patchOpenClawConfigForQa({ pluginAllowlist, provider, modelOverride }) {
   if (pluginAllowlist || provider) {
     console.log("[qa-loop] patching OpenClaw config for QA startup provider/plugin isolation");
   }
 
-  const startupModel = qaStartupModelForProvider(provider);
+  const startupModel = qaStartupModelForProvider(provider, modelOverride);
   const clawdbotDir = desktopClawdbotDir();
   if ((!pluginAllowlist && !startupModel) || !clawdbotDir) return null;
   const configPath = path.join(clawdbotDir, "openclaw.json");
@@ -339,9 +340,9 @@ function qaDesktopTokenModelForProvider(provider) {
   return model || null;
 }
 
-function patchDesktopTokensForQa(provider) {
+function patchDesktopTokensForQa(provider, modelOverride) {
   const normalized = String(provider || "").trim().toLowerCase();
-  const model = qaDesktopTokenModelForProvider(normalized);
+  const model = modelOverride || qaDesktopTokenModelForProvider(normalized);
   const clawdbotDir = desktopClawdbotDir();
   if (!normalized || !model || !clawdbotDir) return null;
 
@@ -1558,6 +1559,15 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 
 async function setProviderAndModel(provider, model) {
   const startedAt = Date.now();
+  if (provider === "ollama") {
+    const configured = await fetchWithTimeout(`${API_BASE}/api/knapsack/ollama/configure`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true, cloud: false, model, base_url: "http://127.0.0.1:11434" }),
+    }, 30_000);
+    if (!configured.ok || configured.body?.success === false) {
+      return { ok: false, payload: { message: "Could not enable the requested local Ollama model for QA" }, status: configured.status, elapsedMs: Date.now() - startedAt };
+    }
+  }
   // The backend deliberately waits up to 90s for gateway readiness and up to
   // 120s for channel readiness after a provider switch. A 30s client timeout
   // abandons the request while the restart continues, so the next provider
@@ -2315,9 +2325,10 @@ async function runMode(mode, opts = {}) {
   let restoreQaConfig = patchOpenClawConfigForQa({
     pluginAllowlist: qaPluginAllowlist,
     provider: opts.providers?.length === 1 ? opts.providers[0] : null,
+    modelOverride: opts.modelOverride,
   });
   let restoreQaTokens = opts.providers?.length === 1
-    ? patchDesktopTokensForQa(opts.providers[0])
+    ? patchDesktopTokensForQa(opts.providers[0], opts.modelOverride)
     : null;
   if (!isProd) {
     const prepared = prepareDevRuntime(launchEnv);

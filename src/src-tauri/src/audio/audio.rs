@@ -2032,13 +2032,17 @@ async fn stream_audio(
   let semaphore = recording_state.input_file_semaphore.clone();
   // Use a timeout so the mic thread doesn't block indefinitely waiting for
   // a previous chunk's transcription to finish.
-  let permit = match timeout(Duration::from_secs(30), semaphore.acquire()).await {
+  let permit = if crate::privacy_mode::is_local_only() {
+    // The final chunk must queue behind earlier local chunks, even when speech
+    // recognition is slower than capture. Never bypass their ordering permit.
+    semaphore.acquire().await.ok()
+  } else { match timeout(Duration::from_secs(30), semaphore.acquire()).await {
     Ok(Ok(p)) => Some(p),
     _ => {
       log::warn!("[recording] Timed out waiting for input semaphore in stream_audio exit — saving chunk without permit");
       None
     }
-  };
+  }};
   save_chunk(samples, chunk_filename.clone(), channel, sample_rate);
   finalize_chunk(chunk_filename, transcript_filename).await;
   drop(permit);

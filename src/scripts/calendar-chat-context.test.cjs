@@ -36,3 +36,12 @@ test('empty synced calendars are not presented as proof of no remote events', as
   assert.equal(result.hasConnectedData, false)
   assert.match(result.text, /does not establish whether remote calendars contain unsynced events/)
 })
+
+test('weekend planning queries Saturday through Monday rather than today', async () => {
+  for (const [request, startDay, endDay] of [['prepare me for this weekend', 3, 5], ['plan next weekend', 10, 12]]) {
+    const { fetchContext, query } = await load([])
+    await fetchContext(false, request)
+    assert.equal(new Date(query().start * 1000).getDate(), startDay)
+    assert.equal(new Date((query().end + 1) * 1000).getDate(), endDay)
+  }
+})
