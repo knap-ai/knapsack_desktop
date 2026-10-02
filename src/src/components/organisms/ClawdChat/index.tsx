@@ -1,4 +1,4 @@
-import { notificationDisplayText } from 'src/utils/notificationReply'
+import { notificationDisplayText, notificationContextText, editedQueuedMessage } from 'src/utils/notificationReply'
 import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
@@ -5265,7 +5265,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     if (!hasCompletedOnboarding) {
       const hasKey = await checkAndPromptForKey()
       if (!hasKey) {
-        pushUser(visibleText || '(files attached)')
+        pushUser(text || '(files attached)')
         pushAssistant('Please set up an AI provider first. Add an API key or enable Ollama in Settings to get started.')
         return
       }
@@ -5283,7 +5283,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(visibleText + attachmentSummary, currentReplyTo?.id)
+    pushUser(text + attachmentSummary, currentReplyTo?.id)
 
     // --- Developer mode intent detection ---
     if (!developerModeAtSend && detectBuildIntent(text)) {
@@ -6931,7 +6931,7 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = { ...updated[i], text: trimmed }
+                        updated[i] = { ...updated[i], text: editedQueuedMessage(updated[i].text, trimmed) }
                         queuedMessagesRef.current = updated
                         setQueuedMessages(updated)
                       }
@@ -6949,7 +6949,7 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = { ...updated[i], text: trimmed }
+                        updated[i] = { ...updated[i], text: editedQueuedMessage(updated[i].text, trimmed) }
                         queuedMessagesRef.current = updated
                         setQueuedMessages(updated)
                       }
@@ -6986,7 +6986,7 @@ ${actualText}`
                     className="ClawdQueuedActions__btn"
                     title="Edit queued message"
                     onClick={() => {
-                      setEditingQueuedText(notificationDisplayText(queued.text) ?? queued.text)
+                      setEditingQueuedText(notificationContextText(queued.text) ?? queued.text)
                       setEditingQueuedIndex(i)
                     }}
                   >
