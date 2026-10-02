@@ -331,3 +331,7 @@ test('mock meeting never stops a recording it could not start', async () => {
   assert.equal(calls.length, 3);
   assert.ok(calls.every(url => !url.endsWith('/stop_recording')));
 });
+
+test('QA startup honors an explicitly selected installed local model', () => {
+  assert.equal(require('./qa-loop-runner.cjs').qaStartupModelForProvider('ollama', 'qwen3:4b'), 'ollama/qwen3:4b')
+})

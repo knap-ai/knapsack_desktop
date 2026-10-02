@@ -839,7 +839,7 @@ fn safe_session_id(raw: &str) -> String {
   }
 }
 
-fn openclaw_session_key(session_id: &str) -> String {
+pub(crate) fn openclaw_session_key(session_id: &str) -> String {
   format!("agent:main:webchat:dm:{}", safe_session_id(session_id))
 }
 

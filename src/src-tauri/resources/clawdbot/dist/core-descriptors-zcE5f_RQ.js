@@ -702,6 +702,10 @@ const CORE_GATEWAY_METHOD_SPECS = [
 		scope: "operator.write"
 	},
 	{
+		name: "chat.steer",
+		scope: "operator.write"
+	},
+	{
 		name: "chat.send",
 		scope: "operator.write"
 	},

@@ -2,6 +2,7 @@
 export function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
   if (/\b(browser|website|web\s+ui|tab)\b|\b(click|navigate)\b/i.test(text)) return false
   return /\b(emails?|gmail|inbox|newsletters?|notifications?|calendar|schedule|meetings?|commitments?|priorities|relationships?|opportunities|follow[ -]?ups?|follow up|work patterns|reactive)\b/i.test(text)
+    || /\b(prepare|prep|plan|brief|ready)\b.*\b(today|tomorrow|week|weekend)\b/i.test(text)
     || /\bwhat(?:'s| is|s)? (?:going on|happening|on)\b.*\b(today|tomorrow|week)\b/i.test(text)
 }
 
@@ -17,7 +18,15 @@ export function nativeCalendarRange(text: string, now = new Date()) {
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
   let label = "Today's Calendar"
-  if (/\b(next|this) week\b/i.test(text)) {
+  if (/\bweekend\b/i.test(text)) {
+    // Saturday/Sunday of this calendar week (or the following one), using
+    // local date arithmetic so DST weekends still end on Monday midnight.
+    start.setDate(start.getDate() - (start.getDay() + 6) % 7 + 5
+      + (/\bnext weekend\b/i.test(text) ? 7 : 0))
+    end.setTime(start.getTime())
+    end.setDate(end.getDate() + 2)
+    label = /\bnext weekend\b/i.test(text) ? "Next Weekend's Calendar" : "This Weekend's Calendar"
+  } else if (/\b(next|this) week\b/i.test(text)) {
     // Calendar weeks start Monday. Use local date arithmetic across DST.
     start.setDate(start.getDate() - (start.getDay() + 6) % 7
       + (/\bnext week\b/i.test(text) ? 7 : 0))

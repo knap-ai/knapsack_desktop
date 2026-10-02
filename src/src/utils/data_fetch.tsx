@@ -577,6 +577,7 @@ export async function getCalendarEvents(startTimestamp: number, endTimestamp: nu
       },
     },
   )
+  if (!response.ok) throw new Error(`Calendar query failed (${response.status})`)
   const data = await response.json()
   return data.display_docs
 }

@@ -353,8 +353,15 @@ pub async fn start_recording(
     return Ok(HttpResponse::InternalServerError().body("Recording is already in progress"));
   }
 
-  let input_filename = format!("{}_input", data.thread_id);
-  let output_filename = format!("{}_output", data.thread_id);
+  // Resolve existing content before starting any audio workers. A database
+  // failure must not leave an untracked recording running.
+  let existing_transcript = match Transcript::find_by_thread_id(data.thread_id) {
+    Ok(value) => value,
+    Err(error) => return Ok(HttpResponse::InternalServerError().json(json!({"error": error.to_string()}))),
+  };
+  let capture_id = Uuid::new_v4();
+  let input_filename = format!("{}_input_{}", data.thread_id, capture_id);
+  let output_filename = format!("{}_output_{}", data.thread_id, capture_id);
 
   {
     let mut input_filename_guard = recording_state.input_filename.lock().unwrap();
@@ -562,25 +569,9 @@ pub async fn start_recording(
     })));
   }
 
-  // If a transcript already exists for this thread (e.g., re-recording), delete it first
-  // to avoid UNIQUE constraint violation on thread_id.
-  if let Ok(Some(existing_transcript)) = Transcript::find_by_thread_id(thread_id) {
-    let home_dir_cleanup = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-    let transcript_file = home_dir_cleanup
-      .join(".knapsack/transcripts")
-      .join(&existing_transcript.filename);
-    if transcript_file.exists() {
-      let _ = std::fs::remove_file(&transcript_file);
-    }
-    if let Err(e) = existing_transcript.delete() {
-      log::warn!(
-        "Failed to delete old transcript for thread {}: {:?}",
-        thread_id,
-        e
-      );
-    }
-  }
-
+  // Keep previous meeting content when capture is resumed or restarted.
+  // Each capture has separate raw/chunk files; Stop appends only this capture.
+  if existing_transcript.is_none() {
   let filename = Uuid::new_v4().to_string();
   let start_time = std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
@@ -609,6 +600,8 @@ pub async fn start_recording(
       HttpResponse::InternalServerError()
         .body(format!("Failed to create transcript record: {:?}", e)),
     );
+  }
+
   }
 
   recording_state.is_starting.store(false, Ordering::Relaxed);
@@ -1349,6 +1342,15 @@ fn recording_file_candidates(
     candidates.push(transcript_dir.join(format!("{}_input.txt", thread_id)));
     candidates.push(transcript_dir.join(format!("{}_output.txt", thread_id)));
     candidates.push(notes_dir.join(thread_id.to_string()));
+    if transcript_dir.exists() {
+      for entry in std::fs::read_dir(&transcript_dir)? {
+        let path = entry?.path();
+        let name = path.file_name().and_then(|v| v.to_str()).unwrap_or("");
+        if path.is_file() && name.ends_with(".txt") && (name.starts_with(&format!("{}_input_", thread_id)) || name.starts_with(&format!("{}_output_", thread_id))) {
+          candidates.push(path);
+        }
+      }
+    }
     let entries = match std::fs::read_dir(&audio_dir) {
       Ok(entries) => Some(entries),
       Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
@@ -2030,13 +2032,17 @@ async fn stream_audio(
   let semaphore = recording_state.input_file_semaphore.clone();
   // Use a timeout so the mic thread doesn't block indefinitely waiting for
   // a previous chunk's transcription to finish.
-  let permit = match timeout(Duration::from_secs(30), semaphore.acquire()).await {
+  let permit = if crate::privacy_mode::is_local_only() {
+    // The final chunk must queue behind earlier local chunks, even when speech
+    // recognition is slower than capture. Never bypass their ordering permit.
+    semaphore.acquire().await.ok()
+  } else { match timeout(Duration::from_secs(30), semaphore.acquire()).await {
     Ok(Ok(p)) => Some(p),
     _ => {
       log::warn!("[recording] Timed out waiting for input semaphore in stream_audio exit — saving chunk without permit");
       None
     }
-  };
+  }};
   save_chunk(samples, chunk_filename.clone(), channel, sample_rate);
   finalize_chunk(chunk_filename, transcript_filename).await;
   drop(permit);

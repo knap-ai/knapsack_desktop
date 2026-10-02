@@ -29,5 +29,8 @@
   {"path":"dist/runner.entries-CxY7Q-di.js","required":["requireStandardPrivacyMode(\"background media inference\")"],"forbidden":[]},
   {"path":"dist/image-aaTGWTQz.js","required":["requireStandardPrivacyMode(\"background media inference\")"],"forbidden":[]},
   {"path":"dist/memory-embedding-provider-runtime-xg7fdvKI.js","required":["privateEmbeddingAdapter","requireStandardPrivacyMode(\"remote embeddings\")"],"forbidden":[]},
-  {"path":"dist/model-ref-shared-BkjJfDrJ.js","required":["function isGroqCompoundModel(provider, model)","if (isGroqCompoundModel(providerId, modelId)) return `${providerId}/${modelId}`;"],"forbidden":[]}
+  {"path":"dist/model-ref-shared-BkjJfDrJ.js","required":["function isGroqCompoundModel(provider, model)","if (isGroqCompoundModel(providerId, modelId)) return `${providerId}/${modelId}`;"],"forbidden":[]},
+  {"path":"dist/knapsack-chat-steer.js","required":["export function createDesktopSteerHandler","steeringMode: 'all'"],"forbidden":[]},
+  {"path":"dist/chat-zFy9Y_4Y.js","required":["\"chat.steer\": createDesktopSteerHandler"],"forbidden":[]},
+  {"path":"dist/core-descriptors-zcE5f_RQ.js","required":["name: \"chat.steer\""],"forbidden":[]}
 ]

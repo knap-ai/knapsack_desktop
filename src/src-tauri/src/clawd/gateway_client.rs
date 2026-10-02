@@ -3652,6 +3652,13 @@ pub async fn agent_chat(
   gateway_request_agent("agent", Some(params), &t, 300).await
 }
 
+pub async fn steer_chat_session(session_key: &str, message: &str, idempotency_key: &str) -> Result<Value, String> {
+  let token = resolve_token(None)?;
+  gateway_request_pooled("chat.steer", Some(serde_json::json!({
+    "sessionKey": session_key, "message": message, "idempotencyKey": idempotency_key,
+  })), &token).await
+}
+
 /// Abort any active agent run for a gateway session.
 ///
 /// Group-room member calls have a shorter local deadline than the gateway's

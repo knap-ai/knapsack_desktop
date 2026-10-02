@@ -81,7 +81,8 @@ sysinfo = "0.31.4"
 sentry = "0.34.0"
 text-splitter = "0.18.1"
 cpal = "=0.15.3"       # For audio capture
-# whisper-rs = { version = "0.13.1", features = ["metal"] }
+whisper-rs = "=0.16.0"
+claxon = "=0.4.3"
 hound = "=3.4"       # For writing WAV files
 clap = { version = "=4.5.20", features = ["derive"] }     # CLI Arg Parser
 embed_plist = "1.2.0"

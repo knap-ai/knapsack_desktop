@@ -430,6 +430,7 @@ pub async fn start_server<'a>(
       .service(clawd::browser::knapsack_chat_completions_proxy)
       .service(clawd::browser::chat)
       .service(clawd::browser::agent_chat)
+      .service(clawd::browser::agent_steer)
       .service(clawd::browser::agent_run)
       .service(clawd::browser::terminal_output)
       .service(clawd::harness::get_harness_settings)

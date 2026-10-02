@@ -1,3 +1,5 @@
+import { privacyModeStatus } from 'src/utils/privacyMode'
+import { getLocalSpeechStatus } from 'src/utils/localSpeech'
 import React, { createContext, ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 
 import { pauseRecord, startRecord, stopRecord } from 'src/api/recording'
@@ -7,7 +9,7 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 
 import { emit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { openBesideApp } from 'src/utils/openBesideApp'
+import { open } from '@tauri-apps/api/shell'
 
 export interface RecordingContextProps {
   isRecording: (threadId: number) => boolean
@@ -120,6 +122,10 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     isStartingRef.current = true
     setStartingRecordingThreadId(threadId)
     try {
+      if (privacyModeStatus().inference === 'local-only' && !(await getLocalSpeechStatus()).ready) {
+        window.dispatchEvent(new Event('open-privacy-setup'))
+        throw new Error('Download on-device speech in the Privacy window, then start recording. No audio has been recorded yet.')
+      }
       // Check macOS permissions before attempting to record.
       // This must succeed or recording is blocked — we never silently proceed
       // without verified permissions.
@@ -208,7 +214,11 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
       if (eventUrl && isStart) {
-        await openBesideApp(eventUrl)
+        try {
+          await open(eventUrl)
+        } catch (error) {
+          logError(new Error('Recording started, but the meeting link could not open. Open it from your calendar.'), { error: String(error) }, true)
+        }
       } else if (!isStart) {
         setIsPaused(false)
       }

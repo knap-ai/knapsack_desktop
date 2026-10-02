@@ -6245,6 +6245,31 @@ pub(crate) fn groq_privacy_fingerprint(app_handle: &tauri::AppHandle) -> Result<
   Ok(crate::privacy_mode::routes::credential_fingerprint(&key))
 }
 
+/// Configured routes, checked against the current owner policy and credential.
+/// The renderer never needs API keys to select a qualified provider.
+#[tauri::command]
+pub fn privacy_provider_candidates(app_handle: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+  let tokens = load_or_create_tokens(&app_handle)?;
+  let private = crate::privacy_mode::is_enabled();
+  let routes = [
+    ("knapsack", has_knapsack_runtime_auth(&tokens), tokens.knapsack_model.as_deref().unwrap_or("auto"), "https://api.knapsack.ai", ""),
+    ("trustedrouter", has_nonempty(tokens.trustedrouter_api_key.as_ref()), if private { "trustedrouter/zdr" } else { tokens.trustedrouter_model.as_deref().unwrap_or("trustedrouter/auto") }, "https://api.trustedrouter.com/v1", tokens.trustedrouter_api_key.as_deref().unwrap_or("")),
+    ("groq", has_nonempty(tokens.groq_api_key.as_ref()), if private { "openai/gpt-oss-120b" } else { tokens.groq_model.as_deref().unwrap_or("openai/gpt-oss-120b") }, "https://api.groq.com/openai/v1", tokens.groq_api_key.as_deref().unwrap_or("")),
+    ("ollama", tokens.ollama_enabled.unwrap_or(false) && !ollama_cloud_enabled(&tokens), tokens.ollama_model.as_deref().unwrap_or(""), tokens.ollama_base_url.as_deref().unwrap_or(OLLAMA_LOCAL_BASE_URL), ""),
+    ("openai", has_nonempty(tokens.openai_api_key.as_ref()), tokens.openai_model.as_deref().unwrap_or("gpt-4o"), "https://api.openai.com/v1", tokens.openai_api_key.as_deref().unwrap_or("")),
+    ("anthropic", has_nonempty(tokens.anthropic_api_key.as_ref()), tokens.anthropic_model.as_deref().unwrap_or("claude-sonnet-4-20250514"), "https://api.anthropic.com/v1", tokens.anthropic_api_key.as_deref().unwrap_or("")),
+    ("gemini", has_nonempty(tokens.gemini_api_key.as_ref()), tokens.gemini_model.as_deref().unwrap_or("gemini-2.5-flash"), "https://generativelanguage.googleapis.com", tokens.gemini_api_key.as_deref().unwrap_or("")),
+    ("openrouter", has_nonempty(tokens.openrouter_api_key.as_ref()), tokens.openrouter_model.as_deref().unwrap_or("openrouter/auto"), "https://openrouter.ai/api/v1", tokens.openrouter_api_key.as_deref().unwrap_or("")),
+    ("xai", has_nonempty(tokens.xai_api_key.as_ref()), tokens.xai_model.as_deref().unwrap_or("grok-3-mini"), "https://api.x.ai/v1", tokens.xai_api_key.as_deref().unwrap_or("")),
+  ];
+  let mut candidates: Vec<_> = routes.into_iter().filter_map(|(provider, configured, model, endpoint, key)| {
+    if !configured || model.is_empty() { return None; }
+    crate::privacy_mode::enforce_route(provider, model, endpoint, key).ok().map(|model| serde_json::json!({"provider": provider, "model": model}))
+  }).collect();
+  candidates.sort_by_key(|candidate| candidate["provider"].as_str() != tokens.active_provider.as_deref());
+  Ok(candidates)
+}
+
 pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   let mut tokens = match load_or_create_tokens(app_handle) {
     Ok(t) => t,
@@ -9548,10 +9573,12 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     || has_gemini_cli
     || has_knapsack;
 
-  let active_provider = tokens
-    .active_provider
-    .clone()
-    .unwrap_or_else(|| "openai".to_string());
+  // Local-only policy overrides the cloud preference at runtime. Report the
+  // effective provider so the toolbar and request selection cannot show stale
+  // cloud labels while the gateway is using Ollama.
+  let active_provider = if crate::privacy_mode::is_local_only() { "ollama".to_string() } else {
+    tokens.active_provider.clone().unwrap_or_else(|| "openai".to_string())
+  };
   let model = match active_provider.as_str() {
     "openai" => tokens.openai_model.clone(),
     "anthropic" => tokens.anthropic_model.clone(),

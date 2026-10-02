@@ -345,6 +345,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [meetingChatInitialInput, setMeetingChatInitialInput] = useState(
     'What should I pay attention to in this meeting?',
   )
+  const [meetingChatSubmitRequest, setMeetingChatSubmitRequest] = useState<{ id: number; text: string } | undefined>()
   const [meetingTranscriptContext, setMeetingTranscriptContext] = useState('')
   const [briefPrepContent, setBriefPrepContent] = useState('')
   const [isBriefPrepGenerating, setIsBriefPrepGenerating] = useState(false)
@@ -1066,6 +1067,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const unlistenHeartbeatPromise = listen(
       'meeting_heartbeat',
       async (event: Event<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
+        if (event.payload.threadId !== thread.id) return
         const { insight, elapsedMinutes } = event.payload
         const mins = Math.round(elapsedMinutes)
         setInlineInsights(prev => [...prev, { id: Date.now(), mins, text: insight }])
@@ -1680,16 +1682,6 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         {/* Bottom bar stop button available even during loading */}
         {recordingHandlers.isRecording(thread.id) && (
           <div className="notetaker-note__bottom-bar">
-            <div className="notetaker-note__bottom-waveform">
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '0ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '150ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '300ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '450ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '600ms'}} />
-            </div>
-            <div className="notetaker-note__bottom-recording-status">
-              Privately transcribing...
-            </div>
             <div className="flex-1" />
             <button
               className="notetaker-note__bottom-stop"
@@ -2173,9 +2165,10 @@ Be direct, specific, and concise. No filler text.`
                   className="notetaker-note__brief-drawer-miss"
                   onClick={async () => {
                     const liveTranscript = await refreshMeetingTranscriptContext()
-                    setMeetingChatInitialInput(liveTranscript.trim()
+                    setMeetingChatInitialInput('')
+                    setMeetingChatSubmitRequest({ id: Date.now(), text: liveTranscript.trim()
                       ? 'What did I miss? Summarize only what the live transcript and current notes show happened in this meeting. Separate confirmed discussion, decisions, and action items.'
-                      : 'What did I miss? First state that no transcript text is available yet. Do not substitute email, Slack, web, or unrelated background as if it happened in this meeting.')
+                      : 'What did I miss? First state that no transcript text is available yet. Do not substitute email, Slack, web, or unrelated background as if it happened in this meeting.' })
                     setMeetingChatInputNonce(value => value + 1)
                     expandMeetingChat()
                     setIsMeetingChatOpen(true)
@@ -2506,6 +2499,8 @@ Be direct, specific, and concise. No filler text.`
             contextPrefix={meetingChatContext}
             initialInput={meetingChatInitialInput}
             initialInputKey={meetingChatInputNonce}
+            submitRequest={meetingChatSubmitRequest}
+            onSubmitRequestAccepted={() => setMeetingChatSubmitRequest(undefined)}
             chatId={`meeting:${thread.id}`}
             sessionId={`meeting:${thread.id}`}
           />
@@ -2519,16 +2514,6 @@ Be direct, specific, and concise. No filler text.`
       >
         {recordingHandlers.isRecording(thread.id) ? (
           <>
-            <div className="notetaker-note__bottom-waveform">
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '0ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '150ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '300ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '450ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '600ms'}} />
-            </div>
-            <div className="notetaker-note__bottom-recording-status">
-              Privately transcribing...
-            </div>
             {!isMeetingChatOpen && (
               <div
                 className="notetaker-note__bottom-chat"

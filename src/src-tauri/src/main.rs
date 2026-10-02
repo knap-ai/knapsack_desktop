@@ -37,6 +37,7 @@ mod search;
 mod server;
 mod spotlight;
 mod transcribe;
+mod local_speech;
 mod user;
 mod utils;
 mod workspaces;
@@ -2198,6 +2199,10 @@ async fn run_app() {
       clawd::service::get_desktop_api_token,
       clawd::service::get_mobile_pairing_token,
       privacy_mode::get_privacy_mode_status,
+      clawd::service::privacy_provider_candidates,
+      local_speech::local_speech_status,
+      local_speech::install_local_speech,
+      local_speech::transcribe_local_voice,
       privacy_mode::get_local_model_hardware,
       privacy_mode::set_privacy_mode,
       privacy_mode::authorize_private_inference,

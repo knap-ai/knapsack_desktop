@@ -148,6 +148,7 @@
       "identifier": "ai.knap.knapsack",
       "longDescription": "Knapsack Desktop",
       "macOS": {
+        "minimumSystemVersion": "10.15",
         "exceptionDomain": "",
         "frameworks": [],
         "providerShortName": null,

@@ -1,0 +1,5 @@
+# Build portable speech kernels; do not require the CI host CPU on user devices.
+[env]
+GGML_NATIVE = "OFF"
+# ggml's C++17 filesystem support requires macOS Catalina or newer.
+MACOSX_DEPLOYMENT_TARGET = "10.15"
