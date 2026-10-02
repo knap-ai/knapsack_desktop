@@ -1,3 +1,4 @@
+import { selectPrivacyProvider } from './privacyProviderSelection'
 import * as Sentry from '@sentry/react'
 
 import { invoke } from '@tauri-apps/api/tauri'
@@ -11,6 +12,7 @@ export type PrivacyModeStatus = {
   selected_mode?: 'local-only' | 'zero-retention'
   groq_zdr_confirmed?: boolean
   telemetry: 'disabled' | 'normal'
+  provider_selection?: string | null
   manifest_sha256: string
 }
 
@@ -37,10 +39,12 @@ export async function initializePrivacyMode(): Promise<PrivacyModeStatus> {
   return status
 }
 
-export async function setPrivacyMode(enabled: boolean, mode?: 'local-only' | 'zero-retention', confirmGroqZdr?: boolean): Promise<PrivacyModeStatus> {
+export async function setPrivacyMode(enabled: boolean, mode?: 'local-only' | 'zero-retention', confirmGroqZdr?: boolean, autoSelect = true): Promise<PrivacyModeStatus> {
   status = await invoke<PrivacyModeStatus>('set_privacy_mode', { enabled, mode, confirmGroqZdr })
   KNAnalytics.setPrivacyMode(status.enabled)
   if (status.enabled) Sentry.close()
+  window.dispatchEvent(new Event('privacy-mode-changed'))
+  if (autoSelect) status = { ...status, provider_selection: await selectPrivacyProvider(status.inference) }
   window.dispatchEvent(new Event('privacy-mode-changed'))
   return status
 }

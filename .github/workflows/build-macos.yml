@@ -38,6 +38,10 @@ jobs:
         working-directory: src
         run: npm run test:meeting-recording-routing && npm run test:dev-intent
 
+      - name: Test calendar context, local speech, privacy selection, and queued steering
+        working-directory: src
+        run: node --test scripts/calendar-chat-context.test.cjs scripts/local-speech-ui.test.cjs scripts/privacy-provider-selection.test.cjs scripts/chat-steer.test.cjs
+
       - name: Create .env from example
         working-directory: src
         run: cp .env.example .env

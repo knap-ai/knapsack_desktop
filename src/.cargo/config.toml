@@ -1,0 +1,3 @@
+# Build portable speech kernels; do not require the CI host CPU on user devices.
+[env]
+GGML_NATIVE = "OFF"

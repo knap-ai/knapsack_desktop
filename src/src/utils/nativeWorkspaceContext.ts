@@ -2,6 +2,7 @@
 export function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
   if (/\b(browser|website|web\s+ui|tab)\b|\b(click|navigate)\b/i.test(text)) return false
   return /\b(emails?|gmail|inbox|newsletters?|notifications?|calendar|schedule|meetings?|commitments?|priorities|relationships?|opportunities|follow[ -]?ups?|follow up|work patterns|reactive)\b/i.test(text)
+    || /\b(prepare|prep|plan|brief|ready)\b.*\b(today|tomorrow|week|weekend)\b/i.test(text)
     || /\bwhat(?:'s| is|s)? (?:going on|happening|on)\b.*\b(today|tomorrow|week)\b/i.test(text)
 }
 

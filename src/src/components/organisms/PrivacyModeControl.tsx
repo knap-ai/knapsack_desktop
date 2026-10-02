@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { open } from '@tauri-apps/api/shell'
 import { Dialog } from 'src/components/molecules/Dialog'
+import LocalSpeechSetup from './LocalSpeechSetup'
 import PrivacySetup from 'src/pages/onboarding/PrivacySetup'
 import { initializePrivacyMode, privacyModeStatus, setPrivacyMode } from 'src/utils/privacyMode'
 
@@ -15,8 +16,10 @@ export default function PrivacyModeControl() {
   useEffect(() => {
     const update = () => setStatus(privacyModeStatus())
     window.addEventListener('privacy-mode-changed', update)
+    const openSetup = () => setSetup(true)
+    window.addEventListener('open-privacy-setup', openSetup)
     initializePrivacyMode().finally(() => setBusy(false))
-    return () => window.removeEventListener('privacy-mode-changed', update)
+    return () => { window.removeEventListener('privacy-mode-changed', update); window.removeEventListener('open-privacy-setup', openSetup) }
   }, [])
   const save = async (enabled: boolean, nextMode: Mode = mode, confirmGroq?: boolean) => {
     setBusy(true); setError('')
@@ -34,7 +37,7 @@ export default function PrivacyModeControl() {
       if (!connections[provider === 'knapsack' ? 'has_knapsack' : provider === 'groq' ? 'has_groq_key' : 'has_trustedrouter_key']) {
         throw new Error('Connect this provider in AI Provider settings first, then return here.')
       }
-      await setPrivacyMode(true, 'zero-retention', provider === 'groq' ? groqConfirmed : undefined)
+      await setPrivacyMode(true, 'zero-retention', provider === 'groq' ? groqConfirmed : undefined, false)
       const response = await fetch('http://127.0.0.1:8897/api/clawd/service/set-api-key', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, key: '', model: provider === 'knapsack' ? 'auto' : provider === 'trustedrouter' ? 'trustedrouter/zdr' : 'openai/gpt-oss-120b' }),
@@ -72,12 +75,14 @@ export default function PrivacyModeControl() {
           <button disabled={busy} className="rounded border px-3 py-2" onClick={() => void useCloud('knapsack')}>Use Knapsack</button>
           <p className="text-sm">Knapsack provides end-to-end zero-retention inference through your signed-in account.</p>
         </div>}
-        {status.enabled && mode === 'local-only' && <PrivacySetup embedded onNext={() => setSetup(false)} onLearnMore={() => {}} />}
+        {status.enabled && mode === 'local-only' && <><LocalSpeechSetup /><PrivacySetup embedded onNext={() => setSetup(false)} onLearnMore={() => {}} /></>}
         <details className="text-sm text-zinc-600 space-y-2">
           <summary className="cursor-pointer font-semibold">What Privacy Mode covers</summary>
           <p>Connected email, calendar, Slack and websites still contact their services when you use them. Privacy Mode disables analytics; restart Knapsack to stop native crash reporting for this session.</p>
-          <p>Background media analysis, generated audio and remote memory embeddings stop until they have an approved private route. In zero-retention mode, desktop voice transcription can use your confirmed Groq connection; spoken replies use your device’s voice. On-device mode currently requires typed chat.</p>
+          <p>Background media analysis, generated audio and remote memory embeddings stop until they have an approved private route. In zero-retention mode, desktop voice transcription can use your confirmed Groq connection; spoken replies use your device’s voice. On-device voice input and meeting transcription use the downloaded speech model.</p>
         </details>
+        {status.provider_selection && <p role="status">AI provider selected: {status.provider_selection === 'ollama' ? 'On-device Ollama' : status.provider_selection}.</p>}
+        {status.provider_selection === null && <p role="status">Privacy settings saved. Set up an eligible provider here to start using AI.</p>}
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <button className="rounded border px-4 py-2" onClick={() => setSetup(false)}>Done</button>
       </div>

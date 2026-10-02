@@ -21,7 +21,7 @@ struct SttProvider {
   model: &'static str,
 }
 
-const LOCAL_ONLY_TRANSCRIPTION_ERROR: &str = "On-device-only Privacy Mode blocks cloud transcription, and local meeting transcription is not configured. To transcribe with Knapsack, choose Zero-retention cloud in the Privacy control, then Use Knapsack. Untranscribed audio stays on this device.";
+const LOCAL_ONLY_TRANSCRIPTION_ERROR: &str = crate::local_speech::SETUP_MESSAGE;
 
 fn push_unique_provider(
   providers: &mut Vec<SttProvider>,
@@ -153,6 +153,9 @@ pub fn transcription_error(filename: &str) -> Option<String> {
   TRANSCRIPTION_ERRORS.lock().unwrap().get(filename).cloned().or_else(transcription_readiness_error)
 }
 pub fn transcription_readiness_error() -> Option<String> {
+  if crate::privacy_mode::is_local_only() {
+    return if crate::local_speech::ready() { None } else { Some(LOCAL_ONLY_TRANSCRIPTION_ERROR.into()) };
+  }
   resolve_stt_providers().err().map(|e| match e {
     LLMError::ChatCompletionFailed(message) => message,
     other => other.to_string(),
@@ -361,6 +364,11 @@ async fn speech_to_text(
 }
 
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
+  if crate::privacy_mode::is_local_only() {
+    let text = crate::local_speech::transcribe_meeting(audio_file.clone()).await
+      .map_err(|message| LLMError::ChatCompletionFailed(message))?;
+    return persist_chunk_transcript(&filename, &text);
+  }
   let providers = resolve_stt_providers()?;
   log::info!(
     "[transcribe] STT provider order: {}",
@@ -376,26 +384,7 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
     log::info!("[transcribe] Using {} for speech-to-text", provider.name);
     match speech_to_text(provider, audio_file, None, Some(0.0)).await {
       Ok(transcription) => {
-        log::debug!(
-          "------------------ {} Transcribed text: {}",
-          provider.name,
-          transcription
-        );
-        let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-        let knapsack_data_dir = home_dir.join(".knapsack");
-        let transcripts_dir = knapsack_data_dir.join("transcripts");
-        fs::create_dir_all(&transcripts_dir)?;
-
-        let transcript_path = transcripts_dir.join(&filename);
-        let mut file = OpenOptions::new()
-          .create(true)
-          .append(true)
-          .open(&transcript_path)?;
-        file.write_all(transcription.as_bytes())?;
-        file.write_all(b"\n ---END-CHUNK---")?;
-        file.write_all(b"\n")?;
-        log::debug!("WROTE TRANSCRIPT: {:?}", transcript_path);
-        return Ok(());
+        return persist_chunk_transcript(&filename, &transcription);
       }
       Err(e) => {
         let err_str = e.to_string();
@@ -431,9 +420,26 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
   )
 }
 
+fn persist_chunk_transcript(filename: &str, text: &str) -> Result<(), Error> {
+  let dir = dirs::home_dir().ok_or_else(|| Error::KSError("No home directory".into()))?.join(".knapsack/transcripts");
+  fs::create_dir_all(&dir)?;
+  let mut file = OpenOptions::new().create(true).append(true).open(dir.join(filename))?;
+  file.write_all(text.as_bytes())?;
+  file.write_all(b"\n ---END-CHUNK---\n")?;
+  Ok(())
+}
+
 /// Bound queue admission as well as the network work. Audio must be saved before
 /// calling this helper, so a saturated provider never loses captured samples.
 pub async fn finalize_live_chunk(audio_filename: String, transcript_filename: String, semaphore: &tokio::sync::Semaphore) {
+  // Local recognition can take longer than the live capture cadence. Keep
+  // queued chunks in the completion barrier instead of abandoning them.
+  if crate::privacy_mode::is_local_only() {
+    if let Ok(_permit) = semaphore.acquire().await {
+      finalize_chunk(audio_filename, transcript_filename).await;
+    }
+    return;
+  }
   match tokio::time::timeout(Duration::from_secs(5), semaphore.acquire()).await {
     Ok(Ok(_permit)) => finalize_chunk(audio_filename, transcript_filename).await,
     _ => {
@@ -448,8 +454,14 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
   let knapsack_data_dir = home_dir.join(".knapsack");
   let flac_path = knapsack_data_dir.join("audio");
   let audio_path = flac_path.join(&audio_filename);
-  let result = tokio::time::timeout(Duration::from_secs(20), transcribe_audio(&audio_path, transcript_filename.clone())).await
-    .unwrap_or_else(|_| Err(LLMError::ChatCompletionFailed("Transcription timed out; audio is saved locally. Check your connection or transcription provider.".into()).into()));
+  // A blocking local recognizer cannot be cancelled by dropping its future.
+  // Await it so Stop's completion barrier includes the persisted transcript.
+  let result = if crate::privacy_mode::is_local_only() {
+    transcribe_audio(&audio_path, transcript_filename.clone()).await
+  } else {
+    tokio::time::timeout(Duration::from_secs(20), transcribe_audio(&audio_path, transcript_filename.clone())).await
+      .unwrap_or_else(|_| Err(LLMError::ChatCompletionFailed("Transcription timed out; audio is saved locally. Check your connection or transcription provider.".into()).into()))
+  };
   // Only clear a previous failure once this stream has transcribed and saved
   // a chunk successfully. Microphone activity alone is not recovery evidence.
   record_transcription_result(&transcript_filename, &result);
@@ -582,7 +594,15 @@ pub fn unify_transcript(
   let input_content = read_file_content(input_path)?;
   let output_content = read_file_content(output_path)?;
 
-  let merged_content = merge_transcripts(&input_content, &output_content);
+  let new_content = merge_transcripts(&input_content, &output_content);
+  let previous_content = read_file_content(transcript_path)?;
+  let merged_content = if previous_content.trim().is_empty() {
+    new_content
+  } else if new_content.trim().is_empty() {
+    previous_content
+  } else {
+    format!("{}\n{}", previous_content.trim_end(), new_content)
+  };
 
   write_merged_content(transcript_path, &merged_content)?;
 
@@ -596,7 +616,8 @@ fn read_file_content(path: &Path) -> Result<String, Error> {
       let content: String = reader.lines().collect::<Result<Vec<_>, _>>()?.join("\n");
       Ok(content)
     }
-    Err(e) => Ok(String::new()),
+    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+    Err(e) => Err(e.into()),
   }
 }
 
@@ -672,13 +693,11 @@ fn merge_transcripts(input: &str, output: &str) -> String {
 }
 
 fn write_merged_content(path: &Path, content: &str) -> Result<(), Error> {
-  let mut file = OpenOptions::new()
-    .write(true)
-    .truncate(true)
-    .create(true)
-    .open(path)?;
-
-  file.write_all(content.as_bytes())?;
+  let parent = path.parent().ok_or_else(|| Error::KSError("Transcript path has no parent".into()))?;
+  let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+  temporary.write_all(content.as_bytes())?;
+  temporary.as_file().sync_all()?;
+  temporary.persist(path).map_err(|error| Error::KSError(format!("Could not save transcript: {}", error.error)))?;
   Ok(())
 }
 
@@ -687,6 +706,22 @@ mod tests {
   use super::*;
   use std::io::Read as IoRead;
   use tempfile::TempDir;
+
+  #[test]
+  fn restarted_capture_preserves_existing_transcript_even_when_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("new-input.txt");
+    let output = dir.path().join("new-output.txt");
+    let final_path = dir.path().join("saved.txt");
+    std::fs::write(&final_path, "Original meeting transcript").unwrap();
+    unify_transcript(input.to_str().unwrap(), output.to_str().unwrap(), final_path.to_str().unwrap()).unwrap();
+    assert_eq!(std::fs::read_to_string(&final_path).unwrap(), "Original meeting transcript");
+    std::fs::write(&input, "[0.00 - 2.00]: resumed conversation\n ---END-CHUNK---\n").unwrap();
+    unify_transcript(input.to_str().unwrap(), output.to_str().unwrap(), final_path.to_str().unwrap()).unwrap();
+    let saved = std::fs::read_to_string(final_path).unwrap();
+    assert!(saved.starts_with("Original meeting transcript"));
+    assert!(saved.contains("resumed conversation"));
+  }
 
   #[test]
   fn knapsack_chat_without_speech_credentials_reports_missing_transcription() {

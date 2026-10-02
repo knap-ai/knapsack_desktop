@@ -161,6 +161,8 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml clawd::service -- --nocapture
           cargo test --manifest-path src-tauri/Cargo.toml clawd::follow_through -- --nocapture
           cargo test --manifest-path src-tauri/Cargo.toml audio::audio::tests -- --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml audio::transcribe::tests -- --test-threads=1
+          cargo test --manifest-path src-tauri/Cargo.toml local_speech::tests -- --test-threads=1
           cargo test --manifest-path src-tauri/Cargo.toml audio::permission::resource_tests -- --test-threads=1
           cargo test --manifest-path src-tauri/Cargo.toml utils::runtime::tests -- --test-threads=1
           cargo test --manifest-path src-tauri/Cargo.toml llm::use_cases::gemini_oauth -- --nocapture

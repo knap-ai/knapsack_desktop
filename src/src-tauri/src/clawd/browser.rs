@@ -3437,6 +3437,20 @@ pub async fn terminal_output(
   }))
 }
 
+#[post("/api/clawd/agent-steer")]
+pub async fn agent_steer(body: web::Json<JsonValue>) -> impl Responder {
+  let session = body.get("sessionId").and_then(JsonValue::as_str).unwrap_or("");
+  let text = body.get("text").and_then(JsonValue::as_str).unwrap_or("");
+  let id = body.get("idempotencyKey").and_then(JsonValue::as_str).unwrap_or("");
+  if session.is_empty() || session.len() > 200 || text.trim().is_empty() || text.len() > 16000 || id.is_empty() || id.len() > 200 {
+    return HttpResponse::BadRequest().json(serde_json::json!({"accepted": false, "message": "Invalid queued prompt"}));
+  }
+  match super::gateway_client::steer_chat_session(&harness::openclaw_session_key(session), text, id).await {
+    Ok(result) => HttpResponse::Ok().json(result),
+    Err(_) => HttpResponse::Conflict().json(serde_json::json!({"accepted": false, "message": "This turn cannot accept steering right now. Your prompt is still queued."})),
+  }
+}
+
 /// Send a chat message through the configured agent harness.
 ///
 /// OpenClaw remains the default and shares the same session as connected

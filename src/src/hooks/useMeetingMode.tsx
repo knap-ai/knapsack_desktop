@@ -222,9 +222,11 @@ It's highly likely that the company names mentioned in the transcript appear in 
             additionalInfo: 'error getTranscript',
             error: 'Transcript is undefined or null',
           })
-          setIsLLMLoading(false)
-          setSynthesisPhase('idle')
-          return
+          throw new Error('The meeting transcript is not available yet. Existing notes have been preserved.')
+        }
+
+        if (!transcript.content?.trim() && !userNotes.trim()) {
+          throw new Error('No transcript text or notes are available for this meeting yet. Your existing notes have been preserved; try again after transcription finishes.')
         }
 
         const shouldSave = await shouldSaveTranscript()

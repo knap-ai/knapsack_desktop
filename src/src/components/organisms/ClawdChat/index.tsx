@@ -1,3 +1,5 @@
+import { logError } from 'src/utils/errorHandling'
+import { localSystemVoice, getLocalSpeechStatus, transcribeLocalAudio } from 'src/utils/localSpeech'
 import { notificationDisplayText, notificationContextText, editedQueuedMessage } from 'src/utils/notificationReply'
 import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
@@ -1125,6 +1127,42 @@ async function fetchEmailCalendarContext(
   const contextParts: string[] = []
   let hasConnectedData = false
 
+  // Fetch all synced calendar accounts for the requested period before email context.
+  try {
+    const range = nativeCalendarRange(request)
+    const todayEvents = await getCalendarEvents(
+      Math.floor(range.start.getTime() / 1000),
+      Math.floor(range.end.getTime() / 1000) - 1,
+    )
+    contextParts.push(`\n## ${range.label}\nUse these freshly queried calendar records for the requested period, rather than older conversation claims. Include work and personal calendars unless the user requests a specific account or organization; use Calendar account and attendees to identify it. Do not treat a calendar entry as proof that tickets were purchased.\nRange: ${range.start.toLocaleString()} through ${range.end.toLocaleString()} (exclusive). Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`)
+    if (!todayEvents?.length) {
+      contextParts.push('The native calendar query returned no synced events for this range. This does not establish whether remote calendars contain unsynced events; check a connected Calendar API if needed.')
+    }
+
+    if (todayEvents?.length) {
+      hasConnectedData = true
+      for (const event of todayEvents.slice(0, 100)) {
+        const startTime = event.start
+          ? dayjs(event.start * 1000).format('ddd MMM D, h:mm A')
+          : 'TBD'
+        const endTime = event.end
+          ? dayjs(event.end * 1000).format('h:mm A')
+          : 'TBD'
+        let attendees = 'N/A'
+        try {
+          const values = JSON.parse(event.attendees_json || '[]')
+          if (Array.isArray(values)) attendees = values.map((a: any) => typeof a === 'string' ? a : [a.name, a.email].filter(Boolean).join(' ')).join(', ') || 'N/A'
+        } catch { /* A malformed attendee field must not hide the other events. */ }
+        contextParts.push(
+          `- **${event.title || 'Untitled'}** (${startTime} - ${endTime}) | Calendar account: ${event.calendar_account_email || 'unknown'} | Attendees: ${attendees}\n`,
+        )
+      }
+    }
+  } catch (err) {
+    console.warn('[ClawdChat] Failed to pre-fetch calendar:', err)
+    contextParts.push('The native calendar query failed. Try a connected Calendar API; this is not evidence of a browser authentication problem.')
+  }
+
   // Fetch recent emails (last 2 days, up to 15)
   try {
     const emails = await dataFetcher.getRecentGmailMessages(2, 15, nativeEmailConnected)
@@ -1152,42 +1190,6 @@ async function fetchEmailCalendarContext(
 - A Gmail or Outlook account is connected, but Knapsack's native email query failed: ${err instanceof Error ? err.message : String(err)}
 - Do not open Gmail in the browser, ask for a password, or claim Google requested verification. Report this as a Knapsack connection/query error.`)
     }
-  }
-
-  // Fetch today's calendar events
-  try {
-    const range = nativeCalendarRange(request)
-    const todayEvents = await getCalendarEvents(
-      Math.floor(range.start.getTime() / 1000),
-      Math.floor(range.end.getTime() / 1000) - 1,
-    )
-    contextParts.push(`\n## ${range.label}\nRange: ${range.start.toLocaleString()} through ${range.end.toLocaleString()} (exclusive). Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`)
-    if (!todayEvents?.length) {
-      contextParts.push('The native calendar query returned no synced events for this range. This does not establish whether remote calendars contain unsynced events; check a connected Calendar API if needed.')
-    }
-
-    if (todayEvents?.length) {
-      hasConnectedData = true
-      for (const event of todayEvents.slice(0, 100)) {
-        const startTime = event.start
-          ? dayjs(event.start * 1000).format('ddd MMM D, h:mm A')
-          : 'TBD'
-        const endTime = event.end
-          ? dayjs(event.end * 1000).format('h:mm A')
-          : 'TBD'
-        const attendees = event.attendees_json
-          ? JSON.parse(event.attendees_json)
-              .map((a: any) => a.name || a.email || a)
-              .join(', ')
-          : 'N/A'
-        contextParts.push(
-          `- **${event.title || 'Untitled'}** (${startTime} - ${endTime}) | Attendees: ${attendees}\n`,
-        )
-      }
-    }
-  } catch (err) {
-    console.warn('[ClawdChat] Failed to pre-fetch calendar:', err)
-    contextParts.push('The native calendar query failed. Try a connected Calendar API; this is not evidence of a browser authentication problem.')
   }
 
   // Fetch upcoming meetings (next 3)
@@ -2016,6 +2018,8 @@ interface ClawdChatProps {
   setupTask?: string
   /** Re-applies an unchanged prefill when an external action is launched again. */
   initialInputKey?: number
+  submitRequest?: { id: number; text: string }
+  onSubmitRequestAccepted?: (id: number) => void
   /** Extra context prepended to model/gateway requests without displaying it as the user's message. */
   contextPrefix?: string
   /** Render with a tighter header for embedded surfaces. */
@@ -2041,7 +2045,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -2095,6 +2099,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
   const queuedMessagesRef = useRef<QueuedDraft[]>([])
+  const [steeringQueued, setSteeringQueued] = useState(false)
+  const steeringQueuedRef = useRef(false)
+  const [queueSteerMessage, setQueueSteerMessage] = useState('')
+  const queuedSteerIds = useRef(new WeakMap<QueuedDraft, string>())
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
   const [queuedMessages, setQueuedMessages] = useState<QueuedDraft[]>([])
   const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
@@ -2165,6 +2173,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [confirmedProvider, setConfirmedProvider] = useState<Provider>(() => {
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
+  const [confirmedModelId, setConfirmedModelId] = useState('')
   const [savingKey, setSavingKey] = useState(false)
 
   // Model picker tab state: 'providers' or 'costs'
@@ -2620,61 +2629,52 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         if (keyStatus.has_key) {
           setHasCompletedOnboarding(true)
         if (keyStatus.model && keyStatus.active_provider) {
-          // Only use backend model if the user hasn't made a local choice yet.
+          // The backend reports the effective route after privacy policy is applied.
           const activeProvider = keyStatus.active_provider as Provider
           const backendModel = keyStatus.model
           if (activeProvider === 'openai') {
-            const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
-            if (!localModel) {
+            {
               const normalizedModel = normalizeOpenAIModelSelection(backendModel)
               setSelectedModel(normalizedModel)
               localStorage.setItem(OPENAI_MODEL_STORAGE, normalizedModel)
             }
           } else if (activeProvider === 'anthropic') {
-            const localModel = localStorage.getItem(ANTHROPIC_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedAnthropicModel(backendModel)
               localStorage.setItem(ANTHROPIC_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'gemini') {
-            const localModel = localStorage.getItem(GEMINI_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedGeminiModel(backendModel)
               localStorage.setItem(GEMINI_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'groq') {
-            const localModel = localStorage.getItem(GROQ_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedGroqModel(backendModel)
               localStorage.setItem(GROQ_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'xai') {
-            const localModel = localStorage.getItem(XAI_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedXaiModel(backendModel)
               localStorage.setItem(XAI_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'openrouter') {
-            const localModel = localStorage.getItem(OPENROUTER_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedOpenRouterModel(backendModel)
               localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'trustedrouter') {
-            const localModel = localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedTrustedRouterModel(backendModel)
               localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'ollama') {
-            const localModel = localStorage.getItem(OLLAMA_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedOllamaModel(backendModel)
               localStorage.setItem(OLLAMA_MODEL_STORAGE, backendModel)
             }
           } else if (activeProvider === 'knapsack') {
-            const localModel = localStorage.getItem(KNAPSACK_MODEL_STORAGE)
-            if (!localModel) {
+            {
               setSelectedKnapsackModel(backendModel)
               localStorage.setItem(KNAPSACK_MODEL_STORAGE, backendModel)
             }
@@ -2683,6 +2683,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         if (keyStatus.active_provider) {
           setSelectedProvider(keyStatus.active_provider as Provider)
           setConfirmedProvider(keyStatus.active_provider as Provider)
+          setConfirmedModelId(keyStatus.model || '')
           localStorage.setItem(ACTIVE_PROVIDER_STORAGE, keyStatus.active_provider)
         }
         // Store masked key hints for placeholders
@@ -3029,6 +3030,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     const startToken = ++voiceStartTokenRef.current
     setIsStartingRecording(true)
     try {
+      if (privacyModeStatus().inference === 'local-only' && !(await getLocalSpeechStatus()).ready) {
+        window.dispatchEvent(new Event('open-privacy-setup'))
+        return
+      }
       stopCurrentAudio()
       const constraints: MediaStreamConstraints = {
         audio: selectedInputDevice ? { deviceId: { exact: selectedInputDevice } } : true
@@ -3303,23 +3308,23 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     voiceTranscriptionAbortRef.current = controller
     setIsTranscribing(true)
     try {
+      let data: { text: string }
       if (privacyModeStatus().inference === 'local-only') {
-        pushAssistantRef.current?.('Voice transcription uses a cloud provider and is disabled in Privacy Mode. You can type your message instead.')
-        return
+        data = { text: await transcribeLocalAudio(audioBlob, controller.signal) }
+      } else {
+        const speechAuthCandidates = await getSpeechToTextAuthCandidates()
+        if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
+        if (speechAuthCandidates.length === 0) {
+          pushAssistantRef.current?.('Voice input needs a speech provider. Add Groq or OpenAI in Settings, or set up on-device speech in Privacy.')
+          setShowKeyPrompt(true)
+          return
+        }
+        const result = await transcribeWithFallback(audioBlob, extension, speechAuthCandidates,
+          controller.signal, () => privacyModeStatus().inference === 'local-only', 20_000,
+          async auth => { await invoke('authorize_private_inference', { provider: auth.provider, model: auth.model, endpoint: auth.endpoint, credential: auth.apiKey }) })
+        data = { text: result.text }
+        _cachedSpeechToTextAuth = result.auth
       }
-      const speechAuthCandidates = await getSpeechToTextAuthCandidates()
-      if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
-      if (speechAuthCandidates.length === 0) {
-        pushAssistantRef.current?.('🎤 Voice input needs an OpenAI or Groq API key right now. Add one in Settings → AI Provider to use speech-to-text.')
-        setShowKeyPrompt(true)
-        return
-      }
-
-      const result = await transcribeWithFallback(audioBlob, extension, speechAuthCandidates,
-        controller.signal, () => privacyModeStatus().inference === 'local-only', 20_000,
-        async auth => { await invoke('authorize_private_inference', { provider: auth.provider, model: auth.model, endpoint: auth.endpoint, credential: auth.apiKey }) })
-      const data = { text: result.text }
-      _cachedSpeechToTextAuth = result.auth
       if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
@@ -3331,7 +3336,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       if (controller.signal.aborted || voiceTranscriptionTokenRef.current !== transcriptionToken) return
       const raw = e?.message || String(e)
       const lower = raw.toLowerCase()
-      if (lower.includes('privacy mode')) {
+      if (privacyModeStatus().inference === 'local-only') {
+        pushAssistantRef.current?.(`On-device speech: ${raw}`)
+        window.dispatchEvent(new Event('open-privacy-setup'))
+      } else if (lower.includes('privacy mode')) {
         pushAssistantRef.current?.('Cloud transcription is disabled in Privacy Mode. You can type your message instead.')
       } else if (lower.includes('http 429')) {
         pushAssistantRef.current?.('Speech providers are busy or at their usage limit. Please try again shortly.')
@@ -3759,9 +3767,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           setIsKnapsackConnecting(false)
           setKnapsackConnectError(null)
           setStudioConnectedLabels([])
-          setSelectedProvider('knapsack')
-          setConfirmedProvider('knapsack')
-          localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+          window.dispatchEvent(new Event('provider-settings-changed'))
           setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
           pushAssistant(`Connected to Knapsack as **${email}**.`)
         },
@@ -3895,11 +3901,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     }
   }, [])
 
+  const providerSyncSequence = useRef(0)
   const syncProviderSelectionFromBackend = useCallback(async () => {
+    const sequence = ++providerSyncSequence.current
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
         timeoutMs: 4000,
       })
+      if (sequence !== providerSyncSequence.current) return
       setHasCompletedOnboarding(Boolean(keyStatus.has_key))
       setKeyHints({
         openai: keyStatus.openai_key_hint,
@@ -3933,6 +3942,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       if (activeProvider) {
         setSelectedProvider(activeProvider)
         setConfirmedProvider(activeProvider)
+        setConfirmedModelId(keyStatus.model || '')
         localStorage.setItem(ACTIVE_PROVIDER_STORAGE, activeProvider)
       }
 
@@ -3988,7 +3998,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   useEffect(() => {
     const refresh = () => { void syncProviderSelectionFromBackend() }
     window.addEventListener('provider-settings-changed', refresh)
-    return () => window.removeEventListener('provider-settings-changed', refresh)
+    window.addEventListener('privacy-mode-changed', refresh)
+    return () => { window.removeEventListener('provider-settings-changed', refresh); window.removeEventListener('privacy-mode-changed', refresh) }
   }, [syncProviderSelectionFromBackend])
 
   // Persisted chats remain mounted so background requests can finish. Refresh
@@ -4040,6 +4051,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       setOllamaCloudApiKey('')
       setSelectedProvider('ollama')
       setConfirmedProvider('ollama')
+      setConfirmedModelId(selectedOllamaModel)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'ollama')
       await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
@@ -4104,6 +4116,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
       setSelectedProvider(selectedProvider)
       setConfirmedProvider(selectedProvider)
+      setConfirmedModelId(modelForProvider || '')
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
       await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
@@ -4200,6 +4213,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
       setSelectedProvider(providerId)
       setConfirmedProvider(providerId)
+      setConfirmedModelId(modelForProvider || '')
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, providerId)
       await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
@@ -4681,7 +4695,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
         .slice(0, 1200)
 
-      const speakWithSystemVoice = () => {
+      const speakWithSystemVoice = async () => {
         if (
           !cleanText
           || typeof window === 'undefined'
@@ -4693,6 +4707,15 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           || meetingQuietModeRef.current
         ) return
         const utterance = new SpeechSynthesisUtterance(cleanText)
+        if (privacyModeStatus().enabled) {
+          const voice = await localSystemVoice()
+          if (voicePlaybackTokenRef.current !== playbackToken || !voiceSessionOpenRef.current) return
+          if (!voice) {
+            logError(new Error('Spoken replies need an installed device voice. Add a voice in your system accessibility speech settings; text replies remain available.'), {}, true)
+            return // Never let the browser choose a remote voice in private mode.
+          }
+          utterance.voice = voice
+        }
         currentSpeechRef.current = utterance
         utterance.onstart = () => {
           if (currentSpeechRef.current === utterance) setIsSpeaking(true)
@@ -4887,6 +4910,15 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     selectedKnapsackModel, selectedOllamaModel, selectedModel, selectedAnthropicModel,
     selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel,
     selectedTrustedRouterModel])
+
+  const submittedRequest = useRef<number | null>(null)
+  useEffect(() => {
+    if (!submitRequest || submittedRequest.current === submitRequest.id || !active || busy || !hasCompletedOnboarding || !health?.gateway_ok) return
+    if (!handleSendWithTextRef.current) return
+    submittedRequest.current = submitRequest.id
+    onSubmitRequestAccepted?.(submitRequest.id)
+    void handleSendWithTextRef.current(submitRequest.text)
+  }, [submitRequest, active, busy, hasCompletedOnboarding, health?.gateway_ok, onSubmitRequestAccepted])
 
   const setupTaskSent = useRef(false)
   useEffect(() => {
@@ -6162,20 +6194,47 @@ ${actualText}`
   // Keep queueMessageRef updated so handleSendWithText can queue mid-inference
   queueMessageRef.current = stableQueueMessage
 
-  // Drain queued messages one at a time when busy transitions from true → false
-  const prevBusyRef = useRef(false)
+  const steerQueuedPrompt = async (queued: QueuedDraft) => {
+    if (steeringQueuedRef.current || !busy) return
+    if (queued.attachments.length) { setQueueSteerMessage('Keep attached files queued for a separate turn; steering currently supports text.'); return }
+    steeringQueuedRef.current = true
+    setSteeringQueued(true)
+    setQueueSteerMessage('')
+    let id = queuedSteerIds.current.get(queued)
+    if (!id) { id = crypto.randomUUID(); queuedSteerIds.current.set(queued, id) }
+    try {
+      const response = await fetch(apiUrl('/api/clawd/agent-steer'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, text: queued.text, idempotencyKey: id }),
+      })
+      const result = await response.json()
+      if (!response.ok || !result.accepted) throw new Error(result.message || 'This turn cannot accept steering. Your prompt is still queued.')
+      const remaining = queuedMessagesRef.current.filter(item => item !== queued)
+      queuedMessagesRef.current = remaining
+      setQueuedMessages(remaining)
+      setHasQueuedMessage(remaining.length > 0)
+      pushUser(queued.text)
+      setQueueSteerMessage('Applied to the current turn.')
+    } catch (error) { setQueueSteerMessage(error instanceof Error ? error.message : String(error)) }
+    finally { steeringQueuedRef.current = false; setSteeringQueued(false) }
+  }
+
+  // Drain queued messages one at a time after the active turn ends.
   useEffect(() => {
-    if (prevBusyRef.current && !busy && queuedMessagesRef.current.length > 0) {
-      const [next, ...rest] = queuedMessagesRef.current
-      queuedMessagesRef.current = rest
-      setQueuedMessages(rest)
-      setHasQueuedMessage(rest.length > 0)
-      // Short delay to let UI settle before sending next message
-      const timer = setTimeout(() => doSendRef.current?.(next.text, next.attachments), 150)
+    if (!busy && !steeringQueued && queuedMessagesRef.current.length > 0) {
+      // Remove only when dispatch starts; an interrupted timer must not lose a draft.
+      const timer = setTimeout(() => {
+        if (steeringQueuedRef.current || !doSendRef.current) return
+        const [next, ...rest] = queuedMessagesRef.current
+        if (!next) return
+        queuedMessagesRef.current = rest
+        setQueuedMessages(rest)
+        setHasQueuedMessage(rest.length > 0)
+        doSendRef.current(next.text, next.attachments)
+      }, 150)
       return () => clearTimeout(timer)
     }
-    prevBusyRef.current = busy
-  }, [busy])
+  }, [busy, steeringQueued])
 
   // Keyboard shortcuts
   const clearHistoryRef = useRef(clearHistory)
@@ -6466,15 +6525,15 @@ ${actualText}`
             {proactiveMode ? '🔔 Proactive' : '🔕 Reactive'}
           </button>
           <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); setShowChannelsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
-            {confirmedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel || 'Anthropic')
-              : confirmedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
-              : confirmedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
-              : confirmedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
-              : confirmedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
-              : confirmedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
-              : confirmedProvider === 'trustedrouter' ? (TRUSTEDROUTER_MODELS.find(m => m.id === selectedTrustedRouterModel)?.name || selectedTrustedRouterModel || 'TrustedRouter')
-              : confirmedProvider === 'knapsack' ? 'Knapsack'
-              : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
+            {confirmedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'Anthropic')
+              : confirmedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'Gemini')
+              : confirmedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'Groq')
+              : confirmedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'Grok')
+              : confirmedProvider === 'ollama' ? (confirmedModelId || 'Ollama')
+              : confirmedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'OpenRouter')
+              : confirmedProvider === 'trustedrouter' ? (TRUSTEDROUTER_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'TrustedRouter')
+              : confirmedProvider === 'knapsack' ? (KNAPSACK_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'Knapsack')
+              : (OPENAI_MODELS.find(m => m.id === confirmedModelId)?.name || confirmedModelId || 'OpenAI')}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
             Tone: {TONE_OPTIONS.find(t => t.id === selectedTone)?.name || 'Select'}
@@ -6917,6 +6976,7 @@ ${actualText}`
             </div>
           </div>
         )}
+        {queueSteerMessage && <div role="status" className="ClawdQueuedLabel">{queueSteerMessage}</div>}
         {queuedMessages.map((queued, i) => (
           <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
             {editingQueuedIndex === i ? (
@@ -6982,7 +7042,8 @@ ${actualText}`
               <span className="ClawdQueuedLabel">Queued{queuedMessages.length > 1 ? ` (${i + 1} of ${queuedMessages.length})` : ''}</span>
               {editingQueuedIndex !== i && (
                 <div className="ClawdQueuedActions">
-                  <button
+                  <button className="ClawdQueuedActions__btn" disabled={!busy || steeringQueued} title="Apply this queued prompt to the current turn" onClick={() => void steerQueuedPrompt(queued)}>{steeringQueued ? 'Steering…' : 'Steer'}</button>
+                  <button disabled={steeringQueued}
                     className="ClawdQueuedActions__btn"
                     title="Edit queued message"
                     onClick={() => {
@@ -6994,6 +7055,7 @@ ${actualText}`
                   </button>
                   <button
                     className="ClawdQueuedActions__btn ClawdQueuedActions__btn--remove"
+                    disabled={steeringQueued}
                     title="Remove queued message"
                     onClick={() => {
                       const updated = queuedMessagesRef.current.filter((_, idx) => idx !== i)

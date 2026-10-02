@@ -1,3 +1,5 @@
+import { createDesktopSteerHandler } from "./knapsack-chat-steer.js";
+import { d as desktopEnqueueSteer, p as desktopActiveSteerSession } from "./runs-DrbsiywK.js";
 import { a as normalizeLowercaseStringOrEmpty } from "./string-coerce-DyL154ka.js";
 import { a as formatUncaughtError, i as formatErrorMessage } from "./errors-b3ZrCRlt.js";
 import { b as assertNoWindowsNetworkPath, w as safeFileURLToPath } from "./fs-safe-CV86zY9G.js";
@@ -1713,6 +1715,7 @@ function broadcastChatError(params) {
 	params.context.agentRunSeq.delete(params.runId);
 }
 const chatHandlers = {
+	"chat.steer": createDesktopSteerHandler(desktopActiveSteerSession, desktopEnqueueSteer),
 	"chat.history": async ({ params, respond, context }) => {
 		if (!validateChatHistoryParams(params)) {
 			respond(false, void 0, errorShape(ErrorCodes.INVALID_REQUEST, `invalid chat.history params: ${formatValidationErrors(validateChatHistoryParams.errors)}`));

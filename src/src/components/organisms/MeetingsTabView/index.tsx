@@ -22,6 +22,8 @@ import TranscriptView from 'src/components/organisms/TranscriptView'
 import InsightsView from 'src/components/organisms/InsightsView'
 import MeetingTasks from 'src/components/molecules/MeetingTasks'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
+import { KN_API_NOTES } from 'src/utils/constants'
+import { getEventUrl } from 'src/utils/meetingUtils'
 import { formatMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 import { TaskItem } from 'src/components/organisms/CenterWorkspace'
 
@@ -143,11 +145,29 @@ const MeetingsTabView = ({
 
   const selectedMeeting = feed.currentFeedItem()
   const isSelectedMeetingNote = selectedMeeting?.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
+  const notesThread = selectedMeeting?.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
+  const isCurrentRecording = !!notesThread && recordingHandlers.isRecording(notesThread.id)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [copyStatus, setCopyStatus] = useState('')
+  useEffect(() => { setShareOpen(false); setCopyStatus('') }, [notesThread?.id])
+  const shareNotes = async (email: boolean) => {
+    if (!notesThread) return
+    try {
+      const response = await fetch(`${KN_API_NOTES}/${notesThread.id}`)
+      const data = await response.json()
+      const notes = data?.data?.notes
+      if (!response.ok || !data?.data?.exists || !notes?.trim()) throw new Error('No saved notes are available to share yet.')
+      if (email) onEmailClick?.(notes, selectedMeeting?.getCalendarEvent())
+      else { copyToClipboard(formatMeetingNotesForSlack(notes, selectedMeeting?.getTitle?.())); setCopyStatus('Notes copied') }
+      setShareOpen(false)
+    } catch (error) { handleErrorContact(error instanceof Error ? error.message : 'Unable to share notes.') }
+  }
+
 
   // Close templates panel when selected meeting changes
   useEffect(() => {
     setTemplatesState({ isOpen: false })
-  }, [feed.currentFeedItem])
+  }, [notesThread?.id])
 
   // --- Panel handlers (ported from CenterWorkspace) ---
 
@@ -252,7 +272,7 @@ const MeetingsTabView = ({
             </button>
           </div>
           <div className="MeetingsTabView__topbar-center">
-            <button className="MeetingsTabView__topbar-summary">
+            {isCurrentRecording ? <span role="status">Recording privately</span> : <button className="MeetingsTabView__topbar-summary" onClick={() => { if (notesThread) handleOpenTemplates(notesThread) }} title="Choose summary template">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
@@ -260,16 +280,20 @@ const MeetingsTabView = ({
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
-            </button>
+            </button>}
           </div>
-          <div className="MeetingsTabView__topbar-right">
+          <div className="MeetingsTabView__topbar-right" style={{ position: 'relative' }}>
+            {copyStatus && <span role="status">{copyStatus}</span>}
+            {shareOpen && <div className="MeetingsTabView__share-menu">
+              <button onClick={() => void shareNotes(false)}>Copy notes for sharing</button>
+              {onEmailClick && <button onClick={() => void shareNotes(true)}>Draft email with notes</button>}
+              <button onClick={() => setShareOpen(false)}>Close</button>
+            </div>}
             <button
               className="MeetingsTabView__topbar-share"
-              onClick={() => {
-                const notesThread = selectedMeeting.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
-                if (notesThread) handleOpenTranscript(notesThread.id)
-              }}
-              title="View transcript"
+              onClick={() => setShareOpen(value => !value)}
+              aria-expanded={shareOpen}
+              title="Share meeting notes"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -280,15 +304,12 @@ const MeetingsTabView = ({
             <button
               className="MeetingsTabView__topbar-icon"
               onClick={() => {
-                // Copy Slack-ready meeting notes, including an aligned fallback
-                // for tables because Slack has no native Markdown table syntax.
-                const notesThread = selectedMeeting.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
-                const noteContent = notesThread?.messages?.[0]?.text || selectedMeeting.getTitle?.() || ''
-                if (copyToClipboard && noteContent) {
-                  copyToClipboard(formatMeetingNotesForSlack(noteContent, selectedMeeting.getTitle?.()))
-                }
+                const url = getEventUrl(selectedMeeting.getCalendarEvent())
+                if (!url) { handleErrorContact('This meeting has no meeting link to copy. Use Share to copy its notes.'); return }
+                copyToClipboard(url)
+                setCopyStatus('Meeting link copied')
               }}
-              title="Copy notes formatted for Slack"
+              title="Copy meeting link"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />

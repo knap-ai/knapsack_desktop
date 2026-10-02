@@ -361,3 +361,5 @@ $ks-accent: #6474AC;
     }
   }
 }
+
+.MeetingsTabView__share-menu { position: absolute; right: 0; top: 100%; z-index: 30; background: white; border: 1px solid #ddd; border-radius: 10px; padding: 8px; box-shadow: 0 4px 16px #0002; min-width: 210px; display: grid; gap: 6px; button { text-align: left; padding: 8px; border-radius: 6px; &:hover { background: #f3f3f6; } } }

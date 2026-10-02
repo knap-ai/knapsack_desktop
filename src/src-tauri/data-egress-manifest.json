@@ -3,26 +3,90 @@
   "scope": "Knapsack Desktop application-controlled network traffic",
   "privacy_mode": {
     "inference": [
-      {"domain": "127.0.0.1:11434", "purpose": "local Ollama inference", "data": "prompt, context, generated response", "allowed": true}
+      {
+        "domain": "127.0.0.1:11434",
+        "purpose": "local Ollama inference",
+        "data": "prompt, context, generated response",
+        "allowed": true
+      },
+      {
+        "domain": "none",
+        "purpose": "bundled Whisper speech recognition and installed system voices",
+        "data": "local audio and text only",
+        "allowed": true
+      }
     ],
     "telemetry": [
-      {"domain": "*.ingest.sentry.io", "purpose": "crash reporting", "allowed": false},
-      {"domain": "api2.amplitude.com", "purpose": "product analytics", "allowed": false}
+      {
+        "domain": "*.ingest.sentry.io",
+        "purpose": "crash reporting",
+        "allowed": false
+      },
+      {
+        "domain": "api2.amplitude.com",
+        "purpose": "product analytics",
+        "allowed": false
+      }
     ],
     "oauth": [
-      {"domain": "accounts.google.com", "purpose": "direct Google authorization", "allowed": "user-initiated"},
-      {"domain": "oauth2.googleapis.com", "purpose": "direct Google token exchange", "allowed": "user-initiated"},
-      {"domain": "login.microsoftonline.com", "purpose": "Microsoft authorization", "allowed": "user-initiated"}
+      {
+        "domain": "accounts.google.com",
+        "purpose": "direct Google authorization",
+        "allowed": "user-initiated"
+      },
+      {
+        "domain": "oauth2.googleapis.com",
+        "purpose": "direct Google token exchange",
+        "allowed": "user-initiated"
+      },
+      {
+        "domain": "login.microsoftonline.com",
+        "purpose": "Microsoft authorization",
+        "allowed": "user-initiated"
+      },
+      {
+        "domain": "api.knapsack.ai",
+        "purpose": "Google OAuth code exchange and refresh for the configured installed client",
+        "data": "OAuth credentials; no calendar/email content or AI prompts",
+        "allowed": "previously connected account or user-initiated sign-in"
+      }
+    ],
+    "connected_services": [
+      "Google Calendar, Gmail and Drive sync directly to the device",
+      "Microsoft Graph",
+      "Slack and other explicitly connected services"
+    ],
+    "model_downloads": [
+      {
+        "domain": "huggingface.co and its model-download CDN",
+        "purpose": "owner-requested Whisper model download",
+        "data": "download request only; never audio",
+        "allowed": "user-initiated, pinned SHA256"
+      }
+    ],
+    "zero_retention_routes": [
+      "Production Knapsack (owner attestation)",
+      "TrustedRouter dedicated ZDR route",
+      "Groq with key-bound owner confirmation; no hosted-tool models"
     ]
   },
   "normal_mode": {
-    "telemetry": ["*.ingest.sentry.io", "api2.amplitude.com"],
-    "inference": ["provider selected by the user in Settings"],
-    "connected_services": ["Google APIs", "Microsoft Graph", "Slack and explicitly connected services"]
+    "telemetry": [
+      "*.ingest.sentry.io",
+      "api2.amplitude.com"
+    ],
+    "inference": [
+      "provider selected by the user in Settings"
+    ],
+    "connected_services": [
+      "Google APIs",
+      "Microsoft Graph",
+      "Slack and explicitly connected services"
+    ]
   },
   "notes": [
     "Privacy Mode does not infer a provider's contractual Zero Data Retention status from an API key.",
-    "Cloud inference is fail-closed in Privacy Mode until a separately audited deployment attestation is implemented.",
+    "On-device mode blocks cloud inference. Zero-retention mode permits only explicitly qualified routes; connected online services remain available in both modes.",
     "Privacy pilot evidence is stored locally and leaves the computer only when a user explicitly copies and shares it.",
     "User-directed browser navigation is intentionally outside this manifest; it requires an explicit user request."
   ]
