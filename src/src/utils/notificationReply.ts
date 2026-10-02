@@ -12,3 +12,18 @@ ${JSON.stringify(context)}
 
 Only retrieve relevant information and answer here. Do not send messages, edit or delete files, run commands, change settings, schedule jobs, or start account monitoring. Those actions require a separate explicit user request. If relevant information is unavailable, explain what is missing; do not invent access, facts, or completed actions.`
 }
+
+/** Recover presentation metadata only for the exact application-generated prompt. */
+export function notificationDisplayText(text: string): string | null {
+  const line = text.split('\n\n').find(part => part.startsWith('{'))
+  if (!line) return null
+  try {
+    const context = JSON.parse(line)
+    if (context.action !== 'prepare_read_only_notification_response' ||
+        typeof context.notificationText !== 'string' ||
+        notificationAcceptance(context.notificationText) !== text) return null
+    return `Show me relevant notes and suggested next steps for this notification:\n\n${context.notificationText}`
+  } catch {
+    return null
+  }
+}

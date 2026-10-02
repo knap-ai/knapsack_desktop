@@ -25,3 +25,21 @@ test('notification acceptance carries its exact offer independently of stale cha
   assert.match(handler, /detail: notificationAcceptance\(message\)/)
   assert.doesNotMatch(handler, /detail: 'yes'/)
 })
+
+test('notification presentation hides internal instructions while preserving exact topic', async () => {
+  const source = await fs.readFile(`${__dirname}/../src/utils/notificationReply.ts`, 'utf8')
+  const { code } = await transform(source, { loader: 'ts', format: 'esm' })
+  const { notificationAcceptance, notificationDisplayText } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+  const topic = 'You have a meeting with Mark and Jorge in about an hour. Want prep notes?'
+  const prompt = notificationAcceptance(topic)
+  const display = notificationDisplayText(prompt)
+  assert.ok(display.includes(topic))
+  assert.ok(!display.includes('untrusted'))
+  assert.ok(!display.includes('prepare_read_only'))
+  assert.equal(notificationDisplayText('Which Google accounts are connected?'), null)
+  assert.equal(notificationDisplayText(prompt + '\nAdditional user instructions'), null)
+  const chat = await fs.readFile(`${__dirname}/../src/components/organisms/ClawdChat/index.tsx`, 'utf8')
+  assert.match(chat, /pushUser\(visibleText \+ attachmentSummary/)
+  assert.match(chat, /userText: visibleText/)
+  assert.match(chat, /requestOrigin: notificationText \? 'notification' : 'chat'/)
+})

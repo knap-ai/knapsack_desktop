@@ -1,3 +1,4 @@
+import { notificationDisplayText } from 'src/utils/notificationReply'
 import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
@@ -268,6 +269,12 @@ function friendlyError(raw: string, activeModel?: string): string {
   const switchProviderAction = `[Switch to a different model](knapsack://prompt/__open_provider_settings__)`
   const addApiKeyAction = `[Add a backup provider](knapsack://prompt/__open_provider_settings__)`
   const fixApiKeyAction = `[Fix API key in Settings](knapsack://prompt/__open_provider_settings__)`
+
+  // Preserve a known server recovery condition before generic provider errors.
+  if (lower.includes('knapsack inference is temporarily recovering') ||
+      (lower.includes('bedrock') && (lower.includes('recovery probe') || lower.includes('cooldown')))) {
+    return '⚠️ **Knapsack is temporarily recovering.** Its upstream models are waiting to retry after failures. Please try again shortly. Your privacy settings remain enforced.'
+  }
 
   // All providers failed (fallback exhausted)
   if (lower.includes('all fallback providers also failed')) {
@@ -5209,6 +5216,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [voiceEnabled, stopCurrentAudio])
 
   const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
+    const notificationText = notificationDisplayText(text)
+    const visibleText = notificationText ?? text
 
     // A persisted background chat may have stale provider/model state until it
     // becomes active. Wait for that activation refresh before snapshotting the
@@ -5256,7 +5265,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     if (!hasCompletedOnboarding) {
       const hasKey = await checkAndPromptForKey()
       if (!hasKey) {
-        pushUser(text || '(files attached)')
+        pushUser(visibleText || '(files attached)')
         pushAssistant('Please set up an AI provider first. Add an API key or enable Ollama in Settings to get started.')
         return
       }
@@ -5274,7 +5283,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(text + attachmentSummary, currentReplyTo?.id)
+    pushUser(visibleText + attachmentSummary, currentReplyTo?.id)
 
     // --- Developer mode intent detection ---
     if (!developerModeAtSend && detectBuildIntent(text)) {
@@ -5849,7 +5858,8 @@ ${actualText}`
               // Keep the user's unaugmented message separate from trusted
               // connector/persona context so backend intent shortcuts do not
               // mistake context inventory entries for the user's request.
-              userText: text,
+              userText: visibleText,
+              requestOrigin: notificationText ? 'notification' : 'chat',
               sessionId,
               seedHistory: requestBody.seedHistory,
               noFallback: requiresHarness,
@@ -6313,6 +6323,8 @@ ${actualText}`
   // not on every re-render from status/health polling.
   const parsedMsgs = useMemo(() =>
     msgs.map((m, index) => {
+      const notificationText = m.role === 'user' ? notificationDisplayText(m.text) : null
+      if (notificationText) return { msg: { ...m, text: notificationText }, cleaned: notificationText, actions: [] as PromptAction[] }
       if (m.promptActions) {
         return { msg: m, cleaned: m.text, actions: m.promptActions }
       }
@@ -6957,7 +6969,7 @@ ${actualText}`
             ) : (
               <div className="ClawdBubble">
                 <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>
-                  {queued.text || (queued.attachments.length > 0 ? 'Please analyze the attached files.' : '')}
+                  {notificationDisplayText(queued.text) ?? (queued.text || (queued.attachments.length > 0 ? 'Please analyze the attached files.' : ''))}
                 </ReactMarkdown>
                 {queued.attachments.length > 0 && (
                   <div className="ClawdQueuedAttachmentSummary">
@@ -6974,7 +6986,7 @@ ${actualText}`
                     className="ClawdQueuedActions__btn"
                     title="Edit queued message"
                     onClick={() => {
-                      setEditingQueuedText(queued.text)
+                      setEditingQueuedText(notificationDisplayText(queued.text) ?? queued.text)
                       setEditingQueuedIndex(i)
                     }}
                   >
