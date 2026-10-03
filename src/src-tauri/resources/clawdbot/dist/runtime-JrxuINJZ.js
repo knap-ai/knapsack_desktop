@@ -243,6 +243,7 @@ async function runWebSearch(params) {
 	});
 	let lastError;
 	let sawUnavailableProvider = false;
+	let sawMissingCredential = false;
 	for (const candidate of candidates) try {
 		const definition = candidate.createTool({
 			config,
@@ -257,6 +258,7 @@ async function runWebSearch(params) {
 		}
 		const executed = await definition.execute(params.args, { signal: params.signal });
 		if (allowFallback && isStructuredAvailabilityError(executed)) {
+			sawMissingCredential = true;
 			lastError = /* @__PURE__ */ new Error(`web_search provider "${candidate.id}" returned ${executed.error}`);
 			continue;
 		}
@@ -273,7 +275,7 @@ async function runWebSearch(params) {
 		if (browserFallback) return browserFallback;
 		throw new Error("web_search is enabled but no provider is currently available.");
 	}
-	if (lastError instanceof Error && /web_search provider .* is not available|disabled or no provider is available/i.test(lastError.message)) {
+	if (sawMissingCredential || (lastError instanceof Error && /web_search provider .* is not available|disabled or no provider is available/i.test(lastError.message))) {
 		const browserFallback = await runDesktopBrowserWebSearchFallback(params, lastError.message);
 		if (browserFallback) return browserFallback;
 	}

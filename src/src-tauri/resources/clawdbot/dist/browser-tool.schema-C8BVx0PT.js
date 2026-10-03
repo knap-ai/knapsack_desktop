@@ -47,8 +47,8 @@ const BROWSER_SNAPSHOT_REFS = ["role", "aria"];
 const BROWSER_IMAGE_TYPES = ["png", "jpeg"];
 const BrowserActSchema = Type.Object({
 	kind: stringEnum(BROWSER_ACT_KINDS),
-	targetId: Type.Optional(Type.String()),
-	ref: Type.Optional(Type.String()),
+	targetId: Type.Optional(Type.String({ description: "Browser TAB ID from open/tabs. Never put an element ref such as e47 here; element refs belong in ref." })),
+	ref: Type.Optional(Type.String({ description: "ELEMENT reference from the latest snapshot, for example e47. Required for act click/type/hover unless selector is supplied. Keep the browser tab ID in targetId." })),
 	doubleClick: Type.Optional(Type.Boolean()),
 	button: Type.Optional(Type.String()),
 	modifiers: Type.Optional(Type.Array(Type.String())),
@@ -75,12 +75,12 @@ const BrowserActSchema = Type.Object({
 });
 const BrowserToolSchema = Type.Object({
 	action: stringEnum(BROWSER_TOOL_ACTIONS),
-	target: optionalStringEnum(BROWSER_TARGETS),
+	target: optionalStringEnum(BROWSER_TARGETS, { description: "Execution environment only: sandbox, host, or node. Omit to use the configured default. NEVER put a browser tab ID or 'current' here; use targetId for a tab." }),
 	node: Type.Optional(Type.String()),
 	profile: Type.Optional(Type.String()),
 	targetUrl: Type.Optional(Type.String()),
 	url: Type.Optional(Type.String()),
-	targetId: Type.Optional(Type.String()),
+	targetId: Type.Optional(Type.String({ description: "Browser tab ID returned by open or tabs (including suggestedTargetId). Use this field, not target, to select a tab for snapshot, navigate, or act. NEVER put an element ref such as e47 here; use ref for elements." })),
 	label: Type.Optional(Type.String()),
 	limit: Type.Optional(Type.Number()),
 	maxChars: Type.Optional(Type.Number()),
@@ -95,7 +95,7 @@ const BrowserToolSchema = Type.Object({
 	labels: Type.Optional(Type.Boolean()),
 	urls: Type.Optional(Type.Boolean()),
 	fullPage: Type.Optional(Type.Boolean()),
-	ref: Type.Optional(Type.String()),
+	ref: Type.Optional(Type.String({ description: "ELEMENT reference from the latest snapshot, for example e47. Required for act click/type/hover unless selector is supplied. Keep the browser tab ID in targetId." })),
 	element: Type.Optional(Type.String()),
 	type: optionalStringEnum(BROWSER_IMAGE_TYPES),
 	level: Type.Optional(Type.String()),

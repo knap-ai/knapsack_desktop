@@ -1842,6 +1842,12 @@ async function runConcurrentFeedSmoke(request = () => httpJsonWithTimeout(
     detail: `${passed}/12 concurrent feed requests completed successfully` };
 }
 
+// Local tool turns include multiple inference passes; measured thinking-only
+// models take 70–96 seconds. Keep a bounded budget without weakening evidence.
+function agentCapabilityTimeoutMs(provider) {
+  return provider === "ollama" ? 120_000 : 60_000;
+}
+
 async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
   const startedAt = Date.now();
   const sessionId = `qa-agent-${label}-${require('node:crypto').randomUUID()}`.replace(/[^A-Za-z0-9._-]/g, "-");
@@ -2560,7 +2566,7 @@ async function runMode(mode, opts = {}) {
       const agentFailures = [];
       functionalProgress.agentCapabilities = [];
       for (const capability of agentCapabilityChecks) {
-        const check = await runAgentCapabilitySmoke(capability);
+        const check = await runAgentCapabilitySmoke({ ...capability, timeoutMs: agentCapabilityTimeoutMs(activeAgentCheck?.provider) });
         functionalProgress.agentCapabilities.push(check);
         if (!check.ok) {
           agentFailures.push(`${capability.label}: ${check.detail}`);
@@ -2759,6 +2765,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  agentCapabilityTimeoutMs,
   createMockMeeting,
   waitForRecordingIdle,
   runConcurrentFeedSmoke,
