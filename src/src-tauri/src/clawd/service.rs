@@ -11085,6 +11085,7 @@ fn upsert_ollama_provider_config(
   // Aliases can point to thinking-only weights. Keep their reasoning in the
   // separate thinking channel instead of forcing it into visible answer text.
   if requires_thinking {
+    entry_obj.insert("reasoning".to_string(), serde_json::json!(true));
     let params = entry_obj.entry("params").or_insert_with(|| serde_json::json!({}));
     if let Some(params) = params.as_object_mut() {
       if !params.contains_key("think") && !params.contains_key("thinking") {
@@ -11106,6 +11107,7 @@ mod local_ollama_response_tests {
     let mut cfg = serde_json::json!({});
     upsert_ollama_provider_config(&mut cfg, "http://127.0.0.1:11434", "ollama-local", Some("custom-alias"), Some(32768), true);
     assert_eq!(cfg["models"]["providers"]["ollama"]["models"][0]["params"]["thinking"], true);
+    assert_eq!(cfg["models"]["providers"]["ollama"]["models"][0]["reasoning"], true);
   }
 
   #[test]
