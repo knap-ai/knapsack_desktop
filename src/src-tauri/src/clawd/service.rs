@@ -10967,11 +10967,11 @@ fn parse_ollama_show_context_window(body: &serde_json::Value) -> Option<u64> {
   context_window
 }
 
-async fn fetch_ollama_model_context_window(
+async fn fetch_ollama_model_runtime_details(
   base_url: &str,
   model: &str,
   api_key: Option<&str>,
-) -> Option<u64> {
+) -> Option<(Option<u64>, bool)> {
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(5))
     .build()
@@ -10990,7 +10990,14 @@ async fn fetch_ollama_model_context_window(
   }
 
   let body = response.json::<serde_json::Value>().await.ok()?;
-  parse_ollama_show_context_window(&body)
+  Some((parse_ollama_show_context_window(&body), ollama_requires_thinking(&body)))
+}
+
+fn ollama_requires_thinking(details: &serde_json::Value) -> bool {
+  details.get("model_info")
+    .and_then(|info| info.get("general.finetune"))
+    .and_then(|value| value.as_str())
+    .is_some_and(|finetune| finetune.eq_ignore_ascii_case("thinking"))
 }
 
 fn upsert_ollama_provider_config(
@@ -10999,6 +11006,7 @@ fn upsert_ollama_provider_config(
   api_key: &str,
   model: Option<&str>,
   context_window: Option<u64>,
+  requires_thinking: bool,
 ) {
   let Some(root) = cfg_val.as_object_mut() else {
     return;
@@ -11069,12 +11077,50 @@ fn upsert_ollama_provider_config(
     );
     let max_tokens = context_window.min(8192);
     entry_obj.insert("maxTokens".to_string(), serde_json::json!(max_tokens));
-    entry_obj.insert(
-      "params".to_string(),
-      serde_json::json!({
-        "num_ctx": context_window,
-      }),
-    );
+    let params = entry_obj.entry("params").or_insert_with(|| serde_json::json!({}));
+    if let Some(params) = params.as_object_mut() {
+      params.insert("num_ctx".to_string(), serde_json::json!(context_window));
+    }
+  }
+  // Aliases can point to thinking-only weights. Keep their reasoning in the
+  // separate thinking channel instead of forcing it into visible answer text.
+  if requires_thinking {
+    let params = entry_obj.entry("params").or_insert_with(|| serde_json::json!({}));
+    if let Some(params) = params.as_object_mut() {
+      if !params.contains_key("think") && !params.contains_key("thinking") {
+        params.insert("thinking".to_string(), serde_json::json!(true));
+      }
+    }
+  }
+}
+
+#[cfg(test)]
+mod local_ollama_response_tests {
+  use super::{upsert_ollama_provider_config, ollama_requires_thinking};
+
+  #[test]
+  fn thinking_only_identity_uses_metadata_not_alias() {
+    assert!(ollama_requires_thinking(&serde_json::json!({"model_info":{"general.finetune":"Thinking"}})));
+    assert!(!ollama_requires_thinking(&serde_json::json!({"model_info":{"general.finetune":"Instruct"}})));
+    assert!(!ollama_requires_thinking(&serde_json::json!({})));
+    let mut cfg = serde_json::json!({});
+    upsert_ollama_provider_config(&mut cfg, "http://127.0.0.1:11434", "ollama-local", Some("custom-alias"), Some(32768), true);
+    assert_eq!(cfg["models"]["providers"]["ollama"]["models"][0]["params"]["thinking"], true);
+  }
+
+  #[test]
+  fn context_refresh_preserves_explicit_model_parameters() {
+    let mut cfg = serde_json::json!({});
+    upsert_ollama_provider_config(&mut cfg, "http://127.0.0.1:11434", "ollama-local", Some("qwen3:4b"), None, false);
+    let model = &mut cfg["models"]["providers"]["ollama"]["models"][0];
+    assert!(model.get("params").is_none());
+    model["params"] = serde_json::json!({"think": false, "temperature": 0.2});
+    upsert_ollama_provider_config(&mut cfg, "http://127.0.0.1:11434", "ollama-local", Some("qwen3:4b"), Some(16384), true);
+    let params = &cfg["models"]["providers"]["ollama"]["models"][0]["params"];
+    assert_eq!(params["think"], false);
+    assert!(params.get("thinking").is_none());
+    assert_eq!(params["temperature"], 0.2);
+    assert_eq!(params["num_ctx"], 16384);
   }
 }
 
@@ -11435,10 +11481,10 @@ pub async fn ollama_configure(
   // Update agents.defaults.model in the config file so the gateway uses
   // the correct model on restart (same fix as set_api_key).
   let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
-  let ollama_context_window = if payload.enabled {
+  let ollama_runtime_details = if payload.enabled {
     match (&tokens.ollama_model, ollama_runtime_key(&tokens)) {
       (Some(model), Some(api_key)) => {
-        fetch_ollama_model_context_window(&ollama_runtime_base_url(&tokens), model, Some(&api_key))
+        fetch_ollama_model_runtime_details(&ollama_runtime_base_url(&tokens), model, Some(&api_key))
           .await
       }
       _ => None,
@@ -11472,7 +11518,8 @@ pub async fn ollama_configure(
           &base_url,
           &api_key,
           tokens.ollama_model.as_deref(),
-          ollama_context_window,
+          ollama_runtime_details.and_then(|details| details.0),
+          ollama_runtime_details.is_some_and(|details| details.1),
         );
       }
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
