@@ -1907,7 +1907,7 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
 
 function buildGroupChatQaRequest(sessionId = `qa-group-${Date.now()}`) {
   return {
-    text: "Should we prioritize a customer interview or a product bug fix this afternoon? Give one recommended next step.",
+    text: "Use only this fictional scenario; do not look up calendars, messages, websites, or other external data. A checkout bug blocks all purchases, the fix takes one hour, and an optional customer interview can be rescheduled tomorrow. Should we prioritize the interview or the bug fix this afternoon? Give one recommended next step in one sentence.",
     sessionId,
     noFallback: true,
     teamMembers: [
