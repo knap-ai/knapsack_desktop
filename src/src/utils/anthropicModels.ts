@@ -23,7 +23,8 @@ export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
   { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
   { id: 'claude-opus-4-1', name: 'Claude Opus 4.1', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
-  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Best balance of speed and intelligence for most everyday work', vision: true },
+  { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', description: 'Best balance of speed and intelligence for most everyday work', vision: true },
+  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
   { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
   { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
@@ -35,11 +36,11 @@ export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
 
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5'
 
-export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.1, Opus 5.5, Sonnet 5, Haiku 4.5'
+export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5'
 
 export const KNAPSACK_ANTHROPIC_TIER_MODELS: KnapsackTierModelOption[] = [
   { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-  { id: 'anthropic/claude-sonnet-5', name: 'Plus', description: 'Balanced performance and capability' },
+  { id: 'anthropic/claude-sonnet-5-5', name: 'Plus', description: 'Balanced performance and capability' },
   { id: 'anthropic/claude-opus-5-5', name: 'Premium', description: 'Most powerful — best for complex work' },
 ]
 
