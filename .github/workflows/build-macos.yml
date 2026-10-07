@@ -169,3 +169,20 @@ jobs:
             src/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
             src/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: warn
+
+      - name: Archive signed app for isolated pull-request QA
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_DIR=src/src-tauri/target/universal-apple-darwin/release/bundle/macos
+          test -d "$APP_DIR/Knapsack.app"
+          tar -czf "$RUNNER_TEMP/Knapsack-pr-qa.app.tar.gz" -C "$APP_DIR" Knapsack.app
+
+      - name: Upload signed app for isolated pull-request QA
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-pr-qa-app
+          path: ${{ runner.temp }}/Knapsack-pr-qa.app.tar.gz
+          if-no-files-found: error
