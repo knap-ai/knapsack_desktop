@@ -1,0 +1,95 @@
+name: State Backup Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/state-backup-tests.yml
+      - src/package.json
+      - src/package-lock.json
+      - src/tsconfig*.json
+      - src/state-backup-core/**
+      - src/scripts/state-backup-ui.test.cjs
+      - src/scripts/knapsack-account-routing.test.cjs
+      - src/scripts/test-state-backup-adapter.py
+      - src/src/api/stateBackup.ts
+      - src/src/components/organisms/StateBackupControl.tsx
+      - src/src/components/organisms/PrivacyModeControl.tsx
+      - src/src/components/organisms/ClawdChat/**
+      - src/src/components/templates/Home/components/SettingsDialog/**
+      - src/src-tauri/Cargo.toml
+      - src/src-tauri/Cargo.lock
+      - src/src-tauri/data-egress-manifest.json
+      - src/src-tauri/src/state_backup.rs
+      - src/src-tauri/src/main.rs
+      - src/src-tauri/src/clawd/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/state-backup-tests.yml
+      - src/package.json
+      - src/package-lock.json
+      - src/tsconfig*.json
+      - src/state-backup-core/**
+      - src/scripts/state-backup-ui.test.cjs
+      - src/scripts/knapsack-account-routing.test.cjs
+      - src/scripts/test-state-backup-adapter.py
+      - src/src/api/stateBackup.ts
+      - src/src/components/organisms/StateBackupControl.tsx
+      - src/src/components/organisms/PrivacyModeControl.tsx
+      - src/src/components/organisms/ClawdChat/**
+      - src/src/components/templates/Home/components/SettingsDialog/**
+      - src/src-tauri/Cargo.toml
+      - src/src-tauri/Cargo.lock
+      - src/src-tauri/data-egress-manifest.json
+      - src/src-tauri/src/state_backup.rs
+      - src/src-tauri/src/main.rs
+      - src/src-tauri/src/clawd/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: state-backup-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backup-ui:
+    name: State backup UI and account routing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+      - name: Install frontend test dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Type check frontend
+        run: ./node_modules/.bin/tsc --noEmit
+      - name: Test backup controls and account sign-in routing
+        run: node --test scripts/state-backup-ui.test.cjs scripts/knapsack-account-routing.test.cjs
+
+  backup-core-adapter:
+    name: State backup core and isolated adapter
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Test encrypted backup core with locked dependencies
+        run: cargo test --manifest-path src/state-backup-core/Cargo.toml --locked
+      - name: Test isolated native adapter without Tauri or live credentials
+        run: python src/scripts/test-state-backup-adapter.py

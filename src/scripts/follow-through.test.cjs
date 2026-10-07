@@ -9,12 +9,13 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const flush = () => new Promise(resolve => setImmediate(resolve))
 function mount(check, enabled = true, saved = new Map()) {
   let tick, cleanup, calls = 0
-  const notices = [], events = [], exports = {}
+  const notices = [], events = [], invokes = [], exports = {}
   vm.runInNewContext(compiled, {
     exports,
     require(name) {
       if (name === 'react') return { useRef: value => ({ current: value }), useEffect: fn => { cleanup = fn() } }
       if (name === 'src/api/followThrough') return { checkFollowThrough: () => { calls++; return check() } }
+      if (name === '@tauri-apps/api/tauri') return { invoke: async name => { invokes.push(name); return { enabled: false } } }
       throw Error(name)
     },
     localStorage: { getItem: k => saved.get(k), setItem: (k, v) => saved.set(k, v) },
@@ -22,7 +23,7 @@ function mount(check, enabled = true, saved = new Map()) {
     window: { setInterval: fn => { tick = fn; return 1 }, clearInterval: () => { tick = undefined }, dispatchEvent: e => events.push(e.type) },
   })
   exports.useFollowThrough(enabled, count => notices.push(count))
-  return { notices, events, saved, tick: () => tick?.(), cleanup: () => cleanup?.(), calls: () => calls }
+  return { notices, events, invokes, saved, tick: () => tick?.(), cleanup: () => cleanup?.(), calls: () => calls }
 }
 const attention = { id: 'one', status: 'attention', dueAt: 100 }
 test('one reminder per transition survives remounts and subsequent checks', async () => {
@@ -42,6 +43,7 @@ test('network failure is retryable and does not emit a false result', async () =
   let failing = true
   const app = mount(async () => { if (failing) throw Error('offline'); return [attention] }); await flush()
   assert.deepEqual(app.notices, []); assert.deepEqual(app.events, [])
+  assert.deepEqual(app.invokes, [])
   failing = false; await app.tick(); assert.deepEqual(app.notices, [1])
 })
 test('background checks cannot overlap or notify after disposal', async () => {
@@ -54,4 +56,5 @@ test('background checks cannot overlap or notify after disposal', async () => {
 test('safe QA mode does not run live checks', async () => {
   const app = mount(async () => [attention], false); await flush()
   assert.equal(app.calls(), 0)
+  assert.deepEqual(app.invokes, [])
 })

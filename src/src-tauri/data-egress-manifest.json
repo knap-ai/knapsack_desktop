@@ -89,5 +89,15 @@
     "On-device mode blocks cloud inference. Zero-retention mode permits only explicitly qualified routes; connected online services remain available in both modes.",
     "Privacy pilot evidence is stored locally and leaves the computer only when a user explicitly copies and shares it.",
     "User-directed browser navigation is intentionally outside this manifest; it requires an explicit user request."
-  ]
+  ],
+  "account_state_backup": {
+    "domain": "api.knapsack.ai",
+    "purpose": "Restore authoritative GBrain state on a replacement device",
+    "data": "Client-side encrypted Markdown and versioned Loops, follow-through and goals records; opaque metadata; authenticated account identity",
+    "allowed": "Separate explicit account-and-device-scoped opt-in in both Privacy Mode settings; no automatic opt-in on sign-in",
+    "key_custody": "Account recovery: random data key wrapped by managed KMS and bound to immutable Knapsack account/key version; native-only recovery after verified recent Google/Microsoft authentication; optional OS credential store for automatic backups; Knapsack authorized service can recover/decrypt contents",
+    "retention": "Latest three encrypted snapshots; disabling backup stops uploads but retains snapshots",
+    "exclusions": "Credential stores, tokens, databases, runtime configuration and executable files",
+    "rollout_gate": "Disabled until managed KMS, immutable provider account identity and genuine recent-auth integrations are configured and verified; no password/token/email key derivation or plaintext fallback"
+  }
 }

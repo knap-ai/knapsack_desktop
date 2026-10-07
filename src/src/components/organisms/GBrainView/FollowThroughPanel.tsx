@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { LoopRun } from 'src/api/loops'
 import { FollowThrough, listFollowThrough, extractFollowThrough, decideFollowThrough, linkFollowThrough, saveFollowThroughDraft } from 'src/api/followThrough'
+import { useRef } from 'react'
+import { requireFollowUpAiReady } from 'src/pages/onboarding/followUpReadiness'
 import { KN_SERVER_HOST } from 'src/utils/constants'
 
 const label: Record<FollowThrough['status'], string> = {
@@ -19,18 +21,21 @@ function Commitment({ item, root, onChange }: { item: FollowThrough; root: strin
   const [recipient, setRecipient] = useState(item.recipient || ''), [sentId, setSentId] = useState(item.sentId || '')
   const [sentMessages, setSentMessages] = useState<Array<{ id: string; label: string }>>([])
   const [linking, setLinking] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const [reviewed, setReviewed] = useState(false)
+  const actionLock = useRef(false)
   const act = async (fn: () => Promise<unknown>) => {
-    if (busy) return
+    if (actionLock.current) return
+    actionLock.current = true
     setBusy(true); setError('')
-    try { await fn(); await onChange() } catch (e) { setError(String(e)) } finally { setBusy(false) }
+    try { await fn(); await onChange() } catch (e) { setError(String(e)) } finally { actionLock.current = false; setBusy(false) }
   }
   const decide = (decision: string) => act(() => decideFollowThrough(item.id, decision,
     decision === 'track' ? Math.floor(new Date(due).getTime() / 1000) : undefined, root))
   const terminal = ['resolved', 'dismissed'].includes(item.status)
   return <article className="CommitmentCard">
-    <strong>{label[item.status]}</strong>
+    <strong>{!item.sentId && item.status === 'tracking' ? 'Reminder scheduled' : !item.sentId && item.status === 'attention' ? 'Reminder due' : label[item.status]}</strong>
     <p><b>{item.proposal.owner}</b> — {item.proposal.action}</p>
-    <details><summary>Why Knapsack suggested this</summary><blockquote>{item.proposal.quote}</blockquote><p>From this meeting’s saved transcript or notes. Confirm the owner and meaning before tracking.</p></details>
+    <p>Confidence: unscored candidate. Exact source evidence is required; current completion status still needs your review.</p><details><summary>Why Knapsack suggested this</summary><blockquote>{item.proposal.quote}</blockquote><p>From the saved source. This is an uncertain candidate, not proof that the commitment is still open. Confirm ownership and check the latest conversation for completion, cancellation, or a reply before tracking.</p></details>
     {!terminal && <details><summary>Follow-up draft</summary>
       <label>Edit draft<textarea value={draft} onChange={e => setDraft(e.target.value)} rows={5} /></label>
       <button disabled={busy || !draft.trim()} onClick={() => act(() => saveFollowThroughDraft(item.id, draft, root))}>Save draft</button>
@@ -43,8 +48,9 @@ function Commitment({ item, root, onChange }: { item: FollowThrough; root: strin
     {item.checkError && <p role="alert">Could not check Gmail: {item.checkError}. Reply status is unknown.</p>}
     {!item.sentId && !terminal && <p>Reply tracking starts after you link a sent Gmail message. Until then, this is a reminder only.</p>}
     {['proposed', 'paused', 'tracking', 'attention', 'reply_received'].includes(item.status) && <div className="CommitmentActions">
+      <label><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} /> I owe this and checked the latest source; it is still unresolved.</label>
       <label>Remind me if unresolved<input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} /></label>
-      <button disabled={busy || !due || !Number.isFinite(new Date(due).getTime())} onClick={() => decide('track')}>{item.status === 'proposed' ? 'Confirm & track' : 'Set next follow-up'}</button>
+      <button disabled={busy || !reviewed || !due || !Number.isFinite(new Date(due).getTime())} onClick={() => decide('track')}>{item.status === 'proposed' ? (item.sentId ? 'Confirm & track Gmail replies' : 'Confirm & remind me') : 'Set next reminder'}</button>
       {!['proposed', 'paused'].includes(item.status) && <button disabled={busy} onClick={() => decide('pause')}>Pause</button>}
       <button disabled={busy} onClick={() => decide('resolve')}>Mark resolved</button>
       <button disabled={busy} onClick={() => decide('dismiss')}>Dismiss</button>
@@ -75,7 +81,7 @@ function Commitment({ item, root, onChange }: { item: FollowThrough; root: strin
     {error && <p role="alert">{error}</p>}
   </article>
 }
-export default function FollowThroughPanel({ run, brainRoot }: { run: LoopRun; brainRoot: string }) {
+export default function FollowThroughPanel({ run, brainRoot, afterResults }: { run: LoopRun; brainRoot: string; afterResults?: ReactNode }) {
   const [items, setItems] = useState<FollowThrough[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const refresh = useCallback(async () => {
     const all = await listFollowThrough(brainRoot); setItems(all.filter(i => i.runId === run.id))
@@ -85,21 +91,31 @@ export default function FollowThroughPanel({ run, brainRoot }: { run: LoopRun; b
     update(); window.addEventListener('knapsack-follow-through-updated', update)
     return () => window.removeEventListener('knapsack-follow-through-updated', update)
   }, [refresh])
+  const active = useRef(true)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [run.id])
+  const extractionLock = useRef(false)
   const discover = async () => {
-    if (busy || !run.context) return
+    if (extractionLock.current || !run.context) return
+    extractionLock.current = true
     setBusy(true); setError('')
     try {
+      if (run.loopId === 'onboarding-follow-ups') {
+        await requireFollowUpAiReady()
+      }
+      if (!active.current) return
       const proposals = await extractFollowThrough(run.id, brainRoot)
+      if (!active.current) return
       await refresh()
-      if (!proposals.length) setError('No explicit, evidence-backed commitments found in this meeting.')
-    } catch (e) { setError(String(e)) } finally { setBusy(false) }
+      if (!proposals.length) setError('No explicit, evidence-backed commitments found in this source.')
+    } catch (e) { if (active.current) setError(String(e)) } finally { extractionLock.current = false; if (active.current) setBusy(false) }
   }
-  if (run.loopId !== 'starter-meeting-follow-up') return null
+  if (!['starter-meeting-follow-up', 'onboarding-follow-ups'].includes(run.loopId)) return null
   return <section className="FollowThroughPanel" aria-label="Commitment follow-through">
     <h4>Keep commitments from slipping</h4>
-    <p>Review suggestions, prepare a follow-up, then track replies. Evidence and schedules stay in your local library. Extraction uses your selected AI provider; linked replies use native Gmail. Checks run while Knapsack is open.</p>
-    <button disabled={busy || !run.context} onClick={discover}>{busy ? 'Finding supported commitments…' : 'Find commitments in this meeting'}</button>
+    <p>Review suggestions and schedule reminders. Automatic reply checks are available only after linking a sent Gmail message; Outlook replies are not monitored automatically. Evidence and schedules stay in your local library. Extraction uses your selected AI provider. Checks run while Knapsack is open.</p>
+    <button disabled={busy || !run.context} onClick={discover}>{busy ? 'Finding supported commitments…' : 'Find candidate follow-ups'}</button>
     {error && <p role="status">{error}</p>}
     {items.filter(i => i.status !== 'dismissed').map(item => <Commitment key={item.id} item={item} root={brainRoot} onChange={refresh} />)}
+    {items.length > 0 && afterResults}
   </section>
 }

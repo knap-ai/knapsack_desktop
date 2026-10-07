@@ -30,6 +30,7 @@ mod local_fs;
 mod mcp;
 mod memory;
 mod privacy_mode;
+mod state_backup;
 mod privileged_worker;
 mod pty;
 mod qa_launch;
@@ -433,6 +434,7 @@ fn setup_handler(
   // app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
   let app_handle = app.handle();
+  state_backup::spawn(app_handle.clone());
 
   // Start the gateway as early as possible so it warms in parallel with
   // app-local config and key propagation.
@@ -2198,6 +2200,30 @@ async fn run_app() {
       kn_get_openclaw_version,
       clawd::service::get_desktop_api_token,
       clawd::service::get_mobile_pairing_token,
+      state_backup::imessage::kn_imessage_setup_create,
+      state_backup::imessage::kn_imessage_setup_list,
+      state_backup::imessage::kn_imessage_setup_readiness,
+      state_backup::imessage::kn_imessage_setup_action,
+      state_backup::imessage_delivery::kn_imessage_delivery_status,
+      state_backup::imessage_delivery::kn_imessage_delivery_pause_local,
+      state_backup::imessage_delivery::kn_imessage_delivery_consent,
+      state_backup::imessage_delivery::kn_imessage_delivery_tick,
+      state_backup::conversations::kn_account_conversations,
+      state_backup::conversations::kn_account_conversation_read,
+      state_backup::conversations::kn_account_conversation_publish,
+      state_backup::conversations::kn_account_device_revoke,
+      state_backup::devices::kn_account_devices,
+      state_backup::devices::kn_account_device_register,
+      state_backup::kn_state_backup_status,
+      state_backup::kn_state_backup_account,
+      state_backup::kn_state_backup_enable,
+      state_backup::kn_state_backup_now,
+      state_backup::kn_state_backup_disable,
+      state_backup::kn_state_backup_restore,
+      state_backup::kn_state_backup_verify_identity,
+      state_backup::kn_state_backup_cancel_identity,
+      state_backup::kn_state_backup_cancel_operation,
+      state_backup::kn_state_backup_migrate_legacy,
       privacy_mode::get_privacy_mode_status,
       clawd::service::privacy_provider_candidates,
       local_speech::local_speech_status,
@@ -2232,6 +2258,7 @@ async fn run_app() {
       clawd::follow_through::kn_follow_through_list,
       clawd::follow_through::kn_follow_through_save_draft,
       clawd::follow_through::kn_follow_through_extract,
+      clawd::follow_through::kn_follow_through_ready,
       clawd::follow_through::kn_follow_through_propose,
       clawd::follow_through::kn_follow_through_decide,
       clawd::follow_through::kn_follow_through_link,

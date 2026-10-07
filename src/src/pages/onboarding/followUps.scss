@@ -1,0 +1,15 @@
+.FirstFollowUps {
+  --brain-line: #d4d4d8;
+  --brain-wash: #fafafa;
+  --brain-accent: #275d48;
+  overflow-wrap: anywhere;
+  .FollowThroughPanel { margin-top: 1rem; }
+  .CommitmentCard { border: 1px solid var(--brain-line); border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
+  .FollowThroughPanel button { border: 1px solid var(--brain-line); border-radius: .4rem; padding: .5rem .75rem; margin: .3rem; }
+  .FollowThroughPanel button:disabled { opacity: .5; }
+  .FollowThroughPanel label { display: block; margin: .75rem 0; }
+  .FollowThroughPanel textarea, .FollowThroughPanel select { display: block; max-width: 100%; width: 100%; padding: .5rem; border: 1px solid var(--brain-line); }
+  .FollowThroughPanel blockquote { border-left: 3px solid var(--brain-accent); padding: .75rem; white-space: pre-wrap; }
+  .CommitmentActions { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .FollowThroughPanel fieldset { min-width: 0; }
+}

@@ -20,6 +20,8 @@ import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { getPrivacyExperimentTrackingId } from 'src/utils/onboardingIntent'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
+import StateBackupControl from 'src/components/organisms/StateBackupControl'
+import MacIMessageSetup from 'src/components/organisms/MacIMessageSetup'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import {
   formatPrivacyPilotReceipt,
@@ -1585,7 +1587,8 @@ export const SettingsDialog = ({
           <Typography weight={TypographyWeight.medium}>Privacy Mode</Typography>
           <div className={styles.privacyModelDescription}>
             Choose eligible zero-retention cloud routes or keep inference on this computer with Ollama.
-            Analytics are disabled in both privacy modes.
+            Analytics are disabled in both privacy modes. Optional encrypted GBrain account backups
+            have their own controls below and can retain ciphertext when enabled.
           </div>
           <PrivacyModeControl />
           {privacyModeEnabled && (
@@ -1629,6 +1632,10 @@ export const SettingsDialog = ({
           )}
         </div>
 
+        <hr className="border-zinc-200" />
+
+        <StateBackupControl isOpen={isOpen} />
+        {isOpen && <MacIMessageSetup />}
         <hr className="border-zinc-200" />
 
         {/* ── AI Provider (accordion) ─────────────────────────────────── */}

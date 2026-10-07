@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
 import '../../../main.css'
 import 'prismjs/themes/prism-tomorrow.css'
@@ -600,6 +601,11 @@ function Home({
         }
         middleRightComponent={
           <div className="flex items-center gap-2">
+            <Link className="rounded-md px-2 py-1 text-xs underline" to="/follow-ups">Find follow-ups I owe</Link>
+            <button type="button" className="rounded-full bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
+              title="Account computers and checkpoint continuation" onClick={() => setIsSettingsDialogOpened(true)}>
+              Work on this computer
+            </button>
             <PrivacyModeControl />
             <button
               type="button"
