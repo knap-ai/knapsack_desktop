@@ -2983,6 +2983,7 @@ async fn gateway_request_pooled_inner(
   allow_unknown_method_retry: bool,
   allow_connection_retry: bool,
 ) -> Result<Value, String> {
+  let _setup_configuration = crate::state_backup::imessage::config_write_guard(method, &params).await?;
   let client = get_or_connect(token).await?;
 
   // Circuit breaker check
@@ -3085,6 +3086,7 @@ async fn gateway_request_pooled_inner(
         method
       );
       invalidate_client();
+      drop(_setup_configuration);
       return Box::pin(gateway_request_pooled_inner(
         method,
         retry_params.clone(),
@@ -3103,6 +3105,7 @@ async fn gateway_request_pooled_inner(
           method
         );
         invalidate_client();
+        drop(_setup_configuration);
         return Box::pin(gateway_request_pooled_inner(
           method,
           retry_params,

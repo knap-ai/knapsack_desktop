@@ -438,6 +438,7 @@ pub async fn start_server<'a>(
       .service(clawd::harness::set_harness_settings)
       .service(clawd::gmail::get_unread_important)
       .service(clawd::gmail::native_gmail_read)
+      .service(clawd::outlook::follow_up_source)
       .service(clawd::sidecar::status)
       .service(clawd::sidecar::set_config)
       .service(clawd::service::service_status)

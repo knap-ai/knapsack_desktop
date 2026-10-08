@@ -1,3 +1,4 @@
+import FollowUpJobPage from 'src/pages/onboarding/FollowUpJobPage'
 import { useFollowThrough } from 'src/hooks/useFollowThrough'
 import { notificationAcceptance } from 'src/utils/notificationReply'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -1923,6 +1924,7 @@ function App() {
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <Routes>
+          <Route path="/follow-ups" element={<FollowUpJobPage />} />
           <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
           <Route
             path="/home"

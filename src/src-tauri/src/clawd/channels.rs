@@ -462,7 +462,9 @@ fn runtime_status_response(
         None
       }
     });
-  let active = running || connected;
+  let active = if channel == "imessage" {
+    status.and_then(|s| s.get("connected")).and_then(|v| v.as_bool()) == Some(true)
+  } else { running || connected };
 
   ChannelStatusResponse {
     success: true,
@@ -1579,6 +1581,9 @@ pub async fn imessage_enable(
   _cfg: web::Data<SharedClawdbotConfig>,
   body: web::Json<EnableRequest>,
 ) -> impl Responder {
+  if body.enabled && crate::state_backup::imessage::setup_fenced() {
+    return HttpResponse::Conflict().json(GenericResponse { success:false,message:Some("iMessage setup verification is isolated. Wait for the test window to expire; automatic replies cannot be enabled during it.".into()),configured:None,linked:None });
+  }
   // First get current config to obtain baseHash
   let config_result = gateway_client::config_get(None).await;
 
@@ -1596,7 +1601,8 @@ pub async fn imessage_enable(
             "imessage": {
               "dmPolicy": "allowlist",
               "allowFrom": allow_from,
-              "service": "auto"
+              "service": "imessage",
+              "groupPolicy": "disabled"
             }
           }
         });
@@ -1654,8 +1660,8 @@ pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
 
       if configured {
         HttpResponse::Ok().json(GenericResponse {
-          success: true,
-          message: Some("iMessage is configured".to_string()),
+          success: false,
+          message: Some("iMessage configuration exists. Messages read/send readiness and the owner destination are unverified; use the reviewed Mac setup flow.".to_string()),
           configured: Some(true),
           linked: None,
         })
@@ -4391,7 +4397,7 @@ pub async fn channel_diagnostics() -> impl Responder {
           let prefix = format!("{}: ", ch_name);
           if let Some(status_part) = lower.strip_prefix(&prefix) {
             if status_part.starts_with("linked") || status_part.starts_with("configured") {
-              if !channels.contains(&ch_key.to_string()) {
+              if !channels.contains(&ch_key.to_string()) && !(*ch_key == "imessage" && crate::state_backup::imessage::setup_fenced()) {
                 issues.push(format!(
                   "Channel '{}' is {} but NOT in gateway config — messages won't be processed",
                   ch_key,

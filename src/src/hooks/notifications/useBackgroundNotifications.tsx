@@ -29,7 +29,6 @@ import { KNFileType } from 'src/utils/KNSearchFilters'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import {
   getWhatsAppStatus,
-  getIMessageStatus,
   sendChannelMessage,
 } from 'src/api/channels'
 
@@ -196,15 +195,8 @@ export function useBackgroundNotifications({
     if (channelsAttachedRef.current !== null) return channelsAttachedRef.current
 
     try {
-      const [waStatus, imStatus] = await Promise.all([
-        getWhatsAppStatus().catch(() => null),
-        getIMessageStatus().catch(() => null),
-      ])
-
-      const attached =
-        (waStatus?.enabled && waStatus?.linked) ||
-        (imStatus?.enabled && imStatus?.configured) ||
-        false
+      const waStatus = await getWhatsAppStatus().catch(() => null)
+      const attached = !!(waStatus?.enabled && waStatus?.linked)
       channelsAttachedRef.current = attached
       return attached
     } catch {
@@ -343,10 +335,7 @@ export function useBackgroundNotifications({
       }
 
       try {
-        const [waStatus, imStatus] = await Promise.all([
-          getWhatsAppStatus().catch(() => null),
-          getIMessageStatus().catch(() => null),
-        ])
+        const waStatus = await getWhatsAppStatus().catch(() => null)
 
         const sends: Promise<boolean>[] = []
 
@@ -362,17 +351,8 @@ export function useBackgroundNotifications({
           )
         }
 
-        // iMessage: send to the user's own email
-        if (imStatus?.enabled && imStatus?.configured && userEmail) {
-          sends.push(
-            sendChannelMessage('imessage', userEmail, text)
-              .then(result => result.success)
-              .catch(err => {
-                console.warn('[notifications] iMessage send failed:', err)
-                return false
-              }),
-          )
-        }
+        // iMessage requires a separately verified destination and proactive consent.
+        // This legacy brief-forwarding path has neither and must never guess an Apple handle.
 
         if (sends.length > 0) {
           return (await Promise.all(sends)).some(Boolean)

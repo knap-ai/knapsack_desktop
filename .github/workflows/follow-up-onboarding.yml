@@ -1,0 +1,61 @@
+name: Follow-up onboarding and continuity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/follow-up-onboarding.yml', 'src/src/**', 'src/scripts/**', 'src/state-backup-core/**', 'src/src-tauri/src/**', 'src/src-tauri/Cargo*', 'src/src-tauri/build.rs', 'src/src-tauri/tauri.conf.json', 'src/src-tauri/resources/clawdbot/imessage-onboarding.mjs', 'src/package*.json']
+permissions:
+  contents: read
+concurrency:
+  group: follow-up-onboarding-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ui-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: ./node_modules/.bin/tsc --noEmit
+      - name: Repeat synthetic onboarding, owner-thread, reminder and continuity QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          for round in 1 2 3; do
+            echo "Fixture QA round $round; no accounts, Messages, OS grants or live transport"
+            node --test scripts/onboarding-intent.test.cjs scripts/onboarding-regressions.test.cjs scripts/knapsack-account-routing.test.cjs scripts/follow-through.test.cjs scripts/follow-through-labels.test.cjs scripts/mail-follow-ups.test.cjs scripts/first-follow-ups.test.cjs scripts/state-backup-ui.test.cjs scripts/account-conversations-ui.test.cjs scripts/imessage-ui.test.cjs scripts/imessage-onboarding.test.mjs scripts/imessage-delivery-ui.test.cjs
+          done
+  native-fixtures:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    env:
+      VITE_KN_API_SERVER: https://fixture.invalid
+      VITE_GOOGLE_CLIENT_ID: fixture-unusable
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src/src-tauri
+      - name: Prepare synthetic frontend assets for native unit tests
+        shell: bash
+        run: |
+          mkdir -p src/dist
+          for asset in index notification overlay recording-indicator; do
+            printf '%s\n' '<!doctype html><title>Synthetic native test fixture</title>' > "src/dist/$asset.html"
+          done
+      - name: Native account, cancellation, isolation and parent-state fixtures
+        run: |
+          cargo test --locked --manifest-path src/src-tauri/Cargo.toml state_backup -- --test-threads=1
+          cargo test --locked --manifest-path src/src-tauri/Cargo.toml clawd::follow_through -- --test-threads=1

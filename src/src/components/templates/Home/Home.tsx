@@ -1,4 +1,6 @@
+import { Link } from 'react-router-dom'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
+import ComputerConnectionDialog from 'src/components/organisms/ComputerConnectionDialog'
 import '../../../main.css'
 import 'prismjs/themes/prism-tomorrow.css'
 import './Home.scss'
@@ -106,6 +108,7 @@ function Home({
   const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Openclaw)
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
+  const [isComputersDialogOpened, setIsComputersDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
   const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<
     'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter' | undefined
@@ -600,6 +603,11 @@ function Home({
         }
         middleRightComponent={
           <div className="flex items-center gap-2">
+            <Link className="rounded-md px-2 py-1 text-xs underline" to="/follow-ups">Find follow-ups I owe</Link>
+            <button type="button" className="rounded-full bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
+              title="Backups and account computers" onClick={() => setIsComputersDialogOpened(true)}>
+              Computers
+            </button>
             <PrivacyModeControl />
             <button
               type="button"
@@ -655,6 +663,7 @@ function Home({
           )
         }
       />
+      <ComputerConnectionDialog isOpen={isComputersDialogOpened} onClose={() => setIsComputersDialogOpened(false)} onSignIn={() => { setIsComputersDialogOpened(false); handleOpenProviderSignIn('knapsack') }} />
       <SettingsDialog
         handlePrivacyLinkClick={handlePrivacyLinkClick}
         handleTermsOfUseClick={handleTermsOfUseClick}
