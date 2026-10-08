@@ -42,7 +42,7 @@ const notifyOperation = (refresh = false) => operation.observers.forEach(update 
 const buttonClass =
   'rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed'
 
-export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean }) {
+export default function StateBackupControl({ isOpen = true, onSignIn }: { isOpen?: boolean; onSignIn?: () => void }) {
   const [devices, setDevices] = useState<AccountDeviceDirectory | null>(null)
   const [deviceName, setDeviceName] = useState('My computer')
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
@@ -275,7 +275,9 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
   }
 
   return (
-    <section className="p-6 flex flex-col gap-3" aria-labelledby="state-backup-title">
+    <section className="p-6 w-full min-w-0 flex flex-col gap-3 break-words" aria-labelledby="state-backup-title">
+      <h2 id="state-backup-title" className="font-medium text-lg">Backup &amp; computers</h2>
+      <p className="text-sm text-zinc-600">Save your work, then continue from its backup on another computer.</p>
       <AccountDevicePicker directory={devices} status={status} busy={busy || !accountWatchReady || restored}
         name={deviceName} selected={selectedDevice} confirmed={confirmedContinuation}
         onName={setDeviceName} onDiscover={() => { clearConsent(); void run('devices', getAccountDevices, receivedDevices) }}
@@ -289,29 +291,25 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
             setStatus(value); clearConsent(); setNotice('Checkpoint continued here. Restart Knapsack, then review paused work and reconnect local permissions.')
           })
         }} />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="state-backup-title" className="font-medium">
-          GBrain state &amp; encrypted backup
-        </h2>
-        <span className="text-sm text-zinc-600">
-          {loading
-            ? 'Checking local state…'
-            : !status
-              ? 'Local status unavailable'
-              : status.enabled
-                ? status.automatic
-                  ? 'Automatic backup enabled'
-                  : 'Manual backup enabled'
-                : 'Cloud backup off on this computer'}
-        </span>
-      </div>
       <p className="text-sm text-zinc-600">
-        Your local GBrain is the source of truth for Markdown memory, Loops, goals and
-        follow-through. Cloud backup is optional and separate from Privacy Mode&apos;s inference and
-        telemetry settings. Changing Privacy Mode does not enable or disable backups.
+        {loading ? 'Checking local state…' : !status ? 'Local status unavailable' : status.enabled ? status.automatic ? 'Automatic backup enabled' : 'Manual backup enabled' : 'Cloud backup off on this computer'}
       </p>
+      <details onToggle={event => {
+        if (event.target !== event.currentTarget) return
+        if (!event.currentTarget.open) {
+          ++session.current
+          clearConsent()
+          setAccount(null)
+          setForm(null)
+          const cancel = operation.pending === 'restore' ? cancelStateBackupOperation : cancelStateBackupIdentity
+          void cancel().catch(() => {})
+        }
+      }}>
+      <summary className="text-sm font-medium cursor-pointer underline">Backup settings</summary>
+      <div className="flex flex-col gap-3 mt-3">
+      <p className="text-sm text-zinc-600">Encrypted backup is optional and separate from Privacy Mode.</p>
       {status && (
-        <dl className="text-sm space-y-1">
+        <details className="text-sm"><summary className="cursor-pointer underline">Local backup details</summary><dl className="space-y-1 mt-2">
           <div>
             <dt className="inline font-medium">Active local folder: </dt>
             <dd className="inline break-all">{status.brainRoot}</dd>
@@ -320,13 +318,8 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
             <dt className="inline font-medium">Last backup: </dt>
             <dd className="inline">{lastBackup || 'No backup recorded on this computer'}</dd>
           </div>
-          {status.lastError && (
-            <div className="text-amber-800">
-              <dt className="inline font-medium">Last backup error: </dt>
-              <dd className="inline">{stateBackupErrorMessage(status.lastError)}</dd>
-            </div>
-          )}
-        </dl>
+
+        </dl></details>
       )}
       {warnings.length > 0 && (
         <aside
@@ -347,11 +340,7 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
           </ul>
         </aside>
       )}
-      <p className="text-xs text-zinc-500">
-        Opening Settings checks local status only. Checking your account contacts Knapsack.
-        Recovery identity verification opens Google or Microsoft with identity permissions only.
-        Enabling, manually backing up or restoring may request fresh identity verification after your review.
-      </p>
+      <p className="text-xs text-zinc-500">Account checks contact Knapsack. Recovery verification uses Google or Microsoft identity permissions only, not mail access.</p>
       {!restored && (
         <div className="flex flex-wrap gap-2">
           {(['google', 'microsoft'] as const).map(provider => (
@@ -430,10 +419,7 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
       )}
       {account && !restored && (
         <div className="rounded-lg border border-zinc-200 p-4 space-y-3">
-          <p className="text-sm break-all">
-            <span className="font-medium">Knapsack account: </span>
-            {account.account_id}
-          </p>
+          <details className="text-sm"><summary className="cursor-pointer underline">Account details</summary><p className="break-all">Knapsack account: {account.account_id}</p></details>
           {accountMismatch && (
             <p className="text-sm text-amber-800">
               This local GBrain belongs to another Knapsack account. Reconnect that account before
@@ -519,28 +505,24 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
                 <>
                   <h3 className="font-medium">Choose whether to back up this GBrain</h3>
                   <p className="text-sm">
-                    Backups include GBrain Markdown memory, Loops approvals, history and evidence,
-                    goals and follow-through. They are encrypted on this computer before upload;
-                    ciphertext is retained in the signed-in Knapsack account shown above.
-                    Credentials and runtime configuration files are excluded, but secrets pasted
+                    Notes, goals, follow-ups and Loop history (including old approvals) are encrypted
+                    here and stored in your Knapsack account. Credentials are excluded; secrets pasted
                     into notes may be included. Review your notes first.
                   </p>
                 </>
               )}
               <p className="text-sm">
-                Account recovery uses fresh Google or Microsoft identity verification linked to this
-                same Knapsack account. Knapsack&apos;s authorized recovery service can recover the
-                encryption key and decrypt your backed-up state. This is not zero-knowledge storage.
-                You do not need a separate recovery code.
+                Recovery uses fresh Google or Microsoft identity verification linked to this same Knapsack account.
+                Knapsack&apos;s authorized recovery service can recover the encryption key and decrypt
+                your backup. This is not zero-knowledge storage. No separate recovery code is needed.
               </p>
               {form === 'restore' && (
                 <>
                   <h3 className="font-medium">Restore this account&apos;s latest GBrain backup</h3>
                   <p className="text-sm">
-                    Restoring activates a new local GBrain generation. Your current local folder is
-                    retained, but this computer switches to the restored state. This becomes the
-                    account&apos;s backup-authoritative computer; other computers can no longer
-                    upload backups to this account.
+                    Switch to this saved backup and keep your previous local folder. This computer
+                    becomes the backup writer; other computers can no longer upload backups until you
+                    transfer the writer again.
                   </p>
                   <p className="text-sm">
                     Restored active Loops are paused, restored approvals cannot be used, and no
@@ -666,11 +648,14 @@ export default function StateBackupControl({ isOpen = true }: { isOpen?: boolean
           )}
         </div>
       )}
+      </div></details>
+      {status?.lastError && <p role="alert" className="text-sm text-amber-800">Backup needs attention: {stateBackupErrorMessage(status.lastError)}</p>}
       {error && (
         <p role="alert" className="text-sm text-red-700">
           {error}
         </p>
       )}
+      {onSignIn && error && /sign.?in|connect.*account|account.*connect/i.test(error) && <button type="button" className={buttonClass} disabled={busy} onClick={onSignIn}>Sign in to Knapsack</button>}
       {notice && !restored && (
         <p role="status" className="text-sm text-zinc-700">
           {notice}

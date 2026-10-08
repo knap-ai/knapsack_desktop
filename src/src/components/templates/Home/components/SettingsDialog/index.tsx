@@ -707,6 +707,8 @@ export const SettingsDialog = ({
   profile,
   onProviderSignInClick,
 }: SettingsDialogProps) => {
+  const [backupOpen, setBackupOpen] = useState(false)
+  useEffect(() => { if (!isOpen) setBackupOpen(false) }, [isOpen])
   const [settingsConnections, setSettingsConnections] =
     useState<Record<string, Connection>>(connections)
   const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] =
@@ -1634,7 +1636,10 @@ export const SettingsDialog = ({
 
         <hr className="border-zinc-200" />
 
-        <StateBackupControl isOpen={isOpen} />
+        <details className="p-6" open={backupOpen} onToggle={event => setBackupOpen(event.currentTarget.open)}>
+          <summary className="font-medium cursor-pointer">Backup &amp; computers</summary>
+          {isOpen && backupOpen && <StateBackupControl isOpen={isOpen && backupOpen} />}
+        </details>
         {isOpen && <MacIMessageSetup />}
         <hr className="border-zinc-200" />
 

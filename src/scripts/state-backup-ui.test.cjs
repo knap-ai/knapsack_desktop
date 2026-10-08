@@ -603,7 +603,7 @@ test('closing a pending identity verification cancels it and never creates work'
 test('device selection only reviews; offline source can continue a pinned saved checkpoint', async () => {
   const app = mount()
   await app.settle()
-  await app.click('Work on this computer')
+  await app.click('Check computers')
   assert.equal(app.calls.filter(c => c.name === 'getAccountDevices').length, 1)
   const source = app.elements().find(el => el.type === 'button' && app.text(el).startsWith('Mac Studio'))
   source.props.onClick(); await app.settle()
@@ -622,18 +622,23 @@ test('device selection only reviews; offline source can continue a pinned saved 
 
 test('selecting this computer or a stale checkpoint cannot start a handoff', async () => {
   const app = mount({ getAccountDevices: async () => ({ ...deviceDirectory, checkpoint: { ...deviceDirectory.checkpoint, revision: 6 } }) })
-  await app.settle(); await app.click('Work on this computer')
+  await app.settle(); await app.click('Check computers')
   for (const name of ['MacBook','Mac Studio']) {
     app.elements().find(el => el.type === 'button' && app.text(el).startsWith(name)).props.onClick()
     await app.settle()
-    assert.equal(app.button('Continue checkpoint on this computer').props.disabled, true)
-    assert.equal(app.checkbox('I reviewed this checkpoint').props.disabled, true)
+    if (name === 'MacBook') {
+      assert.equal(app.button('Continue checkpoint on this computer'), undefined)
+      assert.match(app.text(), /already working on this computer/)
+    } else {
+      assert.equal(app.button('Continue checkpoint on this computer').props.disabled, true)
+      assert.equal(app.checkbox('I reviewed this checkpoint').props.disabled, true)
+    }
   }
   assert.equal(app.calls.filter(c => c.name === 'restoreStateBackup').length, 0)
 })
 
 test('account switch clears computer metadata and reviewed consent', async () => {
-  const app = mount(); await app.settle(); await app.click('Work on this computer')
+  const app = mount(); await app.settle(); await app.click('Check computers')
   app.elements().find(el => el.type === 'button' && app.text(el).startsWith('Mac Studio')).props.onClick()
   await app.settle(); await app.check('I reviewed this checkpoint')
   await app.emit('knapsack-disconnected')
@@ -645,7 +650,7 @@ test('account switch clears computer metadata and reviewed consent', async () =>
 test('registration is explicit and repeated clicks cannot queue mutations', async () => {
   let finish
   const app = mount({ registerAccountDevice: () => new Promise(resolve => { finish = resolve }) })
-  await app.settle(); await app.click('Work on this computer')
+  await app.settle(); await app.click('Check computers')
   assert.equal(app.calls.filter(c => c.name === 'registerAccountDevice').length, 0)
   const register = app.button('Add or rename this computer')
   register.props.onClick(); register.props.onClick(); await app.settle()
@@ -659,7 +664,7 @@ test('registration is explicit and repeated clicks cannot queue mutations', asyn
 test('closing a pending continuation cancels the operation and never replays consent', async () => {
   let rejectRestore
   const app = mount({ restoreStateBackup: () => new Promise((_, reject) => { rejectRestore = reject }) })
-  await app.settle(); await app.click('Work on this computer')
+  await app.settle(); await app.click('Check computers')
   app.elements().find(el => el.type === 'button' && app.text(el).startsWith('Mac Studio')).props.onClick()
   await app.settle(); await app.check('I reviewed this checkpoint')
   await app.click('Continue checkpoint on this computer')
@@ -668,4 +673,35 @@ test('closing a pending continuation cancels the operation and never replays con
   rejectRestore(Error('Operation cancelled')); await app.settle(); await app.open(true)
   assert.equal(app.calls.filter(c => c.name === 'restoreStateBackup').length, 1)
   assert.doesNotMatch(app.text(), /Selected: Mac Studio/)
+})
+
+
+test('collapsing backup settings clears consent without enabling or restoring work', async () => {
+  const app = mount(); await setup(app)
+  await app.check('I understand Knapsack can recover')
+  await app.check('I want encrypted GBrain')
+  const settings = app.elements().find(el => el.type === 'details' && app.text(el).startsWith('Backup settings'))
+  const closed = { open: false }; settings.props.onToggle({ target: closed, currentTarget: closed }); await app.settle()
+  assert.equal(app.button('Enable encrypted backup'), undefined)
+  assert.ok(app.calls.some(call => call.name === 'cancelStateBackupIdentity'))
+  assert.equal(app.calls.some(call => ['enableStateBackup', 'restoreStateBackup'].includes(call.name)), false)
+  await setup(app)
+  assert.equal(app.checkbox('I understand Knapsack can recover').props.checked, false)
+  assert.equal(app.checkbox('I want encrypted GBrain').props.checked, false)
+  app.unmount()
+})
+
+test('collapsing backup settings cancels a pending restore and rejects its late result', async () => {
+  let finish
+  const app = mount({ getStateBackupAccount: async () => ({ ...accountStatus, device_id: 'other-device', latest_snapshot_id: 'saved' }), restoreStateBackup: () => new Promise(resolve => { finish = resolve }) })
+  await app.settle(); await app.click('Check signed-in account'); await app.click('Restore latest backup')
+  await app.check('I understand this switches'); await app.click('Restore and switch this GBrain')
+  const settings = app.elements().find(el => el.type === 'details' && app.text(el).startsWith('Backup settings'))
+  const closed = { open: false }; settings.props.onToggle({ target: closed, currentTarget: closed }); await app.settle()
+  assert.ok(app.calls.some(call => call.name === 'cancelStateBackupOperation'))
+  finish({ ...localStatus, brainRoot: '/private/restored-generation' }); await app.settle()
+  assert.equal(app.calls.filter(call => call.name === 'restoreStateBackup').length, 1)
+  assert.equal(app.button('Restore and switch this GBrain'), undefined)
+  assert.match(app.text(), /Restart Knapsack/)
+  app.unmount()
 })
