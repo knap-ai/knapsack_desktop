@@ -971,6 +971,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     isLLMLoading,
     streamingMarkdown,
     synthesisPhase,
+    error: synthesisError,
+    errorThreadId,
     synthesizeContent,
     saveNotes,
     setContent,
@@ -1318,11 +1320,12 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
           const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes || '')
           setNotesMarkdown(normalizedNotes)
           const parsedNotes = editor?.storage.markdown.parser.parse(normalizedNotes)
-          editor?.commands.setContent(parsedNotes || normalizedNotes)
+          editor?.commands.setContent(parsedNotes || normalizedNotes, false)
           return normalizedNotes
         } else {
+          setNotesMarkdown('')
           setMarkdown('')
-          editor?.commands.setContent('')
+          editor?.commands.setContent('', false)
           // Opening a completed meeting is read-only. Note synthesis belongs to
           // the stop-recording flow (or an explicit regenerate action), never a
           // navigation side effect: otherwise every visit can spend tokens and
@@ -1524,8 +1527,9 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     }
   }, [showNotesProcessing, thread.id])
 
+  const notesSynthesisActive = isSynthesizing()
   useEffect(() => {
-    if (isSynthesizing() && !synthTimedOut) {
+    if (notesSynthesisActive && !synthTimedOut) {
       // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner
       const timeout = setTimeout(() => {
         setSynthTimedOut(true)
@@ -1536,11 +1540,11 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         clearTimeout(timeout)
       }
     } else {
-      if (!isSynthesizing()) {
+      if (!notesSynthesisActive) {
         setSynthTimedOut(false)
       }
     }
-  }, [isSynthesizing, synthTimedOut])
+  }, [notesSynthesisActive, synthTimedOut])
 
   if (!editor || isInitialLoading) {
     return (
@@ -2246,6 +2250,20 @@ Be direct, specific, and concise. No filler text.`
               </div>
             ))}
           </div>
+        )}
+
+        {synthesisError && errorThreadId === thread.id && !isSynthesizing() && (
+          <section role="alert" className="notetaker-note__processing">
+            <span>Note generation didn’t finish. Retry from this saved meeting.</span>
+            <button
+              type="button"
+              onClick={() => void recordingHandlers.generateNotes(
+                thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
+              )}
+            >
+              Retry notes
+            </button>
+          </section>
         )}
 
         {/* Stream synthesized notes into the page as they arrive. */}

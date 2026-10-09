@@ -28,13 +28,16 @@ test('calendar open and record share a single idempotent note creation path', ()
 test('record action is immediate and meeting chats stay attached to meetings', () => {
   const home = source('components/templates/Home/Home.tsx')
   const sidebar = source('components/organisms/NotetakerSidebar/index.tsx')
+  const meetingChatButton = source(
+    'components/organisms/NotetakerSidebar/MeetingChatAvailableButton.tsx',
+  )
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
   assert.match(home, /if \(isAnyRecording\) feed\.handleClickRecording\(\)[\s\S]*?else feed\.createNewMeeting\(\)/)
   assert.match(sidebar, /data-testid="qa-record-action"/)
   assert.match(sidebar, /Recent recordings/)
-  assert.match(sidebar, /moltbot_chat_history:meeting:/)
+  assert.match(meetingChatButton, /moltbot_chat_history:meeting:/)
   assert.doesNotMatch(sidebar, /Meeting chats · Scout/)
-  assert.match(sidebar, /Meeting chat available/)
+  assert.match(meetingChatButton, /Meeting chat available/)
   assert.match(sidebar, /meeting-chat-indicator/)
   assert.match(notes, /meetingChatRequest\?\.threadId === thread\.id/)
   assert.match(notes, /agentName="Scout"/)

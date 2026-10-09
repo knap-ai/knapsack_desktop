@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import { Editor } from '@tiptap/react'
 import { getApiToken } from 'src/api/connections'
@@ -13,9 +13,13 @@ import { isSharingEnabled, shouldSaveTranscript } from 'src/utils/settings'
 import { MeetingTemplatePrompt } from 'src/utils/template_prompts'
 import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 
+import { NotesGeneration, cancelNotesGeneration, serializeNotesWrite, waitForAbort } from 'src/utils/notesGeneration'
+
 import { PROFILE_KEY } from './auth/useAuth'
 
 type LLMParams = {
+  diagnosticKind?: 'notes' | 'completion'
+  signal?: AbortSignal
   prompt: string
   semanticSearchQuery: string
   documents: number[]
@@ -34,6 +38,7 @@ interface IMeetingSynthesis {
   streamingMarkdown: string
   synthesisPhase: 'idle' | 'reading-transcript' | 'writing' | 'saving'
   error: Error | null
+  errorThreadId: number | null
   synthesizeContent: (
     threadId: number,
     userNotes: string,
@@ -56,13 +61,19 @@ export const useMeetingSynthesis = (
   const [streamingMarkdown, setStreamingMarkdown] = useState<string>('')
   const [synthesisPhase, setSynthesisPhase] = useState<IMeetingSynthesis['synthesisPhase']>('idle')
   const [error, setError] = useState<Error | null>(null)
+  const [errorThreadId, setErrorThreadId] = useState<number | null>(null)
+
+  const activeGeneration = useRef<NotesGeneration | null>(null)
+
+  const renderingGeneration = useRef(false)
 
   const insertLLMResponse = (editor: Editor | null, response: string) => {
     if (!editor) return
 
-    editor.commands.clearContent()
-
     const parsedResponse = editor.storage.markdown.parser.parse(response)
+
+    // Intermediate clearing must not enqueue an empty autosave if insertion fails.
+    editor.commands.clearContent(false)
 
     editor
       .chain()
@@ -77,30 +88,41 @@ export const useMeetingSynthesis = (
     setMarkdown(newMarkdownContent)
   }
 
-  const saveNotes = async (threadId: number, notes: string) => {
+  const saveNotes = async (threadId: number, notes: string, generation?: NotesGeneration) => {
     try {
-      const localResponse = await fetch(KN_API_NOTES, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          thread_id: threadId,
-          notes: notes,
-        }),
-      })
-
-      const localData = await localResponse.json()
-
-      if (!localResponse.ok) {
-        logError(new Error('Failed saving notes locally'), {
-          additionalInfo: 'Failed saving notes to local backend',
-          error: localData.error,
+      if (!generation && !renderingGeneration.current) {
+        cancelNotesGeneration(threadId, new Error('Note generation stopped because your notes were edited.'))
+      }
+      const localSave = async () => {
+        generation?.check()
+        const localResponse = await fetch(KN_API_NOTES, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            thread_id: threadId,
+            notes: notes,
+          }),
         })
+
+        const localData = await localResponse.json()
+
+        if (!localResponse.ok || localData?.success !== true) {
+          logError(new Error('Failed saving notes locally'), {
+            additionalInfo: 'Failed saving notes to local backend',
+            error: localData.error,
+          })
+          throw new Error('Failed saving notes locally')
+        }
+
         return localData
       }
+      const localData = generation ? await generation.write(localSave) : await serializeNotesWrite(threadId, localSave)
+      generation?.check()
 
       const profile = await KNLocalStorage.getItem(PROFILE_KEY)
+      generation?.check()
 
       if (!profile || !profile.uuid || !notes) {
         return localData
@@ -116,6 +138,7 @@ export const useMeetingSynthesis = (
       })
 
       const data = await response.json()
+      generation?.check()
 
       if (!data || data['success'] !== true) {
         return
@@ -142,6 +165,7 @@ export const useMeetingSynthesis = (
 
         const email = profile.email
         const token = await getApiToken(email)
+        generation?.check()
         const serverUrl = import.meta.env.VITE_KN_API_SERVER || 'http://localhost:8000'
 
         const serverResponse = await fetch(`${serverUrl}/api/files/notes`, {
@@ -210,102 +234,136 @@ It's highly likely that the company names mentioned in the transcript appear in 
 
   const synthesizeContent = useCallback(
     async (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
+      activeGeneration.current?.cancel(new Error('Note generation replaced by a newer attempt.'))
+      const generation = new NotesGeneration(threadId)
+      activeGeneration.current = generation
+      const current = () => activeGeneration.current === generation && generation.current()
       setIsLLMLoading(true)
       setStreamingMarkdown('')
       setSynthesisPhase('reading-transcript')
       setError(null)
+      setErrorThreadId(threadId)
 
       try {
-        const transcript = await getTranscript(threadId)
-        if (!transcript) {
-          logError(new Error('Transcript is undefined or null.'), {
-            additionalInfo: 'error getTranscript',
-            error: 'Transcript is undefined or null',
-          })
-          throw new Error('The meeting transcript is not available yet. Existing notes have been preserved.')
-        }
+        await waitForAbort((async () => {
+          const transcript = await getTranscript(threadId, { localOnly: true })
+          if (!transcript) {
+            logError(new Error('Transcript is undefined or null.'), {
+              additionalInfo: 'error getTranscript',
+              error: 'Transcript is undefined or null',
+            })
+            throw new Error('The meeting transcript is not available yet. Existing notes have been preserved.')
+          }
 
-        if (!transcript.content?.trim() && !userNotes.trim()) {
-          throw new Error('No transcript text or notes are available for this meeting yet. Your existing notes have been preserved; try again after transcription finishes.')
-        }
+          if (!transcript.content?.trim() && !userNotes.trim()) {
+            throw new Error('No transcript text or notes are available for this meeting yet. Your existing notes have been preserved; try again after transcription finishes.')
+          }
 
-        const shouldSave = await shouldSaveTranscript()
-        KNAnalytics.trackEvent('Synthesize: user notes stats', { length: userNotes.length })
+          generation.check()
+          const shouldSave = await shouldSaveTranscript()
+          KNAnalytics.trackEvent('Synthesize: user notes stats', { length: userNotes.length })
 
-        const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting)
+          const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting)
 
-        setSynthesisPhase('writing')
-        await new Promise<void>((resolve, reject) => {
-          addToLLMQueue({
-            prompt: notesSynthesisPrompt,
-            semanticSearchQuery: '',
-            documents: [],
-            additionalDocuments: [
-              { title: 'Meeting Transcript', content: transcript.content },
-              { title: 'User Notes', content: userNotes },
-            ],
-            // The legacy stream callback receives the complete response-so-far,
-            // not a delta. Render it immediately so notes visibly take shape
-            // instead of leaving the user on a blank page until completion.
-            messageStreamCallback: content => {
-              setSynthesisPhase('writing')
-              setStreamingMarkdown(normalizeMeetingNotesMarkdown(content))
-            },
-            messageFinishCallback: async response => {
-              const normalizedResponse = normalizeMeetingNotesMarkdown(response)
-              setStreamingMarkdown(normalizedResponse)
-              setSynthesisPhase('saving')
-              insertLLMResponse(editor, normalizedResponse)
-              try {
-                await saveNotes(threadId, normalizedResponse)
-                if (!shouldSave) {
-                  await deleteTranscript(threadId)
+          generation.check()
+          setSynthesisPhase('writing')
+          await new Promise<void>((resolve, reject) => {
+            addToLLMQueue({
+              diagnosticKind: 'notes',
+              signal: generation.signal,
+              prompt: notesSynthesisPrompt,
+              semanticSearchQuery: '',
+              documents: [],
+              additionalDocuments: [
+                { title: 'Meeting Transcript', content: transcript.content },
+                { title: 'User Notes', content: userNotes },
+              ],
+              // The legacy stream callback receives the complete response-so-far,
+              // not a delta. Render it immediately so notes visibly take shape
+              // instead of leaving the user on a blank page until completion.
+              messageStreamCallback: content => {
+                if (!current()) return
+                setSynthesisPhase('writing')
+                setStreamingMarkdown(normalizeMeetingNotesMarkdown(content))
+              },
+              messageFinishCallback: async response => {
+                if (!current()) return response
+                const normalizedResponse = normalizeMeetingNotesMarkdown(response)
+                setStreamingMarkdown(normalizedResponse)
+                setSynthesisPhase('saving')
+                try {
+                  if (!normalizedResponse.trim()) {
+                    throw new Error('No notes were returned. Retry from the saved meeting.')
+                  }
+                  await saveNotes(threadId, normalizedResponse, generation)
+                  generation.check()
+                  // Rendering cannot prevent durable notes from being saved.
+                  // A queued job may finish after its editor has been destroyed.
+                  try {
+                    renderingGeneration.current = true
+                    if (editor && !editor.isDestroyed) insertLLMResponse(editor, normalizedResponse)
+                  } catch {
+                    logError(new Error('Notes saved but editor update failed'), {
+                      additionalInfo: 'Reopen the meeting to load saved notes',
+                    })
+                  } finally {
+                    renderingGeneration.current = false
+                  }
+                  if (!shouldSave) {
+                    await deleteTranscript(threadId)
+                  }
+                } catch (err: any) {
+                  logError(
+                    err,
+                    {
+                      additionalInfo: 'Error handling notes or transcript',
+                      error: err,
+                    },
+                    true,
+                  )
+                  if (!current()) { reject(err); return response }
+                  setError(err)
+                  setIsLLMLoading(false)
+                  setSynthesisPhase('idle')
+                  reject(err)
+                  return response
                 }
-              } catch (err: any) {
-                logError(
-                  err,
-                  {
-                    additionalInfo: 'Error handling notes or transcript',
-                    error: err,
-                  },
-                  true,
-                )
-                setError(err)
+
+                if (!current()) { reject(generation.signal.reason); return response }
+                onSynthesisFinish()
+                KNAnalytics.trackEvent('Synthesized notes', {})
                 setIsLLMLoading(false)
                 setSynthesisPhase('idle')
-                reject(err)
+                setStreamingMarkdown('')
+                resolve()
                 return response
-              }
-
-              onSynthesisFinish()
-              KNAnalytics.trackEvent('Synthesized notes', {})
-              setIsLLMLoading(false)
-              setSynthesisPhase('idle')
-              setStreamingMarkdown('')
-              resolve()
-              return response
-            },
-            errorCallback: error => {
-              // Keep the transcript and autosaved live notes intact so the user
-              // can retry; never overwrite them with a stale pre-synthesis value.
-              logError(error, {
-                additionalInfo: 'errorCallback from addToLLMQueue',
-                error: error.message,
-              })
-              setError(error)
-              setIsLLMLoading(false)
-              setSynthesisPhase('idle')
-              setStreamingMarkdown('')
-              reject(error)
-            },
+              },
+              errorCallback: error => {
+                if (!current()) { reject(error); return }
+                // Keep the transcript and autosaved live notes intact so the user
+                // can retry; never overwrite them with a stale pre-synthesis value.
+                logError(error, {
+                  additionalInfo: 'errorCallback from addToLLMQueue',
+                  error: error.message,
+                })
+                setError(error)
+                setIsLLMLoading(false)
+                setSynthesisPhase('idle')
+                setStreamingMarkdown('')
+                reject(error)
+              },
+            })
           })
-        })
+        })(), generation.signal)
       } catch (err) {
+        if (activeGeneration.current !== generation) throw err
         setError(err instanceof Error ? err : new Error('Unknown error occurred'))
         setIsLLMLoading(false)
         setSynthesisPhase('idle')
         setStreamingMarkdown('')
         throw err
+      } finally {
+        generation.finish()
       }
     },
     [markdown],
@@ -317,6 +375,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
     streamingMarkdown,
     synthesisPhase,
     error,
+    errorThreadId,
     synthesizeContent,
     saveNotes,
     setContent,

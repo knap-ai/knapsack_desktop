@@ -289,6 +289,12 @@ pub async fn embed_drive_document(
   Ok(())
 }
 
+fn create_drive_staging(home_dir: &std::path::Path) -> std::io::Result<tempfile::TempDir> {
+  tempfile::Builder::new()
+    .prefix("knapsack-drive-")
+    .tempdir_in(home_dir)
+}
+
 async fn get_drive_file_content(
   mime_type: String,
   id: String,
@@ -308,11 +314,7 @@ async fn get_drive_file_content(
     if !DRIVE_MIME_TYPES_EXPORTABLE_TO_TXT.contains(&&mime_type.as_str()) {
       export_mime_type = "text/csv".to_string();
     }
-    let export_result = hub
-      .files()
-      .export(&id, &export_mime_type)
-      .doit()
-      .await;
+    let export_result = hub.files().export(&id, &export_mime_type).doit().await;
     return match export_result {
       Err(e) => {
         log::warn!("Export {id} failed {:?}", e);
@@ -400,14 +402,15 @@ pub async fn get_or_create_drive_document_from_file(
     .md5_checksum
     .clone()
     .or(file.version.clone().map(|f| f.to_string()));
-  let existing_drive_document = DriveDocument::find_by_drive_id_for_account(&drive_id, account_email)
-    .ok()
-    .flatten()
-    .or_else(|| {
-      DriveDocument::claim_unscoped_drive_id_for_account(&drive_id, account_email)
-        .ok()
-        .flatten()
-    });
+  let existing_drive_document =
+    DriveDocument::find_by_drive_id_for_account(&drive_id, account_email)
+      .ok()
+      .flatten()
+      .or_else(|| {
+        DriveDocument::claim_unscoped_drive_id_for_account(&drive_id, account_email)
+          .ok()
+          .flatten()
+      });
   let url = file.web_view_link.clone().unwrap_or("".to_string());
   let (maybe_content, content_fetch_succeeded) = match get_drive_file_content(
     mime_type,
@@ -579,7 +582,10 @@ async fn fetch_drive_corpus(
           &account_email_clone,
         )
         .await;
-        content_fetch_results_clone.lock().await.push(content_fetch_succeeded);
+        content_fetch_results_clone
+          .lock()
+          .await
+          .push(content_fetch_succeeded);
       });
       tasks.push(task);
     }
@@ -654,8 +660,8 @@ pub async fn fetch_drive(
     date_filter
   );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let temp_dir = home_dir.join("knapsack_temp");
-  fs::create_dir_all(temp_dir.clone()).unwrap();
+  let staging = create_drive_staging(&home_dir)?;
+  let temp_dir = staging.path().to_path_buf();
   let mut backfill_content_fetches_succeeded =
     fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
   let (shared_drives, shared_drive_enumeration_succeeded) =
@@ -711,7 +717,7 @@ pub async fn fetch_drive(
   // locked_semantic_service
   //   .add_handle_embed_finish_to_queue(ConnectionsEnum::GoogleDrive, 1)
   //   .await;
-  let _ = fs::remove_dir_all(temp_dir);
+  // Operation-owned staging is cleaned up when staging drops.
   if backfill_goal_index && backfill_content_fetches_succeeded {
     if let Err(error) = DriveDocument::mark_goal_index_backfill_complete(&account_email) {
       log::warn!(
@@ -848,11 +854,7 @@ async fn create_temp_drive_file(
     if !DRIVE_MIME_TYPES_EXPORTABLE_TO_TXT.contains(&&mime_type.as_str()) {
       export_mime_type = "text/csv".to_string();
     }
-    let export_result = hub
-      .files()
-      .export(&id, &export_mime_type)
-      .doit()
-      .await;
+    let export_result = hub.files().export(&id, &export_mime_type).doit().await;
     return match export_result {
       Err(e) => {
         log::error!("Export {id} failed {:?}", e);
@@ -910,8 +912,8 @@ async fn fetch_google_drive_files(
     .unwrap();
   let hub = DriveHub::new(get_https_client(), access_token);
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let temp_dir = home_dir.join("knapsack_temp");
-  fs::create_dir_all(temp_dir.clone()).unwrap();
+  let staging = create_drive_staging(&home_dir)?;
+  let temp_dir = staging.path().to_path_buf();
 
   // let mut embedding_documents = vec![];
   let mut documents = vec![];
@@ -960,10 +962,15 @@ async fn fetch_google_drive_file_text(req: HttpRequest) -> Result<HttpResponse, 
 
   let user_connection = if let Some(account_email) = &params.account_email {
     UserConnection::find_by_user_email_scope_and_calendar_account(
-      params.email.clone(), String::from(GOOGLE_DRIVE_SCOPE), account_email.clone(),
+      params.email.clone(),
+      String::from(GOOGLE_DRIVE_SCOPE),
+      account_email.clone(),
     )
   } else {
-    UserConnection::find_by_user_email_and_scope(params.email.clone(), String::from(GOOGLE_DRIVE_SCOPE))
+    UserConnection::find_by_user_email_and_scope(
+      params.email.clone(),
+      String::from(GOOGLE_DRIVE_SCOPE),
+    )
   }
   .map_err(|e| error::ErrorBadRequest(format!("Drive connection not found: {:?}", e)))?;
 
@@ -988,8 +995,8 @@ async fn fetch_google_drive_file_text(req: HttpRequest) -> Result<HttpResponse, 
     .clone()
     .unwrap_or_else(|| "text/plain".to_string());
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let temp_dir = home_dir.join("knapsack_temp");
-  fs::create_dir_all(temp_dir.clone())?;
+  let staging = create_drive_staging(&home_dir)?;
+  let temp_dir = staging.path().to_path_buf();
 
   let chunks = get_drive_file_content(mime_type.clone(), file_id.clone(), temp_dir, hub.clone())
     .await
@@ -1142,4 +1149,55 @@ async fn fetch_files_id_shared_between_users(
   }
 
   Ok((file_names))
+}
+
+#[cfg(test)]
+mod staging_tests {
+  use super::*;
+  use std::{fs, sync::mpsc, thread};
+  #[test]
+  fn overlap_cleanup_cannot_delete_another_download() {
+    let root = tempfile::tempdir().unwrap();
+    let a = create_drive_staging(root.path()).unwrap();
+    let b = create_drive_staging(root.path()).unwrap();
+    assert_ne!(a.path(), b.path());
+    let a_path = a.path().to_path_buf();
+    let b_path = b.path().to_path_buf();
+    let (done_tx, done_rx) = mpsc::channel();
+    let t = thread::spawn(move || {
+      drop(a);
+      done_tx.send(()).unwrap();
+    });
+    done_rx.recv().unwrap();
+    assert!(!a_path.exists());
+    let download = b_path.join("same-file.pdf");
+    fs::write(&download, b"synthetic download").unwrap();
+    assert_eq!(fs::read(&download).unwrap(), b"synthetic download");
+    t.join().unwrap();
+    drop(b);
+    assert!(!b_path.exists());
+  }
+  #[test]
+  fn shared_cleanup_reproduces_missing_parent() {
+    let root = tempfile::tempdir().unwrap();
+    let shared = root.path().join("shared");
+    fs::create_dir_all(&shared).unwrap();
+    fs::remove_dir_all(&shared).unwrap();
+    assert_eq!(
+      fs::write(shared.join("B.pdf"), b"fixture")
+        .unwrap_err()
+        .kind(),
+      std::io::ErrorKind::NotFound
+    );
+  }
+  #[test]
+  fn same_file_names_are_isolated() {
+    let root = tempfile::tempdir().unwrap();
+    let a = create_drive_staging(root.path()).unwrap();
+    let b = create_drive_staging(root.path()).unwrap();
+    fs::write(a.path().join("same.pdf"), b"A").unwrap();
+    fs::write(b.path().join("same.pdf"), b"B").unwrap();
+    assert_eq!(fs::read(a.path().join("same.pdf")).unwrap(), b"A");
+    assert_eq!(fs::read(b.path().join("same.pdf")).unwrap(), b"B");
+  }
 }

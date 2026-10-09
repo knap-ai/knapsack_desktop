@@ -118,6 +118,10 @@ pub struct CrashLogAppender;
 
 impl log4rs::append::Append for CrashLogAppender {
   fn append(&self, record: &log::Record) -> anyhow::Result<()> {
+    // Metadata diagnostics stay in the local file logger, outside crash telemetry.
+    if record.target() == "knapsack_local_diagnostic" {
+      return Ok(());
+    }
     let line = format!(
       "{} [{:<5}] {} - {}",
       Local::now().format("%Y-%m-%d %H:%M:%S"),
@@ -145,4 +149,24 @@ impl log4rs::append::Append for CrashLogAppender {
   }
 
   fn flush(&self) {}
+}
+
+#[cfg(test)]
+mod diagnostic_privacy_tests {
+  #[test]
+  fn local_diagnostics_never_enter_crash_ring() {
+    use log4rs::append::Append;
+    let before = super::drain_ring();
+    super::CrashLogAppender
+      .append(
+        &log::Record::builder()
+          .args(format_args!("private-test-marker"))
+          .level(log::Level::Info)
+          .target("knapsack_local_diagnostic")
+          .build(),
+      )
+      .unwrap();
+    assert_eq!(before, super::drain_ring());
+    assert!(!super::drain_ring().contains("private-test-marker"));
+  }
 }

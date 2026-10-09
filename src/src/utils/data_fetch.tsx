@@ -94,8 +94,12 @@ export default class DataFetcher {
     documents: number[],
     additionalDocuments?: { title: string; content: string }[],
     threadId?: number,
+    diagnosticId?: string,
+    completionKind: 'notes' | 'completion' = 'completion',
+    signal?: AbortSignal,
   ) {
     const body_obj = {
+      diagnostic_id: diagnosticId,
       user_email: userEmail,
       user_name: userName,
       prompt: userPrompt,
@@ -107,7 +111,12 @@ export default class DataFetcher {
     }
 
     try {
-      const response = await retryFetch(
+      const response = completionKind === 'notes' && signal
+        ? await fetch(KN_API_STREAM_LLM_COMPLETE, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body_obj), signal,
+          })
+        : await retryFetch(
         KN_API_STREAM_LLM_COMPLETE,
         {
           method: 'POST',
@@ -117,16 +126,21 @@ export default class DataFetcher {
           body: JSON.stringify(body_obj),
         },
         {
-          maxRetries: 3,
+          // Notes can await native inference plus fallback before response headers.
+          // Submit once: retrying an aborted POST starts duplicate generation while
+          // the original backend job may still be running. Other callers keep their policy.
+          maxRetries: completionKind === 'notes' ? 1 : 3,
           baseDelay: 100,
           maxDelay: 1000,
-          timeout: 60000,
+          timeout: completionKind === 'notes' ? 180000 : 60000,
         },
       )
 
+      if (!response.ok) throw new HttpError(response.status, 'Note generation request failed')
       const reader = response.body?.getReader()
       return reader
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw error
       if (error instanceof HttpError) {
         logError(error, { additionalInfo: 'Error chat completion stream', error: error.message })
         throwChatCompletionError({
