@@ -63,7 +63,8 @@ export const useMeetingSynthesis = (
 
     const parsedResponse = editor.storage.markdown.parser.parse(response)
 
-    editor.commands.clearContent()
+    // Intermediate clearing must not enqueue an empty autosave if insertion fails.
+    editor.commands.clearContent(false)
 
     editor
       .chain()

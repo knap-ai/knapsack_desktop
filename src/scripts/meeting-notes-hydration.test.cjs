@@ -67,3 +67,30 @@ test('an aborted read cannot clear a newly selected meeting', async () => {
   assert.equal(f.state.editor, 'stale editor'); assert.equal(f.state.notes, 'stale previous notes')
   assert.equal(f.state.writes, 0)
 })
+
+
+test('failed synthesis rendering cannot enqueue an empty autosave after persistence', () => {
+  const hook = fs.readFileSync(path.join(__dirname, '../src/hooks/useMeetingMode.tsx'), 'utf8').replace(/\r\n/g, '\n')
+  const start = hook.indexOf('  const insertLLMResponse = ')
+  const end = hook.indexOf('\n\n  const saveNotes = ', start)
+  assert.ok(start >= 0 && end > start)
+  const code = ts.transpileModule(hook.slice(start, end) + '\n exports.render=insertLLMResponse;', {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText
+  const out = {}, autosaves = []
+  vm.runInNewContext(code, { exports: out, setContent: () => {}, setMarkdown: () => {} })
+  const editor = {
+    storage: { markdown: { parser: { parse: text => text } } },
+    commands: { clearContent: (emitUpdate = true) => { if (emitUpdate) autosaves.push('') } },
+    chain: () => ({ focus: () => { throw Error('fictional editor insertion failure') } }),
+  }
+  assert.throws(() => out.render(editor, 'Already persisted fictional notes'), /fictional editor insertion failure/)
+  assert.deepEqual(autosaves, [], 'editor-only failure must not schedule empty notes over the durable save')
+  let rendered
+  const chain = { focus: () => chain, insertContent: text => { rendered = text; return chain }, run: () => { autosaves.push(rendered) } }
+  editor.chain = () => chain
+  editor.getHTML = () => rendered
+  editor.storage.markdown.getMarkdown = () => rendered
+  out.render(editor, 'Already persisted fictional notes')
+  assert.deepEqual(autosaves, ['Already persisted fictional notes'], 'successful insertion still updates the final notes state')
+})
