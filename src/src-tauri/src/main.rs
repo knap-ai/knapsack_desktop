@@ -21,6 +21,7 @@ mod connections;
 mod constants;
 mod crash_reporter;
 mod db;
+mod diagnostics;
 mod error;
 mod file_upload;
 mod heartbeat;
@@ -2158,6 +2159,8 @@ async fn run_app() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      diagnostics::set_diagnostic_capture,
+      diagnostics::diagnostic_capture_snapshot,
       local_fs::kn_open_file_as_app,
       local_fs::kn_trigger_file_read_permissions,
       kn_get_initial_deep_link,

@@ -94,8 +94,10 @@ export default class DataFetcher {
     documents: number[],
     additionalDocuments?: { title: string; content: string }[],
     threadId?: number,
+    diagnosticId?: string,
   ) {
     const body_obj = {
+      diagnostic_id: diagnosticId,
       user_email: userEmail,
       user_name: userName,
       prompt: userPrompt,

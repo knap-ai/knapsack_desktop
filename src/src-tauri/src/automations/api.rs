@@ -1331,6 +1331,9 @@ async fn schedule_automation_runs(
   let user_id = match User::find_by_email(data.user_email.clone()) {
     Ok(user) => user.id.unwrap(),
     Err(error) => {
+      if matches!(&error, rusqlite::Error::QueryReturnedNoRows) {
+        crate::diagnostics::scheduler_missing_user(data.user_email.trim().is_empty());
+      }
       log::error!("User not found: {:?}", error);
       return Ok(
         HttpResponse::NotFound().json(ScheduleAutomationRunsResponse {

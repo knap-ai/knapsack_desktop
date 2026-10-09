@@ -1524,8 +1524,9 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     }
   }, [showNotesProcessing, thread.id])
 
+  const notesSynthesisActive = isSynthesizing()
   useEffect(() => {
-    if (isSynthesizing() && !synthTimedOut) {
+    if (notesSynthesisActive && !synthTimedOut) {
       // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner
       const timeout = setTimeout(() => {
         setSynthTimedOut(true)
@@ -1536,11 +1537,11 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         clearTimeout(timeout)
       }
     } else {
-      if (!isSynthesizing()) {
+      if (!notesSynthesisActive) {
         setSynthTimedOut(false)
       }
     }
-  }, [isSynthesizing, synthTimedOut])
+  }, [notesSynthesisActive, synthTimedOut])
 
   if (!editor || isInitialLoading) {
     return (

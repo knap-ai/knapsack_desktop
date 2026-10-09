@@ -1,3 +1,5 @@
+import { readCompletionStream } from 'src/utils/completionStream'
+import { createDiagnostic, diagnosticNow, emitDiagnostic, type Diagnostic, type DiagnosticKind } from 'src/utils/diagnostics'
 import { useFollowThrough } from 'src/hooks/useFollowThrough'
 import { notificationAcceptance } from 'src/utils/notificationReply'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -206,6 +208,8 @@ export interface HomeProps {
 }
 
 export type LLMParams = {
+  diagnostic?: Diagnostic
+  diagnosticKind?: DiagnosticKind
   prompt: string
   semanticSearchQuery?: string
   documents: number[]
@@ -459,9 +463,10 @@ function App() {
 
   // -- LLM Queue management --
   const addToLLMQueue = useCallback((item: LLMParams) => {
+    const diagnostic = createDiagnostic(item.diagnosticKind)
     setLLMQueue(prevState => ({
       ...prevState,
-      items: [item, ...prevState.items],
+      items: [{ ...item, diagnostic }, ...prevState.items],
     }))
   }, [])
 
@@ -475,14 +480,31 @@ function App() {
       messageFinishCallback,
       errorCallback,
       threadId,
+      diagnostic,
     }: LLMParams) => {
+      const diagnosticStart = diagnosticNow()
+      emitDiagnostic(diagnostic, 'queue', 'completed', diagnostic?.queuedAt ?? diagnosticStart)
+      let diagnosticFailed = false
+      let diagnosticRequestPending = false
+      let diagnosticRequestStart = diagnosticStart
       // Account sync can queue background AI work before model setup is finished.
-      if (!(await getHasOnboarded())) {
+      let hasOnboarded: boolean
+      try {
+        hasOnboarded = await getHasOnboarded()
+      } catch (error) {
+        emitDiagnostic(diagnostic, 'completion', 'failed', diagnosticStart)
+        throw error
+      }
+      if (!hasOnboarded) {
+        emitDiagnostic(diagnostic, 'completion', 'failed', diagnosticStart)
         errorCallback?.(new Error('Complete onboarding before running background AI work.'))
         return
       }
       KNAnalytics.trackEvent('chatMessagesAskBot', { threadId: threadId })
       try {
+        diagnosticRequestStart = diagnosticNow()
+        diagnosticRequestPending = true
+        emitDiagnostic(diagnostic, 'request', 'started', diagnosticRequestStart)
         const reader = await dataFetcher.getChatCompletionStream(
           userEmail,
           userName,
@@ -491,9 +513,11 @@ function App() {
           documents,
           additionalDocuments,
           threadId,
+          diagnostic?.id,
         )
+        diagnosticRequestPending = false
+        emitDiagnostic(diagnostic, 'request', 'completed', diagnosticRequestStart)
 
-        const decoder = new TextDecoder('utf-8')
         if (!reader) {
           const noReaderError = new Error('No return from dataFetcher.getChatCompletionStream')
           handleOpenToastr(<span>An error occurred, please try again</span>, 'error', 5000)
@@ -501,62 +525,26 @@ function App() {
             additionalInfo: 'No return from dataFetcher.getChatCompletionStream',
             error: 'No return from dataFetcher.getChatCompletionStream',
           })
+          emitDiagnostic(diagnostic, 'completion', 'failed', diagnosticStart)
           errorCallback?.(noReaderError)
           return
         }
-        let num_reads = 0
-        let messageText = ''
-
-        const readStreamChunk = async (
-          reader: ReadableStreamDefaultReader<Uint8Array>,
-        ): Promise<boolean> => {
-          const { done, value } = await reader.read()
-          if (done) {
-            return true
-          }
-
-          const strData = decoder.decode(value)
-          const objects = strData.split('\n')
-          for (const strLine of objects) {
-            if (strLine === 'data: [DONE]') {
-              return true
-            }
-            if (!strLine.startsWith('data: ')) {
-              continue
-            }
-
-            messageText += JSON.parse(strLine.slice(6)).choices[0].text
-            if (messageText) {
-              messageStreamCallback?.(messageText)
-            }
-
-            num_reads += 1
-          }
-          return false
-        }
-        while (true) {
-          if (num_reads >= KN_CHAT_MESSAGE_MAX_STREAM_READS) {
-            handleOpenToastr(<span>An error occurred, please try again</span>, 'error', 5000)
-            logError(new Error('ChatMessagesFetch: Error: too many chat messages streamed'), {
-              additionalInfo:
-                'ChatMessagesFetch: Error: too many chat messages streamed, possibly something wrong.  Breaking to avoid infinite loop.',
-              error: 'ChatMessagesFetch: Error: too many chat messages streamed',
-            })
-            break
-          }
-          if (await readStreamChunk(reader)) {
-            break
-          }
-        }
+        const messageText = await readCompletionStream(
+          reader,
+          text => messageStreamCallback?.(text),
+          KN_CHAT_MESSAGE_MAX_STREAM_READS,
+        )
         try {
           await messageFinishCallback?.(messageText)
         } catch (callbackErr) {
+          diagnosticFailed = true
           logError(callbackErr instanceof Error ? callbackErr : new Error(String(callbackErr)), {
             additionalInfo: 'Error in messageFinishCallback',
             error: String(callbackErr),
           })
           errorCallback?.(callbackErr as Error)
         }
+        emitDiagnostic(diagnostic, 'completion', diagnosticFailed ? 'failed' : 'completed', diagnosticStart)
         if (messageText.trim()) {
           const activationClaim = claimActivationAttribution()
           if (activationClaim) {
@@ -572,6 +560,9 @@ function App() {
         }
         return messageText
       } catch (err) {
+        const outcome = err instanceof Error && err.name === 'AbortError' ? 'cancelled' : 'failed'
+        if (diagnosticRequestPending) emitDiagnostic(diagnostic, 'request', outcome, diagnosticRequestStart)
+        emitDiagnostic(diagnostic, 'completion', outcome, diagnosticStart)
         const error = (err as Error) || new Error(String(err))
         logError(error, {
           additionalInfo: 'Error during Groq fetch',

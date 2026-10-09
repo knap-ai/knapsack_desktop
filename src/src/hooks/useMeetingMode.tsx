@@ -16,6 +16,7 @@ import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 import { PROFILE_KEY } from './auth/useAuth'
 
 type LLMParams = {
+  diagnosticKind?: 'notes' | 'completion'
   prompt: string
   semanticSearchQuery: string
   documents: number[]
@@ -60,9 +61,9 @@ export const useMeetingSynthesis = (
   const insertLLMResponse = (editor: Editor | null, response: string) => {
     if (!editor) return
 
-    editor.commands.clearContent()
-
     const parsedResponse = editor.storage.markdown.parser.parse(response)
+
+    editor.commands.clearContent()
 
     editor
       .chain()
@@ -97,7 +98,7 @@ export const useMeetingSynthesis = (
           additionalInfo: 'Failed saving notes to local backend',
           error: localData.error,
         })
-        return localData
+        throw new Error('Failed saving notes locally')
       }
 
       const profile = await KNLocalStorage.getItem(PROFILE_KEY)
@@ -237,6 +238,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
         setSynthesisPhase('writing')
         await new Promise<void>((resolve, reject) => {
           addToLLMQueue({
+            diagnosticKind: 'notes',
             prompt: notesSynthesisPrompt,
             semanticSearchQuery: '',
             documents: [],
@@ -255,9 +257,17 @@ It's highly likely that the company names mentioned in the transcript appear in 
               const normalizedResponse = normalizeMeetingNotesMarkdown(response)
               setStreamingMarkdown(normalizedResponse)
               setSynthesisPhase('saving')
-              insertLLMResponse(editor, normalizedResponse)
               try {
                 await saveNotes(threadId, normalizedResponse)
+                // Rendering cannot prevent durable notes from being saved.
+                // A queued job may finish after its editor has been destroyed.
+                try {
+                  if (editor && !editor.isDestroyed) insertLLMResponse(editor, normalizedResponse)
+                } catch {
+                  logError(new Error('Notes saved but editor update failed'), {
+                    additionalInfo: 'Reopen the meeting to load saved notes',
+                  })
+                }
                 if (!shouldSave) {
                   await deleteTranscript(threadId)
                 }

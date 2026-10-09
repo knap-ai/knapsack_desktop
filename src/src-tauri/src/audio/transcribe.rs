@@ -1,3 +1,4 @@
+use crate::diagnostics::{self, Kind, Outcome, Phase, Span, Trace};
 use crate::error::Error;
 use crate::llm::types::{LLMError, Message as LlmMessage, MessageSender};
 use crate::utils::log::knap_log_error;
@@ -190,9 +191,10 @@ async fn speech_to_text(
   if provider.name == "knapsack" && fs::metadata(audio_file)?.len() > 25 * 1024 * 1024 {
     return Err(LLMError::ChatCompletionFailed("Audio chunk exceeds the 25 MB transcription limit. Your recording is preserved.".into()).into());
   }
-  let file_bytes = tokio::fs::read(&audio_file)
-    .await
-    .map_err(|_| LLMError::ChatCompletionFailed("Failed to read audio file".to_string()))?;
+  let preparation = Span::current(Phase::Preparation);
+  let file_result = tokio::fs::read(&audio_file).await;
+  diagnostics::finish_result(preparation, &file_result);
+  let file_bytes = file_result.map_err(|_| LLMError::ChatCompletionFailed("Failed to read audio file".to_string()))?;
 
   let file_name = audio_file
     .file_name()
@@ -243,11 +245,13 @@ async fn speech_to_text(
     } else {
       client.post(provider.base_url).multipart(form)
     };
-    let response = match request
+    let request_span = Span::current(Phase::Request);
+    let request_result = request
       .bearer_auth(&bearer)
       .send()
-      .await
-    {
+      .await;
+    diagnostics::finish_request(request_span, &request_result);
+    let response = match request_result {
       Ok(response) => response,
       Err(e) => {
         let error_message = e.to_string();
@@ -261,7 +265,9 @@ async fn speech_to_text(
             max_retries,
             error_message
           );
-          tokio::time::sleep(backoff).await;
+          let wait = Span::current(Phase::RetryWait);
+      tokio::time::sleep(backoff).await;
+      if let Some(wait) = wait { wait.finish(Outcome::Completed, None); }
           last_error_message = Some(error_message);
           continue;
         }
@@ -272,8 +278,10 @@ async fn speech_to_text(
     let status = response.status();
     if provider.name == "knapsack" && status == reqwest::StatusCode::UNAUTHORIZED && !refreshed {
       refreshed = true;
-      bearer = crate::clawd::browser::refresh_knapsack_access_token(None).await
-        .ok_or_else(|| LLMError::ChatCompletionFailed("Sign in to Knapsack again to resume transcription. Your audio is preserved.".into()))?;
+      let auth = Span::current(Phase::Auth);
+      let refreshed_token = crate::clawd::browser::refresh_knapsack_access_token(None).await;
+      if let Some(auth) = auth { auth.finish(if refreshed_token.is_some() { Outcome::Completed } else { Outcome::Failed }, None); }
+      bearer = refreshed_token.ok_or_else(|| LLMError::ChatCompletionFailed("Sign in to Knapsack again to resume transcription. Your audio is preserved.".into()))?;
       continue;
     }
 
@@ -309,7 +317,9 @@ async fn speech_to_text(
         attempt + 1,
         max_retries
       );
+      let wait = Span::current(Phase::RetryWait);
       tokio::time::sleep(backoff).await;
+      if let Some(wait) = wait { wait.finish(Outcome::Completed, None); }
       continue;
     }
 
@@ -325,7 +335,9 @@ async fn speech_to_text(
         attempt + 1,
         max_retries
       );
+      let wait = Span::current(Phase::RetryWait);
       tokio::time::sleep(backoff).await;
+      if let Some(wait) = wait { wait.finish(Outcome::Completed, None); }
       continue;
     }
 
@@ -365,8 +377,10 @@ async fn speech_to_text(
 
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
   if crate::privacy_mode::is_local_only() {
-    let text = crate::local_speech::transcribe_meeting(audio_file.clone()).await
-      .map_err(|message| LLMError::ChatCompletionFailed(message))?;
+    let local = Span::current(Phase::LocalInference);
+    let result = crate::local_speech::transcribe_meeting(audio_file.clone()).await;
+    diagnostics::finish_result(local, &result);
+    let text = result.map_err(|message| LLMError::ChatCompletionFailed(message))?;
     return persist_chunk_transcript(&filename, &text);
   }
   let providers = resolve_stt_providers()?;
@@ -382,7 +396,10 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
 
   for provider in providers.iter() {
     log::info!("[transcribe] Using {} for speech-to-text", provider.name);
-    match speech_to_text(provider, audio_file, None, Some(0.0)).await {
+    let span = Span::current(Phase::Provider);
+    let result = speech_to_text(provider, audio_file, None, Some(0.0)).await;
+    diagnostics::finish_result(span, &result);
+    match result {
       Ok(transcription) => {
         return persist_chunk_transcript(&filename, &transcription);
       }
@@ -450,6 +467,11 @@ pub async fn finalize_live_chunk(audio_filename: String, transcript_filename: St
 }
 
 pub async fn finalize_chunk(audio_filename: String, transcript_filename: String) {
+  diagnostics::TRACE.scope(Trace::new(Kind::Transcription, None), finalize_chunk_inner(audio_filename, transcript_filename)).await;
+}
+
+async fn finalize_chunk_inner(audio_filename: String, transcript_filename: String) {
+  let total = Span::current(Phase::Total);
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
   let flac_path = knapsack_data_dir.join("audio");
@@ -464,6 +486,14 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
   };
   // Only clear a previous failure once this stream has transcribed and saved
   // a chunk successfully. Microphone activity alone is not recovery evidence.
+  if let Some(span) = total {
+    let outcome = match &result {
+      Ok(_) => Outcome::Completed,
+      Err(Error::LLMError(LLMError::ChatCompletionFailed(message))) if message.starts_with("Transcription timed out;") => Outcome::Timeout,
+      Err(_) => Outcome::Failed,
+    };
+    span.finish(outcome, None);
+  }
   record_transcription_result(&transcript_filename, &result);
   match result {
     Ok(_) => {
