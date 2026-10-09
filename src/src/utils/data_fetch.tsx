@@ -96,6 +96,7 @@ export default class DataFetcher {
     threadId?: number,
     diagnosticId?: string,
     completionKind: 'notes' | 'completion' = 'completion',
+    signal?: AbortSignal,
   ) {
     const body_obj = {
       diagnostic_id: diagnosticId,
@@ -110,7 +111,12 @@ export default class DataFetcher {
     }
 
     try {
-      const response = await retryFetch(
+      const response = completionKind === 'notes' && signal
+        ? await fetch(KN_API_STREAM_LLM_COMPLETE, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body_obj), signal,
+          })
+        : await retryFetch(
         KN_API_STREAM_LLM_COMPLETE,
         {
           method: 'POST',
@@ -130,6 +136,7 @@ export default class DataFetcher {
         },
       )
 
+      if (!response.ok) throw new HttpError(response.status, 'Note generation request failed')
       const reader = response.body?.getReader()
       return reader
     } catch (error) {
