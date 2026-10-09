@@ -5,7 +5,7 @@ const vm = require('node:vm')
 const path = require('node:path')
 const ts = require('typescript')
 
-const source = fs.readFileSync(path.join(__dirname, '../src/components/organisms/MeetingNotesMode/index.tsx'), 'utf8')
+const source = fs.readFileSync(path.join(__dirname, '../src/components/organisms/MeetingNotesMode/index.tsx'), 'utf8').replace(/\r\n/g, '\n')
 const start = source.indexOf('  const fetchNotes = async')
 const end = source.indexOf('\n\n  const checkTranscriptSaved', start)
 assert.ok(start >= 0 && end > start, 'load the actual notes hydration function')
