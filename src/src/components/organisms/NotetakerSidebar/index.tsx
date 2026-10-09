@@ -23,6 +23,10 @@ import { TabChoices } from 'src/components/TabBar'
 
 import { getAppVersion } from 'src/utils/app'
 
+import MeetingChatAvailableButton, {
+  findStoredMeetingChatThreadId,
+} from './MeetingChatAvailableButton'
+
 import './style.scss'
 
 interface NotetakerSidebarProps {
@@ -238,6 +242,7 @@ function NotetakerSidebar({
   isAnyRecording = false,
   onConnectCalendar,
   onMeetingSelect,
+  onMeetingChatSelect,
   activeView = 'home',
   onLibraryWorkspaceOpen,
   recordingHandlers,
@@ -418,10 +423,15 @@ function NotetakerSidebar({
     return groups
   }, [feed.feedContent, getMeetingEndTime])
 
-  const hasMeetingChat = useCallback((item: FeedItem) => item.threads?.some(
-    thread => thread.threadType === ThreadType.MEETING_NOTES &&
-      !!localStorage.getItem(`moltbot_chat_history:meeting:${thread.id}`),
-  ) ?? false, [])
+  const meetingChatThreadId = useCallback(
+    (item: FeedItem) => findStoredMeetingChatThreadId(item.threads),
+    [],
+  )
+
+  const hasMeetingChat = useCallback(
+    (item: FeedItem) => meetingChatThreadId(item) !== undefined,
+    [meetingChatThreadId],
+  )
 
   const localRecordings = useMemo(() =>
     Object.entries(feed.feedContent || {})
@@ -1066,6 +1076,7 @@ function NotetakerSidebar({
                   typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
                 const subtitle = item.getSubtitle?.() || ''
                 const time = dayjs(item.timestamp).format('h:mm A')
+                const storedMeetingChatThreadId = meetingChatThreadId(item)
                 return (
                   <div
                     key={item.id ?? `note-${title}`}
@@ -1086,8 +1097,14 @@ function NotetakerSidebar({
                       {subtitle && (
                         <div className="notetaker-sidebar__note-subtitle">{subtitle}</div>
                       )}
-                      {hasMeetingChat(item) && (
-                        <div className="notetaker-sidebar__meeting-chat-tag">Meeting chat available</div>
+                      {storedMeetingChatThreadId !== undefined && item.id != null && (
+                        <MeetingChatAvailableButton
+                          feedKey={key}
+                          itemId={item.id}
+                          threadId={storedMeetingChatThreadId}
+                          onSelectMeeting={feed.selectFeedItem}
+                          onOpen={threadId => onMeetingChatSelect?.(threadId)}
+                        />
                       )}
                     </div>
                     <div className="notetaker-sidebar__note-meta">

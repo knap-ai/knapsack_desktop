@@ -46,6 +46,7 @@ import { Header } from 'src/components/organisms/Header'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 import NotetakerSidebar from 'src/components/organisms/NotetakerSidebar'
+import { useMeetingChatRoute } from 'src/components/organisms/NotetakerSidebar/meetingChatRoute'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 
@@ -134,7 +135,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
-  const [meetingChatRequest, setMeetingChatRequest] = useState({ threadId: 0, nonce: 0 })
+  const { meetingChatRequest, openMeetingChat, clearMeetingChat } = useMeetingChatRoute()
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => loadTeamRoster())
@@ -710,11 +711,12 @@ function Home({
             }}
             onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
             onMeetingSelect={() => {
+              clearMeetingChat()
               setCurrentTab(TabChoices.Meeting)
               setMeetingSubView('meetings')
             }}
             onMeetingChatSelect={threadId => {
-              setMeetingChatRequest(current => ({ threadId, nonce: current.nonce + 1 }))
+              openMeetingChat(threadId)
               setCurrentTab(TabChoices.Meeting)
               setMeetingSubView('meetings')
             }}
