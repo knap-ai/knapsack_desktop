@@ -6,7 +6,7 @@ on:
       source_sha:
         description: Full reviewed Desktop commit SHA
         required: true
-        default: 843137a232e667916ea6227ace54081a7d1bead3
+        default: 922ae5cf884eed742612e8a7d6c898fcdf81b2c6
         type: string
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
-          [[ "$SOURCE_SHA" == "843137a232e667916ea6227ace54081a7d1bead3" ]] || { echo "Only the reviewed PR735 source is allowed in this candidate workflow"; exit 1; }
+          [[ "$SOURCE_SHA" == "922ae5cf884eed742612e8a7d6c898fcdf81b2c6" ]] || { echo "Only the reviewed PR735 source is allowed in this candidate workflow"; exit 1; }
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.source_sha }}
