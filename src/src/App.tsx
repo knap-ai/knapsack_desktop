@@ -481,6 +481,7 @@ function App() {
       errorCallback,
       threadId,
       diagnostic,
+      diagnosticKind,
     }: LLMParams) => {
       const diagnosticStart = diagnosticNow()
       emitDiagnostic(diagnostic, 'queue', 'completed', diagnostic?.queuedAt ?? diagnosticStart)
@@ -493,7 +494,8 @@ function App() {
         hasOnboarded = await getHasOnboarded()
       } catch (error) {
         emitDiagnostic(diagnostic, 'completion', 'failed', diagnosticStart)
-        throw error
+        errorCallback?.(error instanceof Error ? error : new Error(String(error)))
+        return
       }
       if (!hasOnboarded) {
         emitDiagnostic(diagnostic, 'completion', 'failed', diagnosticStart)
@@ -514,6 +516,7 @@ function App() {
           additionalDocuments,
           threadId,
           diagnostic?.id,
+          diagnosticKind === 'notes' ? 'notes' : 'completion',
         )
         diagnosticRequestPending = false
         emitDiagnostic(diagnostic, 'request', 'completed', diagnosticRequestStart)

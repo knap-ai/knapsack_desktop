@@ -971,6 +971,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     isLLMLoading,
     streamingMarkdown,
     synthesisPhase,
+    error: synthesisError,
+    errorThreadId,
     synthesizeContent,
     saveNotes,
     setContent,
@@ -2248,6 +2250,20 @@ Be direct, specific, and concise. No filler text.`
               </div>
             ))}
           </div>
+        )}
+
+        {synthesisError && errorThreadId === thread.id && !isSynthesizing() && (
+          <section role="alert" className="notetaker-note__processing">
+            <span>Note generation didn’t finish. Retry from this saved meeting.</span>
+            <button
+              type="button"
+              onClick={() => void recordingHandlers.generateNotes(
+                thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
+              )}
+            >
+              Retry notes
+            </button>
+          </section>
         )}
 
         {/* Stream synthesized notes into the page as they arrive. */}

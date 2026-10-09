@@ -35,6 +35,7 @@ interface IMeetingSynthesis {
   streamingMarkdown: string
   synthesisPhase: 'idle' | 'reading-transcript' | 'writing' | 'saving'
   error: Error | null
+  errorThreadId: number | null
   synthesizeContent: (
     threadId: number,
     userNotes: string,
@@ -57,6 +58,7 @@ export const useMeetingSynthesis = (
   const [streamingMarkdown, setStreamingMarkdown] = useState<string>('')
   const [synthesisPhase, setSynthesisPhase] = useState<IMeetingSynthesis['synthesisPhase']>('idle')
   const [error, setError] = useState<Error | null>(null)
+  const [errorThreadId, setErrorThreadId] = useState<number | null>(null)
 
   const insertLLMResponse = (editor: Editor | null, response: string) => {
     if (!editor) return
@@ -216,9 +218,10 @@ It's highly likely that the company names mentioned in the transcript appear in 
       setStreamingMarkdown('')
       setSynthesisPhase('reading-transcript')
       setError(null)
+      setErrorThreadId(threadId)
 
       try {
-        const transcript = await getTranscript(threadId)
+        const transcript = await getTranscript(threadId, { localOnly: true })
         if (!transcript) {
           logError(new Error('Transcript is undefined or null.'), {
             additionalInfo: 'error getTranscript',
@@ -259,6 +262,9 @@ It's highly likely that the company names mentioned in the transcript appear in 
               setStreamingMarkdown(normalizedResponse)
               setSynthesisPhase('saving')
               try {
+                if (!normalizedResponse.trim()) {
+                  throw new Error('No notes were returned. Retry from the saved meeting.')
+                }
                 await saveNotes(threadId, normalizedResponse)
                 // Rendering cannot prevent durable notes from being saved.
                 // A queued job may finish after its editor has been destroyed.
@@ -328,6 +334,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
     streamingMarkdown,
     synthesisPhase,
     error,
+    errorThreadId,
     synthesizeContent,
     saveNotes,
     setContent,
