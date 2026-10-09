@@ -91,7 +91,7 @@ export const useMeetingSynthesis = (
   const saveNotes = async (threadId: number, notes: string, generation?: NotesGeneration) => {
     try {
       if (!generation && !renderingGeneration.current) {
-        cancelNotesGeneration(threadId, new Error('Note generation stopped because your notes were edited. Your edits are saved.'))
+        cancelNotesGeneration(threadId, new Error('Note generation stopped because your notes were edited.'))
       }
       const localSave = async () => {
         generation?.check()
