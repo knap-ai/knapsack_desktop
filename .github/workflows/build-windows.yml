@@ -43,7 +43,7 @@ jobs:
 
       - name: Test recording routing and Developer Mode intent
         working-directory: src
-        run: npm run test:meeting-recording-routing && npm run test:dev-intent
+        run: npm run test:meeting-recording-routing && npm run test:dev-intent && node --test scripts/meeting-notes-hydration.test.cjs
 
       - name: Test calendar context, local speech, privacy selection, and queued steering
         working-directory: src

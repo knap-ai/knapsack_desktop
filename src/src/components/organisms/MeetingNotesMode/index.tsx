@@ -1318,11 +1318,12 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
           const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes || '')
           setNotesMarkdown(normalizedNotes)
           const parsedNotes = editor?.storage.markdown.parser.parse(normalizedNotes)
-          editor?.commands.setContent(parsedNotes || normalizedNotes)
+          editor?.commands.setContent(parsedNotes || normalizedNotes, false)
           return normalizedNotes
         } else {
+          setNotesMarkdown('')
           setMarkdown('')
-          editor?.commands.setContent('')
+          editor?.commands.setContent('', false)
           // Opening a completed meeting is read-only. Note synthesis belongs to
           // the stop-recording flow (or an explicit regenerate action), never a
           // navigation side effect: otherwise every visit can spend tokens and
