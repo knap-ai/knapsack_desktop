@@ -10,7 +10,12 @@ const net = require('net');
 const { spawn } = require('child_process');
 
 const PROJECT_DIR = path.join(__dirname, '..');
-const CLAWDBOT_DIR = path.join(PROJECT_DIR, 'src-tauri', 'resources', 'clawdbot');
+const CLAWDBOT_DIR = process.env.KNAPSACK_OPENCLAW_RUNTIME_DIR
+  ? path.resolve(process.env.KNAPSACK_OPENCLAW_RUNTIME_DIR)
+  : path.join(PROJECT_DIR, 'src-tauri', 'resources', 'clawdbot');
+const NODE_BINARY = process.env.KNAPSACK_OPENCLAW_NODE_BINARY
+  ? path.resolve(process.env.KNAPSACK_OPENCLAW_NODE_BINARY)
+  : process.execPath;
 const ENTRY = path.join(CLAWDBOT_DIR, 'dist', 'entry.js');
 const TIMEOUT_MS = Number(process.env.KNAPSACK_GATEWAY_LIVE_TIMEOUT_MS || 15000);
 const TOKEN = `knapsack-gateway-live-${process.pid}`;
@@ -97,6 +102,8 @@ async function main() {
     ...process.env,
     OPENCLAW_STATE_DIR: stateDir,
     OPENCLAW_HOME: stateDir,
+    OPENCLAW_CONFIG_PATH: path.join(stateDir, 'openclaw.json'),
+    OPENCLAW_DISABLE_BUNDLED_PLUGIN_POSTINSTALL: '1',
     OPENCLAW_GATEWAY_TOKEN: TOKEN,
     OPENCLAW_GATEWAY_PORT: port,
     OPENCLAW_TEST_FAST: '1',
@@ -110,7 +117,7 @@ async function main() {
       process.env.OPENCLAW_DEFER_STARTUP_SIDECARS || '1',
   };
 
-  child = spawn(process.execPath, [
+  child = spawn(NODE_BINARY, [
     ENTRY,
     'gateway',
     'run',
