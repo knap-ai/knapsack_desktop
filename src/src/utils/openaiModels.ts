@@ -10,6 +10,7 @@ export type OpenAIModelOption = {
 
 export const OPENAI_MODELS: OpenAIModelOption[] = [
   { id: 'gpt-6-astra', name: 'GPT-6 Astra', description: 'Latest agentic model for complex professional work', vision: true },
+  { id: 'gpt-6.1', name: 'GPT-6.1', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-6', name: 'GPT-6', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-5.6', name: 'GPT-5.6', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-5.5', name: 'GPT-5.5', description: 'Highly capable general-purpose model', vision: true },
@@ -19,5 +20,5 @@ export const OPENAI_MODELS: OpenAIModelOption[] = [
   { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic', vision: true },
 ]
 
-export const OPENAI_PROVIDER_DESCRIPTION = 'GPT-6 Astra, GPT-6, GPT-5.6, GPT-5.5'
+export const OPENAI_PROVIDER_DESCRIPTION = 'GPT-6 Astra, GPT-6.1, GPT-6, GPT-5.6'
 export const DEFAULT_OPENAI_MODEL = 'gpt-5-mini'
