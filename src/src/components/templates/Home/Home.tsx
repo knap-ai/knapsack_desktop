@@ -1,3 +1,5 @@
+import { connectedMailSenders } from 'src/utils/emailSenders'
+import { ACCOUNT_CONTINUITY_ENABLED } from 'src/utils/releaseCapabilities'
 import { Link } from 'react-router-dom'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
 import ComputerConnectionDialog from 'src/components/organisms/ComputerConnectionDialog'
@@ -48,6 +50,7 @@ import { Header } from 'src/components/organisms/Header'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 import NotetakerSidebar from 'src/components/organisms/NotetakerSidebar'
+import { useMeetingChatRoute } from 'src/components/organisms/NotetakerSidebar/meetingChatRoute'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 
@@ -137,7 +140,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
-  const [meetingChatRequest, setMeetingChatRequest] = useState({ threadId: 0, nonce: 0 })
+  const { meetingChatRequest, openMeetingChat, clearMeetingChat } = useMeetingChatRoute()
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => loadTeamRoster())
@@ -604,10 +607,10 @@ function Home({
         middleRightComponent={
           <div className="flex items-center gap-2">
             <Link className="rounded-md px-2 py-1 text-xs underline" to="/follow-ups">Find follow-ups I owe</Link>
-            <button type="button" className="rounded-full bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
+            {ACCOUNT_CONTINUITY_ENABLED && <button type="button" className="rounded-full bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
               title="Backups and account computers" onClick={() => setIsComputersDialogOpened(true)}>
               Computers
-            </button>
+            </button>}
             <PrivacyModeControl />
             <button
               type="button"
@@ -719,11 +722,12 @@ function Home({
             }}
             onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
             onMeetingSelect={() => {
+              clearMeetingChat()
               setCurrentTab(TabChoices.Meeting)
               setMeetingSubView('meetings')
             }}
             onMeetingChatSelect={threadId => {
-              setMeetingChatRequest(current => ({ threadId, nonce: current.nonce + 1 }))
+              openMeetingChat(threadId)
               setCurrentTab(TabChoices.Meeting)
               setMeetingSubView('meetings')
             }}
@@ -1267,9 +1271,11 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                 </div>
               )}
 
-              {feed.loggedEmailAutopilot && feed.composedEmailDraft && (
+              {feed.composedEmailDraft && (
                 <EmailComposeDrawer
+                  key={feed.composedEmailDraft.id}
                   draft={feed.composedEmailDraft}
+                  senders={connectedMailSenders(connections, userEmail)}
                   userEmail={userEmail}
                   userName={userName}
                   onDismiss={() => feed.setComposedEmailDraft(null)}

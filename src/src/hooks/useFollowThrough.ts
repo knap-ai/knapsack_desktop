@@ -1,3 +1,4 @@
+import { OWNER_REMINDER_DELIVERY_ENABLED } from 'src/utils/releaseCapabilities'
 import { useEffect, useRef } from 'react'
 
 import { checkFollowThrough } from 'src/api/followThrough'
@@ -32,7 +33,7 @@ export function useFollowThrough(enabled = true, onAttention?: (count: number) =
         // Native code independently checks durable opt-in, exact account/device,
         // latest follow-up state and one-time server admission before sending.
         try {
-          await invoke('kn_imessage_delivery_tick')
+          if (OWNER_REMINDER_DELIVERY_ENABLED) await invoke('kn_imessage_delivery_tick')
         } catch {
           window.dispatchEvent(new Event('knapsack-imessage-delivery-status'))
         }

@@ -61,6 +61,7 @@ import { open as openExternalUrl } from '@tauri-apps/api/shell'
 
 import styles from './styles.module.scss'
 import AudioSettings from './AudioSettings'
+import DiagnosticCaptureControl from './DiagnosticCaptureControl'
 
 type SettingsDialogProps = {
   handlePrivacyLinkClick: () => void
@@ -1458,6 +1459,7 @@ export const SettingsDialog = ({
       >
         <header className={styles.settingsHeader}><h1>Settings</h1></header>
         <AudioSettings />
+        <DiagnosticCaptureControl />
         <hr className="border-zinc-200" />
         <div className="NotificationContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Notifications</Typography>

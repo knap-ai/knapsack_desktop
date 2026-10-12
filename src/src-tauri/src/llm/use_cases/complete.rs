@@ -1,3 +1,4 @@
+use crate::diagnostics::{self, Kind, Outcome, Phase, Span, Trace};
 use actix_web::web::{Bytes, Json};
 use actix_web::Error;
 use flume::Receiver;
@@ -527,6 +528,13 @@ async fn refresh_knapsack_token() -> Option<String> {
 }
 
 pub(crate) async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> {
+  let span = Span::current(Phase::Auth);
+  let result = resolve_knapsack_bearer_token_inner(email).await;
+  diagnostics::finish_result(span, &result);
+  result
+}
+
+async fn resolve_knapsack_bearer_token_inner(email: &str) -> Result<String, LLMError> {
   let email = email.trim();
   if email.is_empty() {
     return Err(LLMError::ChatCompletionFailed(
@@ -989,14 +997,16 @@ async fn knapsack_completion(
 
   crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &token)
     .map_err(LLMError::ProviderNotConfigured)?;
-  let mut resp = client
+  let request_span = Span::current(Phase::Request);
+  let request_result = client
     .post(format!("{}/chat/completions", &provider.base_url))
     .header("Authorization", format!("Bearer {}", token))
     .header("Content-Type", "application/json")
     .json(&body)
     .send()
-    .await
-    .map_err(|e| {
+    .await;
+  diagnostics::finish_request(request_span, &request_result);
+  let mut resp = request_result.map_err(|e| {
       LLMError::ChatCompletionFailed(format!("Knapsack inference request failed: {}", e))
     })?;
 
@@ -1009,14 +1019,16 @@ async fn knapsack_completion(
     token = resolve_knapsack_bearer_token(email).await?;
     crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &token)
       .map_err(LLMError::ProviderNotConfigured)?;
-    resp = client
+    let request_span = Span::current(Phase::Request);
+    let request_result = client
       .post(format!("{}/chat/completions", &provider.base_url))
       .header("Authorization", format!("Bearer {}", token))
       .header("Content-Type", "application/json")
       .json(&body)
       .send()
-      .await
-      .map_err(|e| {
+      .await;
+    diagnostics::finish_request(request_span, &request_result);
+    resp = request_result.map_err(|e| {
         LLMError::ChatCompletionFailed(format!(
           "Knapsack inference retry after refresh failed: {}",
           e
@@ -1097,9 +1109,12 @@ pub async fn selected_provider_completion(messages: Vec<LlmMessage>, oauth_home:
 
 /// Complete using the best available provider. Falls back through providers on failure.
 pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<String, LLMError> {
-  tokio::time::timeout(std::time::Duration::from_secs(90), multi_provider_completion_inner(messages))
-    .await
-    .map_err(|_| LLMError::ChatCompletionFailed("Inference timed out. Please check your connection and try again.".into()))?
+  let span = Span::current(Phase::Provider);
+  let result = tokio::time::timeout(std::time::Duration::from_secs(90), multi_provider_completion_inner(messages)).await;
+  if let Some(span) = span {
+    span.finish(match &result { Ok(Ok(_)) => Outcome::Completed, Ok(Err(_)) => Outcome::Failed, Err(_) => Outcome::Timeout }, None);
+  }
+  result.map_err(|_| LLMError::ChatCompletionFailed("Inference timed out. Please check your connection and try again.".into()))?
 }
 
 async fn multi_provider_completion_inner(messages: Vec<LlmMessage>) -> Result<String, LLMError> {
@@ -1404,6 +1419,8 @@ pub struct CompletionRequest {
   pub user_email: String,
   pub user_name: String,
   pub prompt: String,
+  #[serde(default)]
+  pub diagnostic_id: Option<String>,
   pub semantic_search_query: Option<String>,
   pub is_local: bool,
   pub documents: Option<Vec<u64>>,
@@ -1458,6 +1475,23 @@ pub async fn handle_llm_complete(
   is_chatting: &Arc<Mutex<AtomicBool>>,
   semantic_service: &Arc<Mutex<Option<SemanticService>>>,
 ) -> Result<AbortStream, LLMError> {
+  let trace = Trace::new(Kind::Completion, payload.diagnostic_id.as_deref());
+  diagnostics::TRACE.scope(trace, async {
+    let total = Span::current(Phase::Total);
+    let result = handle_llm_complete_inner(payload, llama_model, inference_threads, is_chatting, semantic_service).await;
+    diagnostics::finish_result(total, &result);
+    result
+  }).await
+}
+
+async fn handle_llm_complete_inner(
+  payload: Json<CompletionRequest>,
+  llama_model: &Arc<Mutex<LlamaBinding>>,
+  // llm_path: &Arc<PathBuf>,
+  inference_threads: &InferenceThreads,
+  is_chatting: &Arc<Mutex<AtomicBool>>,
+  semantic_service: &Arc<Mutex<Option<SemanticService>>>,
+) -> Result<AbortStream, LLMError> {
   is_chatting.lock().await.store(true, Ordering::Relaxed);
 
   let abort_flag = Arc::new(StdRwLock::new(AtomicBool::new(false)));
@@ -1482,6 +1516,7 @@ pub async fn handle_llm_complete(
   chat_completion_messages.push(build_system_message(user_name, user_email));
   let mut previous_messages = parse_messages(messages.clone());
   chat_completion_messages.append(&mut previous_messages);
+  let preparation = Span::current(Phase::Preparation);
   let user_message = build_user_message(
     prompt,
     semantic_search_query,
@@ -1490,6 +1525,7 @@ pub async fn handle_llm_complete(
     payload.0.additional_documents.clone(),
   )
   .await;
+  if let Some(span) = preparation { span.finish(Outcome::Completed, None); }
   chat_completion_messages.push(user_message);
 
   if payload.0.is_local {

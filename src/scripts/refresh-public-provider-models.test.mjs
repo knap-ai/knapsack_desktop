@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import {
   buildOpenAISource,
+  buildAnthropicSource,
   buildGeminiSource,
   canonicalAnthropicModelIdsFromHtml,
   canonicalGeminiModelIdsFromHtml,
@@ -94,4 +95,13 @@ test('specialized Gemini ids cannot create nonexistent text-model entries', () =
   `)
 
   assert.deepEqual(ids, ['gemini-3.7-flash'])
+})
+
+test('new public catalog choices do not change hosted Knapsack tiers', () => {
+  const source = buildAnthropicSource(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'])
+  assert.match(source, /id: 'claude-sonnet-5-5'/)
+  assert.match(source, /id: 'claude-haiku-5-5'/)
+  assert.match(source, /id: 'anthropic\/claude-haiku-4-5', name: 'Standard'/)
+  assert.match(source, /id: 'anthropic\/claude-sonnet-5', name: 'Plus'/)
+  assert.match(source, /DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic\/claude-haiku-4-5'/)
 })

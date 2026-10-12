@@ -20,7 +20,8 @@ on:
       - src/src-tauri/Cargo.toml
       - src/src-tauri/Cargo.lock
       - src/src-tauri/data-egress-manifest.json
-      - src/src-tauri/src/state_backup.rs
+      - src/src-tauri/src/state_backup*.rs
+      - src/src/utils/releaseCapabilities.ts
       - src/src-tauri/src/main.rs
       - src/src-tauri/src/clawd/**
   push:
@@ -42,7 +43,8 @@ on:
       - src/src-tauri/Cargo.toml
       - src/src-tauri/Cargo.lock
       - src/src-tauri/data-egress-manifest.json
-      - src/src-tauri/src/state_backup.rs
+      - src/src-tauri/src/state_backup*.rs
+      - src/src/utils/releaseCapabilities.ts
       - src/src-tauri/src/main.rs
       - src/src-tauri/src/clawd/**
 

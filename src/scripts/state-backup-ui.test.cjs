@@ -40,7 +40,7 @@ function loadApi(invoke) {
 
 // A small hook/JSX host exercises the component's event handlers and lifecycle without a browser,
 // Tauri process, account request, persistent storage, or an extra test dependency.
-function mount(overrides = {}, listener = undefined, dialog = async () => null) {
+function mount(overrides = {}, listener = undefined, dialog = async () => null, capabilitiesEnabled = true) {
   const slots = [], effects = [], events = new Map(), calls = []
   let cursor = 0, dirty = false, tree, props = { isOpen: true }, active = true
   const helpers = loadApi(() => { throw new Error('Unexpected real native request') })
@@ -91,11 +91,12 @@ function mount(overrides = {}, listener = undefined, dialog = async () => null) 
   }
   const jsx = (type, props) => typeof type === 'function' ? type(props) : ({ type, props })
   const picker = {}
-  vm.runInNewContext(pickerCode, { exports: picker, require: () => ({ jsx, jsxs: jsx, Fragment: 'fragment' }) })
+  vm.runInNewContext(pickerCode, { exports: picker, require: name => name === 'src/utils/releaseCapabilities' ? { ACCOUNT_CONTINUITY_ENABLED: capabilitiesEnabled } : ({ jsx, jsxs: jsx, Fragment: 'fragment' }) })
   const exports = {}
   vm.runInNewContext(componentCode, {
     exports,
     require(name) {
+      if (name === 'src/utils/releaseCapabilities') return { ACCOUNT_CONTINUITY_ENABLED: capabilitiesEnabled }
       if (name === 'react') return hooks
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'fragment' }
       if (name === './AccountDevicePicker') return picker
@@ -705,3 +706,8 @@ test('collapsing backup settings cancels a pending restore and rejects its late 
   assert.match(app.text(), /Restart Knapsack/)
   app.unmount()
 })
+
+ test("release-disabled backup exposes no native operations", async () => {
+ const app = mount({}, undefined, async () => null, false); await app.settle();
+ assert.match(app.text(), /not available in this build/); assert.deepEqual(app.calls, []);
+ });

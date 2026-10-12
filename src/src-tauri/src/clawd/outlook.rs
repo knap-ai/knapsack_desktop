@@ -199,3 +199,64 @@ mod tests {
     assert_eq!(reads, 100); assert_eq!(result["skipped"], 5);
   }
 }
+
+// New messages only. The explicit mailbox/provider selection never falls back to Gmail.
+fn recipients(value: &str) -> Result<Vec<Value>, String> {
+  let mut result = Vec::new();
+  for item in value.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+    let address = if let Some((_, rest)) = item.rsplit_once('<') { rest.strip_suffix('>').ok_or("Invalid email recipient")?.trim() } else { item };
+    if address.chars().any(|c| c.is_control() || c.is_whitespace()) || address.matches('@').count() != 1 || address.starts_with('@') || address.ends_with('@') { return Err("Invalid email recipient".into()) }
+    result.push(json!({"emailAddress":{"address":address}}));
+  }
+  Ok(result)
+}
+fn composed_payload(to: &str, cc: Option<&str>, subject: &str, body: &str, attachments: Option<&[super::gmail::EmailAttachment]>) -> Result<Value,String> {
+  use base64::Engine as _;
+  let to = recipients(to)?;
+  if to.is_empty() || subject.trim().is_empty() || body.trim().is_empty() { return Err("To, subject and body are required".into()) }
+  let mut files = Vec::new(); let mut total = 0usize;
+  for file in attachments.unwrap_or(&[]) {
+    let bytes = match file.encoding.as_deref() {
+      None | Some("utf8") => file.content.as_bytes().to_vec(),
+      Some("base64") => base64::engine::general_purpose::STANDARD.decode(&file.content).map_err(|_| "Invalid attachment encoding")?,
+      _ => return Err("Unsupported attachment encoding".into()),
+    };
+    total = total.checked_add(bytes.len()).ok_or("Attachments are too large")?;
+    if total > 2 * 1024 * 1024 || file.filename.is_empty() { return Err("Outlook attachments must total at most 2 MiB".into()) }
+    files.push(json!({"@odata.type":"#microsoft.graph.fileAttachment","name":file.filename,"contentType":file.mime_type,"contentBytes":base64::engine::general_purpose::STANDARD.encode(bytes)}));
+  }
+  Ok(json!({"message":{"subject":subject,"body":{"contentType":"HTML","content":body},"toRecipients":to,"ccRecipients":recipients(cc.unwrap_or(""))?,"attachments":files},"saveToSentItems":true}))
+}
+async fn send_composed_request(client: &reqwest::Client, url: &str, token: &str, payload: &Value) -> Result<String,String> {
+  let response = client.post(url).bearer_auth(token).json(payload).send().await.map_err(|_| "Outlook did not confirm sending. Your draft is preserved.")?;
+  if response.status() == reqwest::StatusCode::ACCEPTED { return Ok("Outlook accepted the message for sending.".into()) }
+  if response.status() == reqwest::StatusCode::FORBIDDEN { return Err("Outlook refused this send. Check the existing account's mail-sending permission; your draft is preserved.".into()) }
+  Err("Outlook did not accept this message. Your draft is preserved.".into())
+}
+pub async fn send_outlook_email(owner: &str, mailbox: &str, to: &str, cc: Option<&str>, subject: &str, body: &str, thread_id: Option<&str>, attachments: Option<&[super::gmail::EmailAttachment]>) -> Result<String,String> {
+  if thread_id.is_some() { return Err("This Outlook draft cannot reuse a Gmail reply thread. Start a new message.".into()) }
+  let payload = composed_payload(to, cc, subject, body, attachments)?;
+  let connections = UserConnection::find_by_user_email(owner.into()).map_err(|_| "Cannot read connected mailboxes")?;
+  let mut candidates = connections.into_iter().filter(|row| row.connection.as_ref().is_some_and(|c| c.scope == MICROSOFT_OUTLOOK_SCOPE) && super::mail_sender::mailbox_matches(owner, &row.calendar_account_email, mailbox)).collect::<Vec<_>>();
+  if candidates.len() != 1 { return Err("Choose one connected Outlook mailbox; this selection is missing or ambiguous.".into()) }
+  let connection = refresh_user_connection(candidates.remove(0), owner.into()).await.map_err(|_| "Could not refresh the existing Outlook connection. Your draft is preserved.")?;
+  let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).redirect(reqwest::redirect::Policy::none()).build().map_err(|_| "Cannot initialize Outlook sending")?;
+  // A legacy connection may lack mailbox metadata. Confirm the actual authenticated
+  // identity before POST so a Knapsack profile address cannot mislabel the sender.
+  let identity: Value = client.get(format!("{GRAPH}/me")).query(&[("$select","mail,userPrincipalName")]).bearer_auth(&connection.token).send().await.map_err(|_| "Could not confirm the Outlook sender")?.error_for_status().map_err(|_| "Could not confirm the Outlook sender")?.json().await.map_err(|_| "Invalid Outlook sender identity")?;
+  let actual = identity["mail"].as_str().filter(|s| !s.is_empty()).or_else(|| identity["userPrincipalName"].as_str()).ok_or("Outlook mailbox identity is unavailable")?;
+  if !actual.eq_ignore_ascii_case(mailbox) { return Err("The selected address does not match the connected Outlook mailbox. Your draft is preserved.".into()) }
+  send_composed_request(&client, &format!("{GRAPH}/me/sendMail"), &connection.token, &payload).await
+}
+
+#[cfg(test)] mod composed_send_tests {
+  use super::*;
+  #[test] fn payload_preserves_html_and_explicit_recipients(){let value=composed_payload("Alex <alex@example.invalid>, jamie@example.invalid",Some("cc@example.invalid"),"Fictional follow-up","<p>Fictional notes</p>",None).unwrap();assert_eq!(value["message"]["toRecipients"].as_array().unwrap().len(),2);assert_eq!(value["message"]["body"]["contentType"],"HTML");assert_eq!(value["saveToSentItems"],true);assert!(composed_payload("bad\naddress@example.invalid",None,"x","y",None).is_err());}
+  #[test] fn attachments_use_graph_file_attachment_shape(){let file=super::super::gmail::EmailAttachment{filename:"fixture.txt".into(),mime_type:"text/plain".into(),content:"Fictional".into(),encoding:None};let value=composed_payload("a@example.invalid",None,"x","y",Some(&[file])).unwrap();assert_eq!(value["message"]["attachments"][0]["@odata.type"],"#microsoft.graph.fileAttachment");assert_eq!(value["message"]["attachments"][0]["contentBytes"],"RmljdGlvbmFs");}
+  #[tokio::test] async fn graph_send_is_one_post_and_accepted_receipt(){
+    use std::io::{Read,Write};
+    let listener=std::net::TcpListener::bind("127.0.0.1:0").unwrap();let address=listener.local_addr().unwrap();
+    let server=std::thread::spawn(move||{let(mut stream,_)=listener.accept().unwrap();stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();let mut data=[0;8192];let count=stream.read(&mut data).unwrap();let request=std::str::from_utf8(&data[..count]).unwrap();assert!(request.starts_with("POST /me/sendMail "));stream.write_all(b"HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();});
+    let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build().unwrap();let payload=composed_payload("a@example.invalid",None,"Synthetic","Synthetic",None).unwrap();assert!(send_composed_request(&client,&format!("http://{address}/me/sendMail"),"synthetic-test-token",&payload).await.unwrap().contains("accepted"));server.join().unwrap();
+  }
+}

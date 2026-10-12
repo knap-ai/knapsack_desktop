@@ -215,6 +215,8 @@ export const sendComposedEmail = async ({
   threadId,
   userEmail,
   userName,
+  provider,
+  accountEmail,
   attachments,
 }: {
   to: string
@@ -224,6 +226,8 @@ export const sendComposedEmail = async ({
   threadId?: string
   userEmail: string
   userName?: string
+  provider?: 'gmail' | 'outlook'
+  accountEmail?: string
   attachments?: Array<{
     filename: string
     mimeType: string
@@ -248,6 +252,9 @@ export const sendComposedEmail = async ({
       user_email: senderEmail,
       userName,
       user_name: userName,
+      provider: provider || 'gmail',
+      accountEmail,
+      account_email: accountEmail,
       attachments,
     })
   } catch (error) {

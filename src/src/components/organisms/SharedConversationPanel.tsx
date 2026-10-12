@@ -1,3 +1,4 @@
+import { ACCOUNT_CONTINUITY_ENABLED } from 'src/utils/releaseCapabilities'
 import { useEffect, useRef, useState } from 'react'
 
 import {
@@ -38,7 +39,7 @@ type Props = {
 }
 const button = 'rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50'
 
-export default function SharedConversationPanel(props: Props) {
+function SharedConversationPanelAvailable(props: Props) {
   const [open, setOpen] = useState(false),
     [watchReady, setWatchReady] = useState(false)
   const [devices, setDevices] = useState<AccountDeviceDirectory | null>(null),
@@ -580,3 +581,5 @@ export default function SharedConversationPanel(props: Props) {
     </section>
   )
 }
+
+export default function SharedConversationPanel(props: Props) { return ACCOUNT_CONTINUITY_ENABLED ? <SharedConversationPanelAvailable {...props} /> : null }

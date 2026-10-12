@@ -21,6 +21,7 @@ mod connections;
 mod constants;
 mod crash_reporter;
 mod db;
+mod diagnostics;
 mod error;
 mod file_upload;
 mod heartbeat;
@@ -181,6 +182,8 @@ async fn kn_send_composed_email(
   thread_id: Option<String>,
   user_email: Option<String>,
   user_name: Option<String>,
+  provider: Option<String>,
+  account_email: Option<String>,
   attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
 ) -> Result<String, String> {
   let trimmed_to = to.trim().to_string();
@@ -198,17 +201,11 @@ async fn kn_send_composed_email(
       "No connected sender email was found. Reconnect Gmail and try again.".to_string()
     })?;
 
-  crate::clawd::gmail::send_gmail_email(
-    sender_email,
-    user_name.as_deref().unwrap_or(""),
-    &trimmed_to,
-    cc.as_deref(),
-    &trimmed_subject,
-    &trimmed_body,
-    thread_id.as_deref(),
-    attachments.as_deref(),
-  )
-  .await
+  let mailbox = account_email.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or(sender_email);
+  match crate::clawd::mail_sender::Provider::parse(provider.as_deref())? {
+    crate::clawd::mail_sender::Provider::Gmail => crate::clawd::gmail::send_gmail_email_from_account(sender_email, mailbox, user_name.as_deref().unwrap_or(""), &trimmed_to, cc.as_deref(), &trimmed_subject, &trimmed_body, thread_id.as_deref(), attachments.as_deref()).await,
+    crate::clawd::mail_sender::Provider::Outlook => crate::clawd::outlook::send_outlook_email(sender_email, mailbox, &trimmed_to, cc.as_deref(), &trimmed_subject, &trimmed_body, thread_id.as_deref(), attachments.as_deref()).await,
+  }
 }
 
 fn validate_bundled_ui_asset(app: &App, page: &str, label: &str) -> Option<String> {
@@ -2160,6 +2157,8 @@ async fn run_app() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      diagnostics::set_diagnostic_capture,
+      diagnostics::diagnostic_capture_snapshot,
       local_fs::kn_open_file_as_app,
       local_fs::kn_trigger_file_read_permissions,
       kn_get_initial_deep_link,

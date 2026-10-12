@@ -33,7 +33,7 @@ tempfile = "=3.10.1"
 walkdir = "=2.5.0"
 '''.replace('CORE_PATH', json.dumps(str(root / 'state-backup-core')))
     (test / "Cargo.toml").write_text(manifest)
-    source = (root / 'src-tauri/src/state_backup.rs').read_text()
+    source = (root / 'src-tauri/src/state_backup_experimental.rs').read_text()
     source = '\n'.join(line for line in source.splitlines() if not line.startswith('//!') and line != '#[tauri::command]')
     # The imessage bridge depends on real Tauri resources/process APIs and is
     # covered by the native suite; this recovery adapter stays network/process-free.

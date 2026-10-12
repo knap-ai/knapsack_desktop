@@ -1,9 +1,10 @@
+import { OWNER_REMINDER_DELIVERY_ENABLED } from 'src/utils/releaseCapabilities'
 import { useEffect, useRef, useState } from 'react'
 
 import { invoke } from '@tauri-apps/api/tauri'
 
 type Status = { enabled?: boolean; intent_id?: string; last_error?: string; message?: string }
-export default function IMessageFollowUpDelivery({
+function IMessageFollowUpDeliveryAvailable({
   accountId,
   intentId,
   handle,
@@ -124,3 +125,5 @@ export default function IMessageFollowUpDelivery({
     </section>
   )
 }
+
+export default function IMessageFollowUpDelivery(props: Parameters<typeof IMessageFollowUpDeliveryAvailable>[0]) { return OWNER_REMINDER_DELIVERY_ENABLED ? <IMessageFollowUpDeliveryAvailable {...props} /> : null }

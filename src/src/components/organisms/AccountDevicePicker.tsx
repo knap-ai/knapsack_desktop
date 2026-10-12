@@ -1,3 +1,4 @@
+import { ACCOUNT_CONTINUITY_ENABLED } from 'src/utils/releaseCapabilities'
 import type { AccountDeviceDirectory, StateBackupStatus } from 'src/api/stateBackup'
 
 type Props = {
@@ -17,7 +18,7 @@ type Props = {
 const button = 'rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50'
 
 /** Pure review surface; the parent uses existing serialized backup operations. */
-export default function AccountDevicePicker(props: Props) {
+function AccountDevicePickerAvailable(props: Props) {
   const { directory: data, status, selected, confirmed, busy } = props
   const device = data?.devices.find(row => row.device_id === selected)
   const checkpoint = data?.checkpoint
@@ -68,3 +69,5 @@ export default function AccountDevicePicker(props: Props) {
     </>}
   </div>
 }
+
+export default function AccountDevicePicker(props: Props) { return ACCOUNT_CONTINUITY_ENABLED ? <AccountDevicePickerAvailable {...props} /> : null }

@@ -1,16 +1,18 @@
+import { initialMailSender, type MailSender } from 'src/utils/emailSenders'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ComposedEmailDraft } from 'src/hooks/feed/useFeed'
 import { sendComposedEmail } from 'src/utils/gmailService'
 
 interface EmailComposeDrawerProps {
+  senders?: MailSender[]
   draft: ComposedEmailDraft
   userEmail?: string
   userName?: string
   onDismiss: () => void
 }
 
-const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComposeDrawerProps) => {
+const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [] }: EmailComposeDrawerProps) => {
   const [to, setTo] = useState(draft.to)
   const [subject, setSubject] = useState(draft.subject)
   const [ccList, setCcList] = useState<string[]>(() =>
@@ -24,7 +26,8 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const attachments = draft.attachments ?? []
-  const senderEmail = draft.senderEmail?.trim() || draft.userEmail?.trim() || userEmail?.trim() || ''
+  const [senderId, setSenderId] = useState(() => initialMailSender(senders, draft.senderEmail || draft.userEmail || userEmail))
+  const sender = senders.find(item => item.id === senderId)
 
   // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
   useEffect(() => {
@@ -55,8 +58,8 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   }, [ccInput, ccList, handleAddCc, handleRemoveCc])
 
   const handleSend = useCallback(async () => {
-    if (!senderEmail) {
-      setError('No connected sender email was found for this draft. Reconnect Gmail and try again.')
+    if (!sender) {
+      setError('Choose a connected Gmail or Outlook sender. Your draft is preserved.')
       return
     }
     setSending(true)
@@ -70,7 +73,9 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         subject,
         body: bodyRef.current?.innerHTML || draft.body,
         threadId: draft.threadId,
-        userEmail: senderEmail,
+        userEmail: sender.ownerEmail,
+        accountEmail: sender.accountEmail,
+        provider: sender.provider,
         userName: senderName,
         attachments: draft.attachments,
       })
@@ -81,7 +86,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
     } finally {
       setSending(false)
     }
-  }, [to, subject, ccList, draft, senderEmail, userName, onDismiss])
+  }, [to, subject, ccList, draft, sender, userName, onDismiss])
 
   const fieldRowStyle: React.CSSProperties = {
     display: 'flex',
@@ -130,14 +135,16 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         </button>
       </div>
 
+      {senders.length === 0 && <p role="status" style={{ padding: "0 16px" }}>Connect Gmail or Outlook to send. You can keep editing this draft.</p>}
       {/* Fields */}
       <div style={{ padding: '4px 16px 0', flexShrink: 0, borderBottom: '1px solid #e2e8f0' }}>
         {/* From — the connected mailbox that will actually send this draft. */}
         <div style={fieldRowStyle}>
           <span style={labelStyle}>From</span>
-          <span style={{ ...inputStyle, color: senderEmail ? '#334155' : '#dc2626' }}>
-            {senderEmail || 'No connected sender'}
-          </span>
+          <select aria-label="Sender mailbox" value={senderId} disabled={sending} onChange={event => setSenderId(event.target.value)} style={inputStyle}>
+            <option value="">Choose sender</option>
+            {senders.map(item => <option key={item.id} value={item.id}>{item.accountEmail} ({item.provider === 'outlook' ? 'Outlook' : 'Gmail'})</option>)}
+          </select>
         </div>
 
         {/* To */}
@@ -265,7 +272,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
           <>
             <button
               onClick={handleSend}
-              disabled={sending}
+              disabled={sending || !sender}
               style={{
                 padding: '8px 18px', borderRadius: 8, border: 'none',
                 background: '#c54841', color: 'white', fontSize: 13, fontWeight: 600,
@@ -285,7 +292,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
             >
               Dismiss
             </button>
-            {error && <span style={{ fontSize: 12, color: '#dc2626', flex: 1 }}>{error}</span>}
+            {error && <span role="alert" style={{ fontSize: 12, color: '#dc2626', flex: 1 }}>{error}</span>}
           </>
         )}
       </div>

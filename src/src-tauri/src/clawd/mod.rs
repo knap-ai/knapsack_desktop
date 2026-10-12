@@ -31,3 +31,5 @@ mod connector_compat;
 pub mod follow_through;
 
 pub mod slack_admin;
+
+pub(crate) mod mail_sender;

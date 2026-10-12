@@ -160,7 +160,7 @@ function mount(overrides = {}, listener) {
       }
     },
   };
-  const jsx = (type, props) => ({ type, props }),
+  const jsx = (type, props) => typeof type === "function" ? type(props) : ({ type, props }),
     exports = {};
   vm.runInNewContext(
     compile("components/organisms/SharedConversationPanel.tsx"),
@@ -173,7 +173,8 @@ function mount(overrides = {}, listener) {
         setItem: (key, value) => storage.set(key, value),
       },
       require(name) {
-        if (name === "react") return hooks;
+        if (name === "src/utils/releaseCapabilities") return { ACCOUNT_CONTINUITY_ENABLED: true, OWNER_REMINDER_DELIVERY_ENABLED: true };
+      if (name === "react") return hooks;
         if (name === "react/jsx-runtime")
           return { jsx, jsxs: jsx, Fragment: "fragment" };
         if (name === "src/utils/accountConversationState") return helperExports;

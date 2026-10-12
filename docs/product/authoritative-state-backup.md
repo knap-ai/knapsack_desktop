@@ -1,5 +1,7 @@
 # Authoritative GBrain state and account backup (review draft)
 
+Release availability: disabled. Default builds reject backup, key custody, restore, computer handoff and shared-conversation operations before network or secure-store access. The implementation below is review-only behind the compile-time `experimental-account-continuity` feature; live recovery and key custody validation remain required before enabling it.
+
 ## Scope and safety boundary
 
 This change makes the existing local GBrain the authoritative context and structured

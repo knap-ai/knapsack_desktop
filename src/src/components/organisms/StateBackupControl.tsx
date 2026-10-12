@@ -1,3 +1,4 @@
+import { ACCOUNT_CONTINUITY_ENABLED } from 'src/utils/releaseCapabilities'
 import AccountDevicePicker from './AccountDevicePicker'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -42,7 +43,7 @@ const notifyOperation = (refresh = false) => operation.observers.forEach(update 
 const buttonClass =
   'rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed'
 
-export default function StateBackupControl({ isOpen = true, onSignIn }: { isOpen?: boolean; onSignIn?: () => void }) {
+function StateBackupControlAvailable({ isOpen = true, onSignIn }: { isOpen?: boolean; onSignIn?: () => void }) {
   const [devices, setDevices] = useState<AccountDeviceDirectory | null>(null)
   const [deviceName, setDeviceName] = useState('My computer')
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
@@ -672,4 +673,9 @@ export default function StateBackupControl({ isOpen = true, onSignIn }: { isOpen
       )}
     </section>
   )
+}
+
+export default function StateBackupControl(props: { isOpen?: boolean; onSignIn?: () => void }) {
+  if (!ACCOUNT_CONTINUITY_ENABLED) return props.isOpen === false ? null : <p role="status">Computer backup is not available in this build.</p>
+  return <StateBackupControlAvailable {...props} />
 }

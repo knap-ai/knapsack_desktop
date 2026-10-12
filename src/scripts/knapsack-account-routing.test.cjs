@@ -5,7 +5,7 @@ const test = require('node:test')
 const root = path.resolve(__dirname, '..')
 const service = fs.readFileSync(path.join(root, 'src-tauri/src/clawd/service.rs'), 'utf8')
 const chat = fs.readFileSync(path.join(root, 'src/components/organisms/ClawdChat/index.tsx'), 'utf8')
-const backup = fs.readFileSync(path.join(root, 'src-tauri/src/state_backup.rs'), 'utf8')
+const backup = fs.readFileSync(path.join(root, 'src-tauri/src/state_backup_experimental.rs'), 'utf8')
 function section(source, start, end) { return source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start))) }
 
 test('account sign-in never silently chooses an inference provider', () => {

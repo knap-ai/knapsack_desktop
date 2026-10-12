@@ -1,5 +1,7 @@
 # Optional generic iMessage follow-up reminders
 
+Release availability: disabled. Default builds reject reminder setup and delivery. The implementation below is review-only and requires separate transport and device validation before activation.
+
 After a real first follow-up result, or from account Settings, the user may verify an enrolled Mac's own nongroup Messages thread. Destination verification and reminder delivery are separate decisions. The prior saved updates preference never authorizes delivery.
 
 The first delivery scope is fixed: “Knapsack: a reviewed follow-up needs attention. Open Knapsack to review it.” A short opaque event reference is appended. Source excerpts, drafts, recipients, full briefings, groups, SMS and automatic replies are excluded. Consent authorizes at most five messages from the verified self-thread to confirm the destination per attempt. Reminders require renewed consent after restarting the app, account changes or pausing.

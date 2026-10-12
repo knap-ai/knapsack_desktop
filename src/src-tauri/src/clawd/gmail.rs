@@ -100,8 +100,10 @@ pub async fn get_unread_important(query: web::Query<UnreadImportantParams>) -> i
 
 /// Send an email via the Gmail API using the user's OAuth credentials.
 /// Supports both new emails and replies (when thread_id is provided).
-pub async fn send_gmail_email(
+pub async fn send_gmail_email(user_email:&str,user_name:&str,to:&str,cc:Option<&str>,subject:&str,body:&str,thread_id:Option<&str>,attachments:Option<&[EmailAttachment]>)->Result<String,String>{send_gmail_email_from_account(user_email,user_email,user_name,to,cc,subject,body,thread_id,attachments).await}
+pub async fn send_gmail_email_from_account(
   user_email: &str,
+  account_email: &str,
   user_name: &str,
   to: &str,
   cc: Option<&str>,
@@ -110,21 +112,18 @@ pub async fn send_gmail_email(
   thread_id: Option<&str>,
   attachments: Option<&[EmailAttachment]>,
 ) -> Result<String, String> {
-  // 1. Get OAuth access token
-  let scope = GOOGLE_GMAIL_SCOPE.to_string();
-  let user_connection = UserConnection::find_by_user_email_and_scope(user_email.to_string(), scope)
-    .map_err(|e| format!("Email account not connected: {:?}", e))?;
-
-  let access_token = refresh_connection_token(user_email.to_string(), user_connection)
-    .await
-    .map_err(|e| format!("Failed to refresh auth token: {:?}", e))?;
-
+  let connections = UserConnection::find_by_user_email(user_email.to_string()).map_err(|_| "Cannot read connected Gmail accounts")?;
+  let mut selected = connections.into_iter().filter(|row| row.connection.as_ref().is_some_and(|c| c.scope == GOOGLE_GMAIL_SCOPE)
+    && super::mail_sender::mailbox_matches(user_email, &row.calendar_account_email, account_email)).collect::<Vec<_>>();
+  if selected.len() != 1 { return Err("Choose one connected Gmail mailbox; the selection is missing or ambiguous.".into()) }
+  let user_connection = selected.remove(0);
+  let access_token = refresh_connection_token(user_email.to_string(), user_connection).await.map_err(|_| "Could not refresh the existing Gmail connection")?;
   // 2. Build the MIME message
   let message_id = format!("<{}.knapsack@gmail.com>", Uuid::new_v4());
   let full_sender = if user_name.is_empty() {
-    user_email.to_string()
+    account_email.to_string()
   } else {
-    format!("{} <{}>", user_name, user_email)
+    format!("{} <{}>", user_name, account_email)
   };
 
   let has_attachments = attachments.map(|items| !items.is_empty()).unwrap_or(false);

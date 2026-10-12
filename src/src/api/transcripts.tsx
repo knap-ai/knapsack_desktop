@@ -15,22 +15,38 @@ export interface ITranscript {
   participants: string
 }
 
-export async function getTranscript(threadId: number) {
-  const response = await fetch(`${KN_API_GET_TRANSCRIPT}/${threadId}`, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-  })
+export async function getTranscript(threadId: number, options: { localOnly?: boolean } = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+  let transcript: ITranscript
+  try {
+    const response = await fetch(`${KN_API_GET_TRANSCRIPT}/${threadId}`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    })
 
-  const data = await response.json()
+    const data = await response.json()
 
-  if (!data || data['success'] !== true) {
-    return
+    if (!response.ok || !data || data['success'] !== true || !data.data) {
+      throw new Error('Could not read the saved meeting transcript. Please retry.')
+    }
+    transcript = data.data as ITranscript
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Reading the saved transcript timed out. Please retry.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
   }
 
-  const transcript = data.data as ITranscript
+  // Generating notes reads the durable local transcript; optional sharing must
+  // not hold the generation queue on a server request or provider token lookup.
+  if (options.localOnly) return transcript
 
   try {
     const profile = await KNLocalStorage.getItem(PROFILE_KEY)

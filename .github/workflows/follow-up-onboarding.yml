@@ -32,8 +32,12 @@ jobs:
           set -euo pipefail
           for round in 1 2 3; do
             echo "Fixture QA round $round; no accounts, Messages, OS grants or live transport"
-            node --test scripts/onboarding-intent.test.cjs scripts/onboarding-regressions.test.cjs scripts/knapsack-account-routing.test.cjs scripts/follow-through.test.cjs scripts/follow-through-labels.test.cjs scripts/mail-follow-ups.test.cjs scripts/first-follow-ups.test.cjs scripts/state-backup-ui.test.cjs scripts/account-conversations-ui.test.cjs scripts/imessage-ui.test.cjs scripts/imessage-onboarding.test.mjs scripts/imessage-delivery-ui.test.cjs
+            node --test scripts/follow-up-regressions.test.cjs scripts/meeting-notes-hydration.test.cjs scripts/onboarding-intent.test.cjs scripts/onboarding-regressions.test.cjs scripts/knapsack-account-routing.test.cjs scripts/follow-through.test.cjs scripts/follow-through-labels.test.cjs scripts/mail-follow-ups.test.cjs scripts/first-follow-ups.test.cjs scripts/state-backup-ui.test.cjs scripts/account-conversations-ui.test.cjs scripts/imessage-ui.test.cjs scripts/imessage-onboarding.test.mjs scripts/imessage-delivery-ui.test.cjs
           done
+      - name: Provider catalogs retain hosted defaults
+        run: node --test scripts/refresh-public-provider-models.test.mjs scripts/anthropic-opus55-compat.test.mjs
+      - name: Sender selection and draft preservation
+        run: ./node_modules/.bin/vitest run src/components/molecules/EmailComposeDrawer/index.test.tsx
   native-fixtures:
     runs-on: macos-latest
     timeout-minutes: 35
@@ -57,5 +61,4 @@ jobs:
           done
       - name: Native account, cancellation, isolation and parent-state fixtures
         run: |
-          cargo test --locked --manifest-path src/src-tauri/Cargo.toml state_backup -- --test-threads=1
-          cargo test --locked --manifest-path src/src-tauri/Cargo.toml clawd::follow_through -- --test-threads=1
+          cargo test --locked --manifest-path src/src-tauri/Cargo.toml -- --test-threads=1

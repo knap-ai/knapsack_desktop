@@ -13,6 +13,7 @@ function mount(check, enabled = true, saved = new Map()) {
   vm.runInNewContext(compiled, {
     exports,
     require(name) {
+      if (name === "src/utils/releaseCapabilities") return { OWNER_REMINDER_DELIVERY_ENABLED: false };
       if (name === 'react') return { useRef: value => ({ current: value }), useEffect: fn => { cleanup = fn() } }
       if (name === 'src/api/followThrough') return { checkFollowThrough: () => { calls++; return check() } }
       if (name === '@tauri-apps/api/tauri') return { invoke: async name => { invokes.push(name); return { enabled: false } } }

@@ -1,3 +1,4 @@
+import { takePostMeetingSource } from 'src/utils/postMeetingSource'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
@@ -1089,7 +1090,10 @@ export function useBackgroundNotifications({
    * Fetches the transcript and generates follow-up suggestions.
    */
   const handlePostMeetingFollowup = useCallback(
-    async (meetingTitle: string, threadId: number) => {
+    async (meetingTitle: string, threadId: number, sourceId?: string) => {
+      const savedSource = takePostMeetingSource(threadId, sourceId)
+      // A known expired/superseded event must not read another generation.
+      if (sourceId && !savedSource) return
       if (!userEmail) return
 
       const enabled = await getPostMeetingFollowupEnabled()
@@ -1099,12 +1103,9 @@ export function useBackgroundNotifications({
       if (!notificationsEnabled) return
 
       try {
-        const transcript = await getTranscript(threadId)
-        if (!transcript?.content || transcript.content.trim().length < 100) {
-          return
-        }
-
-        const contextPrefix = `## Meeting: ${meetingTitle}\n\n### Transcript\n\n${transcript.content}\n\n`
+        const source = savedSource || { kind: 'transcript', content: (await getTranscript(threadId))?.content || '' }
+        if (source.content.trim().length < 100) return
+        const contextPrefix = `## Meeting: ${meetingTitle}\n\n### ${source.kind === 'notes' ? 'Saved meeting notes' : 'Transcript'}\n\n${source.content}\n\n`
 
         const prompt =
           contextPrefix +

@@ -371,6 +371,7 @@ mod tests {
     std::fs::remove_dir_all(root).unwrap();
   }
 
+  #[cfg(feature = "experimental-account-continuity")]
   #[test] fn stale_generation_cannot_overwrite_restored_follow_through() {
     let first = tempfile::Builder::new().tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap(); let second = tempfile::Builder::new().tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
     let initial = Store { schema_version: 1, items: vec![tracked()] };

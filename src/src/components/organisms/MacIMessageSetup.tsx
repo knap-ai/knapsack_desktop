@@ -1,3 +1,4 @@
+import { OWNER_REMINDER_DELIVERY_ENABLED } from 'src/utils/releaseCapabilities'
 import { useEffect, useRef, useState } from 'react'
 
 import { cancelStateBackupOperation } from 'src/api/stateBackup'
@@ -18,7 +19,7 @@ type Intent = {
   updates_delivery_available: false
 }
 type Directory = { account_id: string; current_device_id: string; intents: Intent[] }
-export default function MacIMessageSetup() {
+function MacIMessageSetupAvailable() {
   const [open, setOpen] = useState(false),
     [directory, setDirectory] = useState<Directory | null>(null),
     [handle, setHandle] = useState(''),
@@ -335,3 +336,5 @@ export default function MacIMessageSetup() {
     </section>
   )
 }
+
+export default function MacIMessageSetup() { return OWNER_REMINDER_DELIVERY_ENABLED ? <MacIMessageSetupAvailable /> : null }
