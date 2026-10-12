@@ -99,12 +99,14 @@ function utility(name) {
  const out={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/utils/'+name+'.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:out,require:id=>notesUtility,Error,DOMException,AbortController,TextDecoder,setTimeout:(...args)=>setTimeout(...args),clearTimeout:(...args)=>clearTimeout(...args)});return out;
 }
 const notesUtility=utility('notesGeneration');
+const postMeetingUtility=utility('postMeetingSource');
 const streamUtility=utility('completionStream');
 function incidentHook(options = {}) {
   const states = []; let cursor = 0, queued; const refs=[]; let refCursor=0
   const effects = { writes: [], deleted: 0, finished: 0 }
   const modules = {
     'src/utils/notesGeneration': notesUtility,
+    'src/utils/postMeetingSource': postMeetingUtility,
     react: { useRef: initial => { const i=refCursor++; return refs[i] || (refs[i]={current:initial}) }, useState: initial => { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], v => { states[i] = v }] }, useCallback: cb => cb },
     'src/api/connections': {},
     'src/api/transcripts': { getTranscript: async (_id, opts) => { assert.equal(opts.localOnly, true); return { content: 'Fictional transcript' } }, deleteTranscript: async () => { effects.deleted++ } },

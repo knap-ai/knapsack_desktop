@@ -245,6 +245,7 @@ export interface ComposedEmailAttachment {
 }
 
 export interface ComposedEmailDraft {
+  id?: string
   to: string
   cc?: string
   subject: string
@@ -2360,7 +2361,10 @@ export function useFeed(
     return hasEmailCapability(connections)
   }, [connections])
 
-  const [composedEmailDraft, setComposedEmailDraft] = useState<ComposedEmailDraft | null>(null)
+  const [composedEmailDraft, setComposedEmailDraftState] = useState<ComposedEmailDraft | null>(null)
+  const setComposedEmailDraft = useCallback((draft: ComposedEmailDraft | null) => {
+    setComposedEmailDraftState(draft ? { ...draft, id: draft.id || `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}` } : null)
+  }, [])
 
   const feed: IFeed = {
     feedContent,

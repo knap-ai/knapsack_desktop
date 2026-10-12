@@ -1,10 +1,11 @@
+static MUTATION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::models::{drive_document::DriveDocument, email::Email};
 
-use super::gbrain::default_brain_root;
+
 
 const GOAL_STORE_SCHEMA_VERSION: u32 = 1;
 
@@ -142,13 +143,8 @@ fn now() -> u64 {
     .unwrap_or(0)
 }
 
-fn store_path(brain_root: &str) -> PathBuf {
-  let root = if brain_root.trim().is_empty() {
-    default_brain_root()
-  } else {
-    PathBuf::from(brain_root.trim())
-  };
-  root.join(".knapsack").join("goals-v1.json")
+fn store_path(brain_root: &str) -> Result<PathBuf, String> {
+  Ok(crate::state_backup::resolve_root(brain_root)?.join(".knapsack").join("goals-v1.json"))
 }
 
 fn read_store(path: &Path) -> Result<GoalStore, String> {
@@ -169,30 +165,9 @@ fn read_store(path: &Path) -> Result<GoalStore, String> {
 }
 
 fn write_store(path: &Path, store: &GoalStore) -> Result<(), String> {
-  let parent = path.parent().ok_or("Goal registry path has no parent")?;
-  std::fs::create_dir_all(parent)
-    .map_err(|error| format!("Cannot create goal registry directory: {}", error))?;
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
-      .map_err(|error| format!("Cannot protect goal registry directory: {}", error))?;
-  }
-  let temporary = path.with_extension("json.tmp");
-  std::fs::write(
-    &temporary,
-    serde_json::to_vec_pretty(store)
-      .map_err(|error| format!("Cannot encode goal registry: {}", error))?,
-  )
-  .map_err(|error| format!("Cannot write goal registry: {}", error))?;
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))
-      .map_err(|error| format!("Cannot protect goal registry: {}", error))?;
-  }
-  std::fs::rename(&temporary, path)
-    .map_err(|error| format!("Cannot commit goal registry: {}", error))
+  let _guard = crate::state_backup::STORE_WRITE_LOCK.lock().map_err(|_| "Authoritative state is busy")?;
+  crate::state_backup::check_write_target(path)?;
+  crate::state_backup::atomic_write(path, &serde_json::to_vec_pretty(store).map_err(|e| e.to_string())?)
 }
 
 fn meaningful(value: &Option<String>) -> bool {
@@ -445,7 +420,7 @@ fn validate_goal(goal: &GoalDefinition, observations: &[GoalObservation]) -> Res
 
 #[tauri::command]
 pub fn kn_goal_list(brain_root: String) -> Result<Vec<GoalAssessment>, String> {
-  let store = read_store(&store_path(&brain_root))?;
+  let store = read_store(&store_path(&brain_root)?)?;
   let mut goals: Vec<_> = store
     .goals
     .into_iter()
@@ -461,7 +436,8 @@ pub fn kn_goal_upsert(
   brain_root: String,
   mut goal: GoalDefinition,
 ) -> Result<GoalAssessment, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   validate_goal(&goal, &store.observations)?;
   goal.schema_version = GOAL_STORE_SCHEMA_VERSION;
@@ -482,6 +458,7 @@ pub fn kn_goal_add_observation(
   brain_root: String,
   observation: GoalObservation,
 ) -> Result<GoalAssessment, String> {
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
   if observation.id.trim().is_empty()
     || observation.goal_id.trim().is_empty()
     || observation.key_result_id.trim().is_empty()
@@ -506,7 +483,7 @@ pub fn kn_goal_add_observation(
   {
     return Err("A model or self-report cannot verify goal progress".to_string());
   }
-  let path = store_path(&brain_root);
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   if let Some(existing) = store
     .observations
@@ -544,7 +521,8 @@ pub fn kn_goal_add_observation(
 
 #[tauri::command]
 pub fn kn_goal_delete(brain_root: String, goal_id: String) -> Result<GoalAssessment, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let goal = store
     .goals
@@ -625,7 +603,7 @@ mod tests {
 
   #[test]
   fn observations_are_independent_append_only_evidence() {
-    let root = tempfile::tempdir().unwrap();
+    let root = tempfile::Builder::new().tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
     let root_string = root.path().to_string_lossy().to_string();
     kn_goal_upsert(root_string.clone(), draft(GoalStatus::Active)).unwrap();
 

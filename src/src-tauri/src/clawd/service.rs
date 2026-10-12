@@ -5038,28 +5038,13 @@ mod clawdbot_home_env_tests {
   }
 }
 
-/// Safe default for iMessage DM access. Prefer the signed-in Knapsack email
-/// because it is often also the user's Apple ID. If no owner identifier is
-/// discoverable, use a non-matching sentinel so the gateway remains in
-/// allowlist mode and never sends pairing codes to arbitrary contacts.
+/// Configuration alone cannot prove the signed-in account owns an Apple handle.
+/// Preserve explicit administrator allowlists, but never infer one from account email.
 pub(crate) fn safe_default_imessage_allow_from() -> Vec<String> {
   let mut entries = Vec::new();
-
   if let Ok(raw) = std::env::var("KNAPSACK_IMESSAGE_ALLOW_FROM") {
-    for part in raw.split(',') {
-      push_imessage_owner_identifier(&mut entries, part);
-    }
+    for part in raw.split(',') { push_imessage_owner_identifier(&mut entries, part); }
   }
-  if let Ok(raw) = std::env::var("KNAPSACK_USER_EMAIL") {
-    push_imessage_owner_identifier(&mut entries, &raw);
-  }
-  if let Some(email) = knapsack_email_from_tokens() {
-    push_imessage_owner_identifier(&mut entries, &email);
-  }
-  if let Some(email) = knapsack_profile_email_from_disk() {
-    push_imessage_owner_identifier(&mut entries, &email);
-  }
-
   if entries.is_empty() {
     entries.push(IMESSAGE_OWNER_UNCONFIGURED_SENTINEL.to_string());
   }
@@ -16486,6 +16471,22 @@ struct DesktopSignInApiResponse {
   email: String,
 }
 
+/// Account authentication must not change the user's inference route. Provider
+/// selection remains the explicit Settings/Use Knapsack action, including BYOK
+/// and on-device Privacy Mode users who sign in only for account recovery.
+fn apply_knapsack_account_sign_in(tokens: &mut StoredTokens, sign_in: &DesktopSignInApiResponse) {
+  tokens.knapsack_access_token = Some(sign_in.access_token.clone());
+  tokens.knapsack_refresh_token = Some(sign_in.refresh_token.clone());
+  tokens.knapsack_email = Some(sign_in.email.clone());
+  let normalized_knapsack_model = tokens
+    .knapsack_model
+    .take()
+    .map(|model| normalize_provider_model("knapsack", &model))
+    .filter(|model| !model.trim().is_empty())
+    .unwrap_or_else(|| "auto".to_string());
+  tokens.knapsack_model = Some(normalized_knapsack_model);
+}
+
 async fn exchange_and_store_knapsack_code(
   app_handle: &tauri::AppHandle,
   code: &str,
@@ -16523,26 +16524,13 @@ async fn exchange_and_store_knapsack_code(
     "Failed to save credentials".to_string()
   })?;
 
-  tokens.knapsack_access_token = Some(sign_in.access_token.clone());
-  tokens.knapsack_refresh_token = Some(sign_in.refresh_token.clone());
-  tokens.knapsack_email = Some(sign_in.email.clone());
-  let normalized_knapsack_model = tokens
-    .knapsack_model
-    .take()
-    .map(|model| normalize_provider_model("knapsack", &model))
-    .filter(|model| !model.trim().is_empty())
-    .unwrap_or_else(|| "auto".to_string());
-  tokens.knapsack_model = Some(normalized_knapsack_model);
-  tokens.active_provider = Some("knapsack".to_string());
-
-  if let Err(e) = save_tokens(app_handle, &tokens) {
-    log::error!("[knapsack_auth] failed to save tokens: {}", e);
-  }
+  crate::state_backup::suspend_on_account_change();
+  apply_knapsack_account_sign_in(&mut tokens, &sign_in);
+  save_tokens(app_handle, &tokens).map_err(|_| "Failed to save Knapsack account credentials".to_string())?;
 
   std::env::set_var("KNAPSACK_ACCESS_TOKEN", &sign_in.access_token);
   std::env::set_var("KNAPSACK_REFRESH_TOKEN", &sign_in.refresh_token);
   std::env::set_var("KNAPSACK_USER_EMAIL", &sign_in.email);
-  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
   if let Some(m) = &tokens.knapsack_model {
     std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m);
   }
@@ -16593,11 +16581,13 @@ pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> imp
     }
   };
 
+  crate::state_backup::suspend_on_account_change();
   tokens.knapsack_access_token = None;
   tokens.knapsack_refresh_token = None;
   tokens.knapsack_email = None;
 
-  let fallback = if tokens
+  let provider_changed = tokens.active_provider.as_deref() == Some("knapsack");
+  let cloud_fallback = if tokens
     .anthropic_api_key
     .as_ref()
     .map(|k| !k.trim().is_empty())
@@ -16622,7 +16612,8 @@ pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> imp
     "openai"
   };
 
-  tokens.active_provider = Some(fallback.to_string());
+  let fallback = if provider_changed { Some(cloud_fallback.to_string()) } else { tokens.active_provider.clone() };
+  tokens.active_provider = fallback.clone();
   if let Err(e) = save_tokens(&app_handle, &tokens) {
     return HttpResponse::InternalServerError()
       .json(serde_json::json!({"ok": false, "message": e}));
@@ -16631,18 +16622,20 @@ pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> imp
   std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
   std::env::remove_var("KNAPSACK_REFRESH_TOKEN");
   std::env::remove_var("KNAPSACK_USER_EMAIL");
-  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", fallback);
+  if provider_changed {
+    if let Some(provider) = &fallback { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", provider); }
+  }
   std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
   let _ = app_handle.emit_all(
     "knapsack-disconnected",
-    serde_json::json!({"fallback_provider": fallback}),
+    serde_json::json!({"fallback_provider": fallback,"provider_changed":provider_changed}),
   );
   log::info!(
-    "[knapsack_disconnect] disconnected, fallback provider = {}",
-    fallback
+    "[knapsack_disconnect] disconnected, inference provider changed = {}",
+    provider_changed
   );
 
-  HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback}))
+  HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback,"provider_changed":provider_changed}))
 }
 
 #[derive(Debug, Serialize)]
@@ -16708,7 +16701,7 @@ pub async fn meeting_brief_slack_search(
   }
 }
 
-async fn studio_access_token(app_handle: &tauri::AppHandle) -> Result<String, String> {
+pub(crate) async fn studio_access_token(app_handle: &tauri::AppHandle) -> Result<String, String> {
   let tokens = load_or_create_tokens(app_handle)?;
   if !has_knapsack_runtime_auth(&tokens) {
     return Err(if knapsack_auth_is_expired(&tokens) {
@@ -18919,6 +18912,22 @@ mod knapsack_runtime_auth_tests {
     assert!(!ensure_api_auth_tokens(&mut tokens));
     assert_eq!(tokens.desktop_api_token, desktop_api_token);
     assert_eq!(tokens.mobile_pairing_token, mobile_pairing_token);
+  }
+
+  #[test]
+  fn account_sign_in_preserves_byok_local_and_existing_provider_choices() {
+    for provider in [None, Some("ollama"), Some("anthropic"), Some("openai"), Some("knapsack")] {
+      let mut tokens = empty_tokens();
+      tokens.active_provider = provider.map(str::to_owned);
+      tokens.ollama_enabled = Some(true);
+      tokens.anthropic_api_key = Some("existing-byok-test-key".into());
+      let sign_in = super::DesktopSignInApiResponse { access_token: "test-access".into(), refresh_token: "test-refresh".into(), email: "owner@example.test".into() };
+      super::apply_knapsack_account_sign_in(&mut tokens, &sign_in);
+      assert_eq!(tokens.active_provider.as_deref(), provider);
+      assert_eq!(tokens.ollama_enabled, Some(true));
+      assert_eq!(tokens.anthropic_api_key.as_deref(), Some("existing-byok-test-key"));
+      assert_eq!(tokens.knapsack_email.as_deref(), Some("owner@example.test"));
+    }
   }
 
   #[test]

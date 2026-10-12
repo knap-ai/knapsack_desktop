@@ -347,6 +347,7 @@ pub async fn gateway_request(
   params: Option<Value>,
   token: Option<&str>,
 ) -> Result<Value, String> {
+  let _setup_configuration = crate::state_backup::imessage::config_write_guard(method, &params).await?;
   let mut current_token = token.map(ToString::to_string);
   let mut self_heal_attempted = false;
 

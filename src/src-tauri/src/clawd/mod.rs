@@ -11,6 +11,7 @@ pub mod gateway_supervisor;
 pub mod gateway_ws;
 pub mod gbrain;
 pub mod gmail;
+pub mod outlook;
 pub mod goals;
 pub mod harness;
 pub mod loops;
@@ -30,3 +31,5 @@ mod connector_compat;
 pub mod follow_through;
 
 pub mod slack_admin;
+
+pub(crate) mod mail_sender;

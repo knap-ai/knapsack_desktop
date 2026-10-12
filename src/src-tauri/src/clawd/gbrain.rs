@@ -8,19 +8,12 @@ use walkdir::WalkDir;
 
 /// Default brain repo root: ~/gbrain
 pub fn default_brain_root() -> PathBuf {
-  dirs::home_dir()
-    .unwrap_or_else(|| PathBuf::from("."))
-    .join("gbrain")
+  // Callers that access files use resolve_root below and fail closed on corrupt metadata.
+  crate::state_backup::authoritative_root().unwrap_or_else(|_| crate::state_backup::legacy_root())
 }
 
-/// Resolve brain root: use provided path if non-empty, else default.
-fn resolve_root(brain_root: &str) -> PathBuf {
-  let p = brain_root.trim();
-  if p.is_empty() {
-    default_brain_root()
-  } else {
-    PathBuf::from(p)
-  }
+fn resolve_root(brain_root: &str) -> Result<PathBuf, String> {
+  crate::state_backup::resolve_root(brain_root)
 }
 
 /// Ensure a path stays inside the brain root (prevent directory traversal).
@@ -164,7 +157,7 @@ fn page_snippet(content: &str, terms: &[String]) -> String {
 /// Pass `sub_path = ""` to list the root.
 #[tauri::command]
 pub fn kn_brain_list(brain_root: String, sub_path: String) -> Result<Vec<BrainEntry>, String> {
-  let root = resolve_root(&brain_root);
+  let root = resolve_root(&brain_root)?;
   let dir = if sub_path.trim().is_empty() {
     root.clone()
   } else {
@@ -231,7 +224,7 @@ pub fn kn_brain_list(brain_root: String, sub_path: String) -> Result<Vec<BrainEn
 /// Read the contents of a brain page (markdown file) by its relative path.
 #[tauri::command]
 pub fn kn_brain_read_page(brain_root: String, rel_path: String) -> Result<String, String> {
-  let root = resolve_root(&brain_root);
+  let root = resolve_root(&brain_root)?;
   let path = safe_join(&root, &rel_path).ok_or("Invalid path")?;
   if path.is_dir() {
     return Err("Path is a directory, not a file".to_string());
@@ -247,7 +240,7 @@ pub fn kn_brain_search(
   query: String,
   limit: usize,
 ) -> Result<Vec<BrainSearchResult>, String> {
-  let root = resolve_root(&brain_root);
+  let root = resolve_root(&brain_root)?;
   if !root.exists() {
     std::fs::create_dir_all(&root)
       .map_err(|e| format!("Cannot create brain directory {}: {}", root.display(), e))?;
@@ -350,16 +343,18 @@ pub fn kn_brain_write_page(
   rel_path: String,
   content: String,
 ) -> Result<(), String> {
-  let root = resolve_root(&brain_root);
+  let root = resolve_root(&brain_root)?;
   let path = safe_join(&root, &rel_path).ok_or("Invalid path")?;
   if let Some(parent) = path.parent() {
     std::fs::create_dir_all(parent).map_err(|e| format!("Cannot create parent dirs: {}", e))?;
   }
-  std::fs::write(&path, content).map_err(|e| format!("Cannot write {}: {}", path.display(), e))
+  let _guard = crate::state_backup::STORE_WRITE_LOCK.lock().map_err(|_| "Authoritative state is busy")?;
+  crate::state_backup::check_write_target(&path)?;
+  crate::state_backup::atomic_write(&path, content.as_bytes())
 }
 
 /// Return the default brain root path so the frontend can pre-populate settings.
 #[tauri::command]
-pub fn kn_brain_default_root() -> String {
-  default_brain_root().to_string_lossy().to_string()
+pub fn kn_brain_default_root() -> Result<String, String> {
+  Ok(crate::state_backup::authoritative_root()?.to_string_lossy().to_string())
 }

@@ -1,9 +1,10 @@
+static MUTATION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use super::gbrain::default_brain_root;
+
 use crate::db::models::email::Email;
 
 const LOOP_STORE_SCHEMA_VERSION: u32 = 1;
@@ -213,19 +214,8 @@ fn now() -> u64 {
     .unwrap_or(0)
 }
 
-fn resolve_root(brain_root: &str) -> PathBuf {
-  let value = brain_root.trim();
-  if value.is_empty() {
-    default_brain_root()
-  } else {
-    PathBuf::from(value)
-  }
-}
-
-fn store_path(brain_root: &str) -> PathBuf {
-  resolve_root(brain_root)
-    .join(".knapsack")
-    .join("loops-v1.json")
+fn store_path(brain_root: &str) -> Result<PathBuf, String> {
+  Ok(crate::state_backup::resolve_root(brain_root)?.join(".knapsack").join("loops-v1.json"))
 }
 
 fn read_store(path: &Path) -> Result<LoopStore, String> {
@@ -246,32 +236,9 @@ fn read_store(path: &Path) -> Result<LoopStore, String> {
 }
 
 fn write_store(path: &Path, store: &LoopStore) -> Result<(), String> {
-  let parent = path.parent().ok_or("Loop registry path has no parent")?;
-  std::fs::create_dir_all(parent)
-    .map_err(|error| format!("Cannot create loop registry directory: {}", error))?;
-
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
-      .map_err(|error| format!("Cannot protect loop registry directory: {}", error))?;
-  }
-
-  let temporary = path.with_extension("json.tmp");
-  let encoded = serde_json::to_vec_pretty(store)
-    .map_err(|error| format!("Cannot encode loop registry: {}", error))?;
-  std::fs::write(&temporary, encoded)
-    .map_err(|error| format!("Cannot write loop registry: {}", error))?;
-
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))
-      .map_err(|error| format!("Cannot protect loop registry: {}", error))?;
-  }
-
-  std::fs::rename(&temporary, path)
-    .map_err(|error| format!("Cannot commit loop registry: {}", error))
+  let _guard = crate::state_backup::STORE_WRITE_LOCK.lock().map_err(|_| "Authoritative state is busy")?;
+  crate::state_backup::check_write_target(path)?;
+  crate::state_backup::atomic_write(path, &serde_json::to_vec_pretty(store).map_err(|e| e.to_string())?)
 }
 
 fn transition_allowed(from: &LoopRunStatus, to: &LoopRunStatus) -> bool {
@@ -445,7 +412,7 @@ fn apply_transition(
 #[tauri::command]
 pub fn kn_loop_list_definitions(brain_root: String) -> Result<Vec<LoopDefinition>, String> {
   Ok(
-    read_store(&store_path(&brain_root))?
+    read_store(&store_path(&brain_root)?)?
       .definitions
       .into_iter()
       .filter(|definition| definition.status != LoopDefinitionStatus::Deleted)
@@ -455,7 +422,7 @@ pub fn kn_loop_list_definitions(brain_root: String) -> Result<Vec<LoopDefinition
 
 #[tauri::command]
 pub fn kn_loop_list_candidates(brain_root: String) -> Result<Vec<LoopCandidate>, String> {
-  let mut candidates = read_store(&store_path(&brain_root))?.candidates;
+  let mut candidates = read_store(&store_path(&brain_root)?)?.candidates;
   candidates.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
   Ok(candidates)
 }
@@ -509,7 +476,8 @@ pub fn kn_loop_discover_email_candidates(
   brain_root: String,
   limit: Option<usize>,
 ) -> Result<Vec<LoopCandidate>, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let observed_at = now();
   let mut discovered = Vec::new();
@@ -568,6 +536,7 @@ pub fn kn_loop_observe_candidate(
   brain_root: String,
   mut candidate: LoopCandidate,
 ) -> Result<LoopCandidate, String> {
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
   if candidate.id.trim().is_empty()
     || candidate.loop_id.trim().is_empty()
     || candidate.signal_id.trim().is_empty()
@@ -579,7 +548,7 @@ pub fn kn_loop_observe_candidate(
     return Err("Candidate confidence must be between 0 and 1".to_string());
   }
 
-  let path = store_path(&brain_root);
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   if let Some(existing) = store
     .candidates
@@ -604,10 +573,11 @@ pub fn kn_loop_decide_candidate(
   candidate_id: String,
   decision: LoopCandidateStatus,
 ) -> Result<LoopCandidate, String> {
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
   if decision == LoopCandidateStatus::Proposed {
     return Err("A candidate decision must be accepted or dismissed".to_string());
   }
-  let path = store_path(&brain_root);
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let candidate = store
     .candidates
@@ -626,6 +596,7 @@ pub fn kn_loop_upsert_definition(
   brain_root: String,
   mut definition: LoopDefinition,
 ) -> Result<LoopDefinition, String> {
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
   if definition.id.trim().is_empty()
     || definition.name.trim().is_empty()
     || definition.desired_outcome.trim().is_empty()
@@ -635,7 +606,7 @@ pub fn kn_loop_upsert_definition(
   }
 
   definition.schema_version = LOOP_STORE_SCHEMA_VERSION;
-  let path = store_path(&brain_root);
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let changed_at = now();
   definition.updated_at = changed_at;
@@ -661,7 +632,8 @@ pub fn kn_loop_delete_definition(
   brain_root: String,
   loop_id: String,
 ) -> Result<LoopDefinition, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let definition = store
     .definitions
@@ -686,7 +658,7 @@ pub fn kn_loop_list_runs(
   brain_root: String,
   loop_id: Option<String>,
 ) -> Result<Vec<LoopRun>, String> {
-  let mut runs = read_store(&store_path(&brain_root))?.runs;
+  let mut runs = read_store(&store_path(&brain_root)?)?.runs;
   if let Some(id) = loop_id {
     runs.retain(|run| run.loop_id == id);
   }
@@ -705,7 +677,8 @@ pub fn kn_loop_start_run(
   account_identity: Option<String>,
   target_identity: Option<String>,
 ) -> Result<LoopRun, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let definition = store
     .definitions
@@ -755,10 +728,11 @@ pub fn kn_loop_set_prepared_artifact(
   run_id: String,
   mut artifact: PreparedArtifact,
 ) -> Result<LoopRun, String> {
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
   if artifact.title.trim().is_empty() || artifact.body.trim().is_empty() {
     return Err("A prepared artifact needs a title and body".to_string());
   }
-  let path = store_path(&brain_root);
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let run = store
     .runs
@@ -785,13 +759,14 @@ pub fn kn_loop_set_prepared_artifact(
 
 #[tauri::command]
 pub fn kn_loop_export(brain_root: String) -> Result<String, String> {
-  let store = read_store(&store_path(&brain_root))?;
+  let store = read_store(&store_path(&brain_root)?)?;
   serde_json::to_string_pretty(&store)
     .map_err(|error| format!("Cannot export loop registry: {}", error))
 }
 
 #[tauri::command]
 pub fn kn_loop_import(brain_root: String, payload: String) -> Result<(), String> {
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
   let store: LoopStore = serde_json::from_str(&payload)
     .map_err(|error| format!("Loop import is not valid: {}", error))?;
   if store.schema_version != LOOP_STORE_SCHEMA_VERSION {
@@ -800,7 +775,7 @@ pub fn kn_loop_import(brain_root: String, payload: String) -> Result<(), String>
       store.schema_version
     ));
   }
-  write_store(&store_path(&brain_root), &store)
+  write_store(&store_path(&brain_root)?, &store)
 }
 
 #[tauri::command]
@@ -809,7 +784,8 @@ pub fn kn_loop_set_approval(
   run_id: String,
   decision: ApprovalDecision,
 ) -> Result<LoopRun, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let run = store
     .runs
@@ -841,7 +817,8 @@ pub fn kn_loop_transition_run(
   evidence: Vec<LoopEvidence>,
   note: Option<String>,
 ) -> Result<LoopRun, String> {
-  let path = store_path(&brain_root);
+  let _transaction = MUTATION_LOCK.lock().map_err(|_| "Authoritative registry is busy")?;
+  let path = store_path(&brain_root)?;
   let mut store = read_store(&path)?;
   let run_index = store
     .runs
@@ -1084,7 +1061,7 @@ mod tests {
 
   #[test]
   fn candidates_deduplicate_and_dismissal_is_sticky() {
-    let root = std::env::temp_dir().join(format!("knapsack-loop-test-{}", now()));
+    let root = std::env::temp_dir().canonicalize().unwrap().join(format!("knapsack-loop-test-{}", now()));
     let root_string = root.to_string_lossy().to_string();
     let candidate = LoopCandidate {
       id: "candidate-1".to_string(),
@@ -1127,8 +1104,8 @@ mod tests {
 
   #[test]
   fn export_import_round_trip_preserves_canonical_store() {
-    let source = std::env::temp_dir().join(format!("knapsack-loop-export-{}", now()));
-    let target = std::env::temp_dir().join(format!("knapsack-loop-import-{}", now()));
+    let source = std::env::temp_dir().canonicalize().unwrap().join(format!("knapsack-loop-export-{}", now()));
+    let target = std::env::temp_dir().canonicalize().unwrap().join(format!("knapsack-loop-import-{}", now()));
     let source_string = source.to_string_lossy().to_string();
     let target_string = target.to_string_lossy().to_string();
     kn_loop_upsert_definition(source_string.clone(), definition(true)).unwrap();
@@ -1142,7 +1119,7 @@ mod tests {
 
   #[test]
   fn deleting_a_definition_hides_it_but_preserves_history_in_export() {
-    let root = std::env::temp_dir().join(format!("knapsack-loop-delete-{}", Uuid::new_v4()));
+    let root = std::env::temp_dir().canonicalize().unwrap().join(format!("knapsack-loop-delete-{}", Uuid::new_v4()));
     let root_string = root.to_string_lossy().to_string();
     kn_loop_upsert_definition(root_string.clone(), definition(true)).unwrap();
     let deleted =

@@ -31,6 +31,7 @@ mod local_fs;
 mod mcp;
 mod memory;
 mod privacy_mode;
+mod state_backup;
 mod privileged_worker;
 mod pty;
 mod qa_launch;
@@ -181,6 +182,8 @@ async fn kn_send_composed_email(
   thread_id: Option<String>,
   user_email: Option<String>,
   user_name: Option<String>,
+  provider: Option<String>,
+  account_email: Option<String>,
   attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
 ) -> Result<String, String> {
   let trimmed_to = to.trim().to_string();
@@ -198,17 +201,11 @@ async fn kn_send_composed_email(
       "No connected sender email was found. Reconnect Gmail and try again.".to_string()
     })?;
 
-  crate::clawd::gmail::send_gmail_email(
-    sender_email,
-    user_name.as_deref().unwrap_or(""),
-    &trimmed_to,
-    cc.as_deref(),
-    &trimmed_subject,
-    &trimmed_body,
-    thread_id.as_deref(),
-    attachments.as_deref(),
-  )
-  .await
+  let mailbox = account_email.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or(sender_email);
+  match crate::clawd::mail_sender::Provider::parse(provider.as_deref())? {
+    crate::clawd::mail_sender::Provider::Gmail => crate::clawd::gmail::send_gmail_email_from_account(sender_email, mailbox, user_name.as_deref().unwrap_or(""), &trimmed_to, cc.as_deref(), &trimmed_subject, &trimmed_body, thread_id.as_deref(), attachments.as_deref()).await,
+    crate::clawd::mail_sender::Provider::Outlook => crate::clawd::outlook::send_outlook_email(sender_email, mailbox, &trimmed_to, cc.as_deref(), &trimmed_subject, &trimmed_body, thread_id.as_deref(), attachments.as_deref()).await,
+  }
 }
 
 fn validate_bundled_ui_asset(app: &App, page: &str, label: &str) -> Option<String> {
@@ -434,6 +431,7 @@ fn setup_handler(
   // app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
   let app_handle = app.handle();
+  state_backup::spawn(app_handle.clone());
 
   // Start the gateway as early as possible so it warms in parallel with
   // app-local config and key propagation.
@@ -2201,6 +2199,30 @@ async fn run_app() {
       kn_get_openclaw_version,
       clawd::service::get_desktop_api_token,
       clawd::service::get_mobile_pairing_token,
+      state_backup::imessage::kn_imessage_setup_create,
+      state_backup::imessage::kn_imessage_setup_list,
+      state_backup::imessage::kn_imessage_setup_readiness,
+      state_backup::imessage::kn_imessage_setup_action,
+      state_backup::imessage_delivery::kn_imessage_delivery_status,
+      state_backup::imessage_delivery::kn_imessage_delivery_pause_local,
+      state_backup::imessage_delivery::kn_imessage_delivery_consent,
+      state_backup::imessage_delivery::kn_imessage_delivery_tick,
+      state_backup::conversations::kn_account_conversations,
+      state_backup::conversations::kn_account_conversation_read,
+      state_backup::conversations::kn_account_conversation_publish,
+      state_backup::conversations::kn_account_device_revoke,
+      state_backup::devices::kn_account_devices,
+      state_backup::devices::kn_account_device_register,
+      state_backup::kn_state_backup_status,
+      state_backup::kn_state_backup_account,
+      state_backup::kn_state_backup_enable,
+      state_backup::kn_state_backup_now,
+      state_backup::kn_state_backup_disable,
+      state_backup::kn_state_backup_restore,
+      state_backup::kn_state_backup_verify_identity,
+      state_backup::kn_state_backup_cancel_identity,
+      state_backup::kn_state_backup_cancel_operation,
+      state_backup::kn_state_backup_migrate_legacy,
       privacy_mode::get_privacy_mode_status,
       clawd::service::privacy_provider_candidates,
       local_speech::local_speech_status,
@@ -2235,6 +2257,7 @@ async fn run_app() {
       clawd::follow_through::kn_follow_through_list,
       clawd::follow_through::kn_follow_through_save_draft,
       clawd::follow_through::kn_follow_through_extract,
+      clawd::follow_through::kn_follow_through_ready,
       clawd::follow_through::kn_follow_through_propose,
       clawd::follow_through::kn_follow_through_decide,
       clawd::follow_through::kn_follow_through_link,

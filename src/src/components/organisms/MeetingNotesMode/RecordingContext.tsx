@@ -1,3 +1,4 @@
+import { postMeetingSourceId } from 'src/utils/postMeetingSource'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import { getLocalSpeechStatus } from 'src/utils/localSpeech'
 import React, { createContext, ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
@@ -260,6 +261,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         // Emit event for post-meeting follow-up notifications
         emit('notes_synthesized', {
           threadId,
+          sourceId: postMeetingSourceId(threadId),
           meetingTitle: meeting?.title || 'Meeting',
         }).catch(err => console.warn('Failed to emit notes_synthesized event:', err))
       } catch (error) {

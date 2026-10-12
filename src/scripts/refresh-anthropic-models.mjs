@@ -153,8 +153,6 @@ function buildSource(ids) {
   })
 
   const latestOpus = idsByFamily.get('opus')?.[0] ?? anthropicModels[0]?.id ?? 'claude-opus-4-8'
-  const latestSonnet = idsByFamily.get('sonnet')?.[0] ?? 'claude-sonnet-5'
-  const latestHaiku = idsByFamily.get('haiku')?.[0] ?? 'claude-haiku-4-5-20251001'
 
   const descriptionParts = FAMILY_ORDER
     .map((family) => familyHeadline(ids, family))
@@ -186,12 +184,12 @@ export const DEFAULT_ANTHROPIC_MODEL = '${latestOpus}'
 export const ANTHROPIC_PROVIDER_DESCRIPTION = '${providerDescription}'
 
 export const KNAPSACK_ANTHROPIC_TIER_MODELS: KnapsackTierModelOption[] = [
-  { id: 'anthropic/${latestHaiku}', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-  { id: 'anthropic/${latestSonnet}', name: 'Plus', description: 'Balanced performance and capability' },
-  { id: 'anthropic/${latestOpus}', name: 'Premium', description: 'Most powerful — best for complex work' },
+  { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
+  { id: 'anthropic/claude-sonnet-5', name: 'Plus', description: 'Balanced performance and capability' },
+  { id: 'anthropic/claude-opus-5-5', name: 'Premium', description: 'Most powerful — best for complex work' },
 ]
 
-export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/${latestHaiku}'
+export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/claude-haiku-4-5'
 `
 }
 

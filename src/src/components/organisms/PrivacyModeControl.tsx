@@ -58,6 +58,7 @@ export default function PrivacyModeControl() {
       <div className="bg-white rounded-xl max-h-[85vh] overflow-y-auto w-full max-w-2xl p-6 space-y-4">
         <h1 className="text-2xl font-semibold font-Lora pr-8">Choose your privacy level</h1>
         <p>Use a zero-retention cloud provider, or keep AI inference on this device with Ollama.</p>
+        <p className="text-sm text-zinc-600">These controls cover AI inference and telemetry. Encrypted GBrain account backup is a separate opt-in in Settings: it can upload and retain ciphertext, even with Privacy Mode enabled. Changing privacy levels does not enable or disable backups.</p>
         <div className="flex flex-wrap gap-3" role="group" aria-label="Privacy level">
           <button disabled={busy} aria-pressed={status.enabled && mode === 'zero-retention'} className="rounded border px-3 py-2 aria-pressed:bg-green-50 aria-pressed:border-green-600" onClick={() => void save(true, 'zero-retention').catch(() => {})}>Zero-retention cloud</button>
           <button disabled={busy} aria-pressed={status.enabled && mode === 'local-only'} className="rounded border px-3 py-2 aria-pressed:bg-green-50 aria-pressed:border-green-600" onClick={() => void save(true, 'local-only').catch(() => {})}>On-device only</button>

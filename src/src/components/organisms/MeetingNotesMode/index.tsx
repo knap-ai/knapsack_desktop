@@ -2578,7 +2578,7 @@ Be direct, specific, and concise. No filler text.`
                 style={{ cursor: 'pointer' }}
               />
             </div>}
-            {thread.recorded && (
+            {onEmailClick && (thread.recorded || notesMarkdown.trim()) && (
               <button
                 className="notetaker-note__bottom-action"
                 onClick={() => onEmailClick?.(notesMarkdown, meeting)}

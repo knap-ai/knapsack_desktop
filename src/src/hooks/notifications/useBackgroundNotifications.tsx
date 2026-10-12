@@ -1,3 +1,4 @@
+import { takePostMeetingSource } from 'src/utils/postMeetingSource'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
@@ -29,7 +30,6 @@ import { KNFileType } from 'src/utils/KNSearchFilters'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import {
   getWhatsAppStatus,
-  getIMessageStatus,
   sendChannelMessage,
 } from 'src/api/channels'
 
@@ -196,15 +196,8 @@ export function useBackgroundNotifications({
     if (channelsAttachedRef.current !== null) return channelsAttachedRef.current
 
     try {
-      const [waStatus, imStatus] = await Promise.all([
-        getWhatsAppStatus().catch(() => null),
-        getIMessageStatus().catch(() => null),
-      ])
-
-      const attached =
-        (waStatus?.enabled && waStatus?.linked) ||
-        (imStatus?.enabled && imStatus?.configured) ||
-        false
+      const waStatus = await getWhatsAppStatus().catch(() => null)
+      const attached = !!(waStatus?.enabled && waStatus?.linked)
       channelsAttachedRef.current = attached
       return attached
     } catch {
@@ -343,10 +336,7 @@ export function useBackgroundNotifications({
       }
 
       try {
-        const [waStatus, imStatus] = await Promise.all([
-          getWhatsAppStatus().catch(() => null),
-          getIMessageStatus().catch(() => null),
-        ])
+        const waStatus = await getWhatsAppStatus().catch(() => null)
 
         const sends: Promise<boolean>[] = []
 
@@ -362,17 +352,8 @@ export function useBackgroundNotifications({
           )
         }
 
-        // iMessage: send to the user's own email
-        if (imStatus?.enabled && imStatus?.configured && userEmail) {
-          sends.push(
-            sendChannelMessage('imessage', userEmail, text)
-              .then(result => result.success)
-              .catch(err => {
-                console.warn('[notifications] iMessage send failed:', err)
-                return false
-              }),
-          )
-        }
+        // iMessage requires a separately verified destination and proactive consent.
+        // This legacy brief-forwarding path has neither and must never guess an Apple handle.
 
         if (sends.length > 0) {
           return (await Promise.all(sends)).some(Boolean)
@@ -1109,7 +1090,10 @@ export function useBackgroundNotifications({
    * Fetches the transcript and generates follow-up suggestions.
    */
   const handlePostMeetingFollowup = useCallback(
-    async (meetingTitle: string, threadId: number) => {
+    async (meetingTitle: string, threadId: number, sourceId?: string) => {
+      const savedSource = takePostMeetingSource(threadId, sourceId)
+      // A known expired/superseded event must not read another generation.
+      if (sourceId && !savedSource) return
       if (!userEmail) return
 
       const enabled = await getPostMeetingFollowupEnabled()
@@ -1119,12 +1103,9 @@ export function useBackgroundNotifications({
       if (!notificationsEnabled) return
 
       try {
-        const transcript = await getTranscript(threadId)
-        if (!transcript?.content || transcript.content.trim().length < 100) {
-          return
-        }
-
-        const contextPrefix = `## Meeting: ${meetingTitle}\n\n### Transcript\n\n${transcript.content}\n\n`
+        const source = savedSource || { kind: 'transcript', content: (await getTranscript(threadId))?.content || '' }
+        if (source.content.trim().length < 100) return
+        const contextPrefix = `## Meeting: ${meetingTitle}\n\n### ${source.kind === 'notes' ? 'Saved meeting notes' : 'Transcript'}\n\n${source.content}\n\n`
 
         const prompt =
           contextPrefix +

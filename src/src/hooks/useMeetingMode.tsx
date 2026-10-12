@@ -1,3 +1,4 @@
+import { capturePostMeetingSource } from 'src/utils/postMeetingSource'
 import { useCallback, useRef, useState } from 'react'
 
 import { Editor } from '@tiptap/react'
@@ -309,6 +310,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
                   } finally {
                     renderingGeneration.current = false
                   }
+                  capturePostMeetingSource(threadId, transcript.content || '', normalizedResponse)
                   if (!shouldSave) {
                     await deleteTranscript(threadId)
                   }

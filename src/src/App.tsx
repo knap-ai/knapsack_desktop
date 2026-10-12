@@ -1,6 +1,7 @@
 import { waitForAbort } from './utils/notesGeneration'
 import { readCompletionStream } from 'src/utils/completionStream'
 import { createDiagnostic, diagnosticNow, emitDiagnostic, type Diagnostic, type DiagnosticKind } from 'src/utils/diagnostics'
+import FollowUpJobPage from 'src/pages/onboarding/FollowUpJobPage'
 import { useFollowThrough } from 'src/hooks/useFollowThrough'
 import { notificationAcceptance } from 'src/utils/notificationReply'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -1543,9 +1544,9 @@ function App() {
   useEffect(() => {
     const unlistenPromise = listen(
       'notes_synthesized',
-      async (event: Event<{ threadId: number; meetingTitle: string }>) => {
+      async (event: Event<{ threadId: number; meetingTitle: string; sourceId?: string }>) => {
         try {
-          await handlePostMeetingFollowup(event.payload.meetingTitle, event.payload.threadId)
+          await handlePostMeetingFollowup(event.payload.meetingTitle, event.payload.threadId, event.payload.sourceId)
         } catch (error) {
           console.error('Error triggering post-meeting follow-up:', error)
         }
@@ -1923,6 +1924,7 @@ function App() {
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <Routes>
+          <Route path="/follow-ups" element={<FollowUpJobPage />} />
           <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
           <Route
             path="/home"
