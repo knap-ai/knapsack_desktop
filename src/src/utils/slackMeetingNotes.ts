@@ -9,6 +9,7 @@ const escapeHtml = (value: string) =>
 const protectMarkdownLinks = (
   value: string,
   renderLink: (label: string, url: string) => string,
+  renderImageAlt: (alt: string) => string = alt => alt,
 ) => {
   const protectedValues: string[] = []
   const protect = (rendered: string) => {
@@ -17,7 +18,7 @@ const protectMarkdownLinks = (
     return token
   }
   const protectedText = value
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt: string) => protect(alt))
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt: string) => protect(renderImageAlt(alt)))
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_, label: string, url: string) =>
       protect(renderLink(label, url)),
     )
@@ -35,8 +36,10 @@ const stripInlineMarkdown = (value: string) => {
 }
 
 const renderInlineHtml = (value: string) => {
-  const protectedLinks = protectMarkdownLinks(value, (label, url) =>
-    `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`,
+  const protectedLinks = protectMarkdownLinks(
+    value,
+    (label, url) => `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`,
+    escapeHtml,
   )
   const rendered = escapeHtml(protectedLinks.value)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
