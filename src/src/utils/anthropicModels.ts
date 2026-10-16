@@ -40,9 +40,9 @@ export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5'
 export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5'
 
 export const KNAPSACK_ANTHROPIC_TIER_MODELS: KnapsackTierModelOption[] = [
-  { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-  { id: 'anthropic/claude-sonnet-5', name: 'Plus', description: 'Balanced performance and capability' },
+  { id: 'anthropic/claude-haiku-5-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
+  { id: 'anthropic/claude-sonnet-5-5', name: 'Plus', description: 'Balanced performance and capability' },
   { id: 'anthropic/claude-opus-5-5', name: 'Premium', description: 'Most powerful — best for complex work' },
 ]
 
-export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/claude-haiku-4-5'
+export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/claude-haiku-5-5'
