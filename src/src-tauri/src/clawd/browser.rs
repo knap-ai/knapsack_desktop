@@ -6805,6 +6805,14 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       _ => super::service::get_openai_model(&app_handle),
     },
   };
+  if current_provider == "openai"
+    && super::service::is_unsupported_desktop_openai_model(&current_model)
+  {
+    return HttpResponse::BadRequest().json(serde_json::json!({
+      "ok": false,
+      "message": "GPT-6.1 is not supported by this Desktop route yet. Choose a supported OpenAI model in AI Provider settings."
+    }));
+  }
   let current_ollama_base = ollama_runtime_base_url(&app_handle);
   eprintln!(
     "[clawd/chat] Using provider={} model={}",

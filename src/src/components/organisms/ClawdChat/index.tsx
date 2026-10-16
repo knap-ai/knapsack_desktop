@@ -7,7 +7,11 @@ import { shouldUseDirectMeetingContext } from 'src/utils/meetingContextRouting'
 import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
-import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
+import { OPENAI_MODELS } from 'src/utils/openaiModels'
+import {
+  isUnsupportedOpenAIModelSelection,
+  normalizeOpenAIModelSelection,
+} from 'src/utils/openaiModelSelection'
 import { GEMINI_MODELS } from 'src/utils/geminiModels'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import { SLACK_GUIDED_SETUP_PROMPT } from 'src/utils/slackGuidedSetup'
@@ -690,15 +694,6 @@ const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
 const APP_VERSION = '0.9.600'
-
-function normalizeOpenAIModelSelection(model: string | null | undefined): string {
-  const trimmed = model?.trim()
-  if (!trimmed) return DEFAULT_OPENAI_MODEL
-  if (trimmed === 'gpt-5.4-pro' || trimmed === 'gpt-5.5-pro') {
-    return DEFAULT_OPENAI_MODEL
-  }
-  return trimmed
-}
 
 // Autonomy modes - controls how independent the agent is
 type AutonomyMode = 'assist' | 'autonomous'
@@ -5379,12 +5374,26 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         ? localStorage.getItem(OPENROUTER_MODEL_STORAGE) || selectedOpenRouterModel
         : providerAtSend === 'trustedrouter'
         ? localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || selectedTrustedRouterModel
-        : localStorage.getItem(OPENAI_MODEL_STORAGE) || selectedModel
+        : normalizeOpenAIModelSelection(
+            localStorage.getItem(OPENAI_MODEL_STORAGE) || selectedModel,
+          )
       return m ? `${providerAtSend}/${m}` : providerAtSend
     })()
     const selectedModelForProvider = activeModelAtSend.includes('/')
       ? activeModelAtSend.split('/').slice(1).join('/')
       : ''
+
+    if (
+      providerAtSend === 'openai' &&
+      isUnsupportedOpenAIModelSelection(selectedModelForProvider)
+    ) {
+      setBusy(false)
+      setShowKeyPrompt(true)
+      pushAssistant(
+        'Your saved GPT-6.1 selection is not supported by this Desktop route yet. Choose a supported OpenAI model before sending this message.',
+      )
+      return
+    }
 
     try {
       if (cmd === 'enable') {

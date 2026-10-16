@@ -169,10 +169,10 @@ export const openGoogleAuthScreen = (
   console.log('[Google OAuth] redirect_uri:', KN_API_GOOGLE_SIGNIN_REDIRECT)
 
   const openInBrowser = () => {
-    const popup = window.open(fullUrl, '_blank', 'noopener,noreferrer')
-    if (!popup) {
-      throw new GoogleAuthError('Unable to open Google Auth screen.')
-    }
+    // With noopener/noreferrer, browsers are allowed to return null even when
+    // the new tab opened successfully. Treat a non-throwing call as a launch;
+    // the return value cannot distinguish that success from popup blocking.
+    window.open(fullUrl, '_blank', 'noopener,noreferrer')
   }
 
   const logOpenError = (error: any, additionalInfo = '') => {

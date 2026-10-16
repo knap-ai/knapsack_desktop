@@ -46,6 +46,16 @@ struct ResolvedProvider {
   is_anthropic: bool, // Anthropic uses a different API format
 }
 
+fn ensure_supported_openai_model(model: &str) -> Result<(), LLMError> {
+  if crate::clawd::service::is_unsupported_desktop_openai_model(model) {
+    return Err(LLMError::ProviderNotConfigured(
+      "Your saved GPT-6.1 selection is not supported by this desktop route. Choose a supported OpenAI model before sending private content."
+        .into(),
+    ));
+  }
+  Ok(())
+}
+
 fn openai_compatible_client(
   provider_name: &str,
   base_url: &str,
@@ -96,6 +106,12 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-5-5".to_string());
   let gemini_model =
     std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
+
+  // The persisted selection remains action-required even when its credential
+  // is missing. Never use credential availability to silently change routes.
+  if active == "openai" {
+    ensure_supported_openai_model(&openai_model)?;
+  }
 
   // Try the user's active provider first
   match active.as_str() {
@@ -232,17 +248,23 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
 
   if !disable_paid || !active_is_free {
     if let Some(key) = openai_key {
+      if ensure_supported_openai_model(&openai_model).is_ok() {
+        log::warn!(
+          "[resolve_provider] Active provider '{}' unavailable, falling back to openai",
+          active
+        );
+        return Ok(ResolvedProvider {
+          name: "openai".into(),
+          api_key: key,
+          model: openai_model,
+          base_url: "https://api.openai.com/v1".into(),
+          is_anthropic: false,
+        });
+      }
       log::warn!(
-        "[resolve_provider] Active provider '{}' unavailable, falling back to openai",
-        active
+        "[resolve_provider] Skipping unsupported saved OpenAI model '{}' as a fallback",
+        openai_model
       );
-      return Ok(ResolvedProvider {
-        name: "openai".into(),
-        api_key: key,
-        model: openai_model,
-        base_url: "https://api.openai.com/v1".into(),
-        is_anthropic: false,
-      });
     }
   } else if openai_key.is_some() {
     log::info!(
@@ -1262,6 +1284,13 @@ async fn multi_provider_completion_inner(messages: Vec<LlmMessage>) -> Result<St
           );
           continue;
         }
+        if *fb_name == "openai" && ensure_supported_openai_model(fb_model).is_err() {
+          log::warn!(
+            "[notes] Skipping unsupported saved OpenAI fallback model '{}'",
+            fb_model
+          );
+          continue;
+        }
         if let Some(fb_key) = fb_key_opt {
           log::info!(
             "[notes] Trying fallback provider: {} ({})",
@@ -1562,5 +1591,22 @@ async fn handle_llm_complete_inner(
 
       AbortStream::new(receiver, abort_flag.clone(), ())
     })
+  }
+}
+
+#[cfg(test)]
+mod provider_selection_tests {
+  use super::ensure_supported_openai_model;
+
+  #[test]
+  fn unsupported_openai_models_require_an_explicit_new_selection() {
+    assert!(ensure_supported_openai_model("gpt-6.1").is_err());
+    assert!(ensure_supported_openai_model("openai/gpt-6.1-sol").is_err());
+  }
+
+  #[test]
+  fn supported_openai_models_continue_to_the_selected_route() {
+    assert!(ensure_supported_openai_model("gpt-6-astra").is_ok());
+    assert!(ensure_supported_openai_model("gpt-5.6-terra").is_ok());
   }
 }
