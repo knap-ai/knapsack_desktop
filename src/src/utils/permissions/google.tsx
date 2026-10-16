@@ -105,7 +105,7 @@ export const parsePendingAddAccountState = (
  * consistently across all three services and remains active alongside every
  * previously connected account.
  */
-export const openAddGoogleWorkspaceScreen = (primaryEmail: string): void => {
+export const openAddGoogleWorkspaceScreen = (primaryEmail: string): Promise<void> => {
   setPendingAddAccountFlow(primaryEmail, 'workspace')
   const scope = [
     'https://www.googleapis.com/auth/gmail.modify',
@@ -113,7 +113,9 @@ export const openAddGoogleWorkspaceScreen = (primaryEmail: string): void => {
     'https://www.googleapis.com/auth/drive.readonly',
     'https://www.googleapis.com/auth/userinfo.email',
   ].join(' ')
-  openGoogleAuthScreen(scope, buildAddAccountState(primaryEmail, 'workspace'))
+  return openGoogleAuthScreen(scope, buildAddAccountState(primaryEmail, 'workspace'), {
+    rejectOnLaunchFailure: true,
+  })
 }
 
 /** @deprecated Use setPendingAddAccountFlow / consumePendingAddAccountFlow instead. */
@@ -127,7 +129,15 @@ export const consumePendingCalendarAddEmail = (): string | null => {
   return flow.primaryEmail
 }
 
-export const openGoogleAuthScreen = (scope: string, state?: string) => {
+type GoogleAuthOpenOptions = {
+  rejectOnLaunchFailure?: boolean
+}
+
+export const openGoogleAuthScreen = (
+  scope: string,
+  state?: string,
+  options: GoogleAuthOpenOptions = {},
+): Promise<void> => {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
   if (!clientId) {
@@ -174,7 +184,7 @@ export const openGoogleAuthScreen = (scope: string, state?: string) => {
   }
 
   try {
-    void open(fullUrl).catch((error: any) => {
+    return open(fullUrl).catch((error: any) => {
       logError(new Error('Error opening Google Auth screen with Tauri shell:'), {
         additionalInfo: 'Falling back to window.open',
         error: error.message,
@@ -183,14 +193,17 @@ export const openGoogleAuthScreen = (scope: string, state?: string) => {
         openInBrowser()
       } catch (fallbackError: any) {
         logOpenError(fallbackError, 'Tauri shell open failed; window.open fallback also failed')
+        if (options.rejectOnLaunchFailure) throw fallbackError
       }
     })
   } catch (error: any) {
     try {
       openInBrowser()
+      return Promise.resolve()
     } catch (fallbackError: any) {
       logOpenError(fallbackError, error.message)
-      throw fallbackError
+      if (options.rejectOnLaunchFailure) return Promise.reject(fallbackError)
+      return Promise.resolve()
     }
   }
 }

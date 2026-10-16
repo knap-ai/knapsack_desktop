@@ -31,6 +31,18 @@ describe('Slack meeting-note clipboard payload', () => {
     expect(payload.html).not.toContain('<strong>')
   })
 
+  it('renders synthetic image alt text as inert text in the HTML clipboard payload', () => {
+    const maliciousAlt = '</p><img src=x onerror="synthetic()">'
+    const payload = buildSlackClipboardPayload(`![${maliciousAlt}](https://example.com/image.png)`)
+
+    expect(payload.text).toContain(maliciousAlt)
+    expect(payload.html).toContain(
+      '&lt;/p&gt;&lt;img src=x onerror=&quot;synthetic()&quot;&gt;',
+    )
+    expect(payload.html).not.toContain('<img src=x')
+    expect(payload.html).not.toContain('</p><img')
+  })
+
   it('writes both clipboard MIME types when rich clipboard support is available', async () => {
     const write = vi.fn().mockResolvedValue(undefined)
     const writeText = vi.fn().mockResolvedValue(undefined)

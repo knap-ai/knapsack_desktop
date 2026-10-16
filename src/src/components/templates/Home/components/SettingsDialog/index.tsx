@@ -932,7 +932,7 @@ export const SettingsDialog = ({
     const primaryEmail = requireGooglePrimaryEmail('workspace')
     try {
       if (!primaryEmail) throw new Error('Sign in to Knapsack before connecting Google.')
-      await Promise.resolve(openAddGoogleWorkspaceScreen(primaryEmail))
+      await openAddGoogleWorkspaceScreen(primaryEmail)
       setGoogleOauthMessage('Finish authorizing Google in your browser, then return to Knapsack.')
     } catch (error) {
       setGoogleOauthError(true)
