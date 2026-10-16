@@ -21,20 +21,3 @@ export const OPENAI_MODELS: OpenAIModelOption[] = [
 
 export const OPENAI_PROVIDER_DESCRIPTION = 'GPT-6 Astra, GPT-6, GPT-5.6, GPT-5.5'
 export const DEFAULT_OPENAI_MODEL = 'gpt-5-mini'
-
-const UNSUPPORTED_DESKTOP_OPENAI_MODELS = new Set(['gpt-6.1', 'gpt-6.1-sol'])
-
-/** Migrate persisted models that this Desktop route cannot execute safely. */
-export function normalizeOpenAIModelSelection(model: string | null | undefined): string {
-  const trimmed = model?.trim()
-  if (!trimmed) return DEFAULT_OPENAI_MODEL
-  const bare = trimmed.startsWith('openai/') ? trimmed.slice('openai/'.length) : trimmed
-  if (
-    UNSUPPORTED_DESKTOP_OPENAI_MODELS.has(bare.toLowerCase()) ||
-    bare === 'gpt-5.4-pro' ||
-    bare === 'gpt-5.5-pro'
-  ) {
-    return DEFAULT_OPENAI_MODEL
-  }
-  return trimmed
-}

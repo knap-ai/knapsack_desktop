@@ -6333,13 +6333,24 @@ pub(crate) fn groq_privacy_fingerprint(app_handle: &tauri::AppHandle) -> Result<
 #[tauri::command]
 pub fn privacy_provider_candidates(app_handle: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
   let tokens = load_or_create_tokens(&app_handle)?;
+  if tokens.active_provider.as_deref() == Some("openai")
+    && tokens
+      .openai_model
+      .as_deref()
+      .is_some_and(is_unsupported_desktop_openai_model)
+  {
+    return Err(
+      "Your saved GPT-6.1 selection requires action. Choose a supported OpenAI model before changing privacy routes."
+        .to_string(),
+    );
+  }
   let private = crate::privacy_mode::is_enabled();
   let routes = [
     ("knapsack", has_knapsack_runtime_auth(&tokens), tokens.knapsack_model.as_deref().unwrap_or("auto"), "https://api.knapsack.ai", ""),
     ("trustedrouter", has_nonempty(tokens.trustedrouter_api_key.as_ref()), if private { "trustedrouter/zdr" } else { tokens.trustedrouter_model.as_deref().unwrap_or("trustedrouter/auto") }, "https://api.trustedrouter.com/v1", tokens.trustedrouter_api_key.as_deref().unwrap_or("")),
     ("groq", has_nonempty(tokens.groq_api_key.as_ref()), if private { "openai/gpt-oss-120b" } else { tokens.groq_model.as_deref().unwrap_or("openai/gpt-oss-120b") }, "https://api.groq.com/openai/v1", tokens.groq_api_key.as_deref().unwrap_or("")),
     ("ollama", tokens.ollama_enabled.unwrap_or(false) && !ollama_cloud_enabled(&tokens), tokens.ollama_model.as_deref().unwrap_or(""), tokens.ollama_base_url.as_deref().unwrap_or(OLLAMA_LOCAL_BASE_URL), ""),
-    ("openai", has_nonempty(tokens.openai_api_key.as_ref()), tokens.openai_model.as_deref().unwrap_or("gpt-4o"), "https://api.openai.com/v1", tokens.openai_api_key.as_deref().unwrap_or("")),
+    ("openai", has_nonempty(tokens.openai_api_key.as_ref()) && !tokens.openai_model.as_deref().is_some_and(is_unsupported_desktop_openai_model), tokens.openai_model.as_deref().unwrap_or("gpt-4o"), "https://api.openai.com/v1", tokens.openai_api_key.as_deref().unwrap_or("")),
     ("anthropic", has_nonempty(tokens.anthropic_api_key.as_ref()), tokens.anthropic_model.as_deref().unwrap_or("claude-sonnet-4-20250514"), "https://api.anthropic.com/v1", tokens.anthropic_api_key.as_deref().unwrap_or("")),
     ("gemini", has_nonempty(tokens.gemini_api_key.as_ref()), tokens.gemini_model.as_deref().unwrap_or("gemini-2.5-flash"), "https://generativelanguage.googleapis.com", tokens.gemini_api_key.as_deref().unwrap_or("")),
     ("openrouter", has_nonempty(tokens.openrouter_api_key.as_ref()), tokens.openrouter_model.as_deref().unwrap_or("openrouter/auto"), "https://openrouter.ai/api/v1", tokens.openrouter_api_key.as_deref().unwrap_or("")),
@@ -6948,25 +6959,21 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
       if provider == "openrouter" && bare.eq_ignore_ascii_case("free") {
         return "qwen/qwen3.8-27b:free".to_string();
       }
-      if provider == "openai"
-        && (bare.eq_ignore_ascii_case("gpt-6.1")
-          || bare.eq_ignore_ascii_case("gpt-6.1-sol"))
-      {
-        return "gpt-5-mini".to_string();
-      }
       return bare.to_string();
     }
   }
   if provider == "openrouter" && model.eq_ignore_ascii_case("free") {
     return "qwen/qwen3.8-27b:free".to_string();
   }
-  if provider == "openai"
-    && (model.eq_ignore_ascii_case("gpt-6.1")
-      || model.eq_ignore_ascii_case("gpt-6.1-sol"))
-  {
-    return "gpt-5-mini".to_string();
-  }
   model.to_string()
+}
+
+pub(crate) fn is_unsupported_desktop_openai_model(model: &str) -> bool {
+  let bare = model
+    .trim()
+    .strip_prefix("openai/")
+    .unwrap_or(model.trim());
+  bare.eq_ignore_ascii_case("gpt-6.1") || bare.eq_ignore_ascii_case("gpt-6.1-sol")
 }
 
 #[cfg(test)]
@@ -6974,19 +6981,24 @@ mod provider_model_normalization_tests {
   use super::normalize_provider_model;
 
   #[test]
-  fn unsupported_persisted_openai_models_migrate_to_supported_default() {
+  fn unsupported_persisted_openai_models_are_preserved_and_marked() {
     for model in [
       "gpt-6.1",
       "gpt-6.1-sol",
       "openai/gpt-6.1",
       "openai/gpt-6.1-sol",
     ] {
-      assert_eq!(normalize_provider_model("openai", model), "gpt-5-mini");
+      assert!(super::is_unsupported_desktop_openai_model(model));
+      assert_eq!(
+        normalize_provider_model("openai", model),
+        model.trim_start_matches("openai/")
+      );
     }
     assert_eq!(
       normalize_provider_model("openai", "gpt-6-astra"),
       "gpt-6-astra"
     );
+    assert!(!super::is_unsupported_desktop_openai_model("gpt-6-astra"));
   }
 }
 
@@ -10072,6 +10084,18 @@ pub async fn set_api_key(
     .as_deref()
     .unwrap_or("openai")
     .to_lowercase();
+
+  if provider == "openai"
+    && payload
+      .model
+      .as_deref()
+      .is_some_and(is_unsupported_desktop_openai_model)
+  {
+    return HttpResponse::BadRequest().json(SetApiKeyResponse {
+      success: false,
+      message: "GPT-6.1 is not supported by this Desktop route yet. Choose a supported OpenAI model.".to_string(),
+    });
+  }
 
   if key.is_empty() && payload.model.is_none() && payload.env_var.is_none() {
     if let Some(agent) = &payload.preferred_coding_agent {

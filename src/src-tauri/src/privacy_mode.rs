@@ -60,6 +60,24 @@ fn config_path() -> Result<PathBuf, String> {
   TEST_POLICY.with(|path| Ok(path.clone()))
 }
 
+#[cfg(test)]
+pub(crate) fn write_test_policy(enabled: bool, mode: InferencePrivacy) -> PathBuf {
+  let path = config_path().unwrap();
+  fs::create_dir_all(path.parent().unwrap()).unwrap();
+  fs::write(
+    &path,
+    serde_json::to_vec(&PrivacyModeConfig {
+      version: POLICY_VERSION,
+      enabled,
+      mode,
+      groq_zdr_fingerprint: None,
+    })
+    .unwrap(),
+  )
+  .unwrap();
+  path
+}
+
 fn harden(path: &PathBuf) {
   #[cfg(unix)]
   {

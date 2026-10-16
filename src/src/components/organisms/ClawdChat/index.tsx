@@ -7,7 +7,11 @@ import { shouldUseDirectMeetingContext } from 'src/utils/meetingContextRouting'
 import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
-import { normalizeOpenAIModelSelection, OPENAI_MODELS } from 'src/utils/openaiModels'
+import { OPENAI_MODELS } from 'src/utils/openaiModels'
+import {
+  isUnsupportedOpenAIModelSelection,
+  normalizeOpenAIModelSelection,
+} from 'src/utils/openaiModelSelection'
 import { GEMINI_MODELS } from 'src/utils/geminiModels'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import { SLACK_GUIDED_SETUP_PROMPT } from 'src/utils/slackGuidedSetup'
@@ -5378,6 +5382,18 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     const selectedModelForProvider = activeModelAtSend.includes('/')
       ? activeModelAtSend.split('/').slice(1).join('/')
       : ''
+
+    if (
+      providerAtSend === 'openai' &&
+      isUnsupportedOpenAIModelSelection(selectedModelForProvider)
+    ) {
+      setBusy(false)
+      setShowKeyPrompt(true)
+      pushAssistant(
+        'Your saved GPT-6.1 selection is not supported by this Desktop route yet. Choose a supported OpenAI model before sending this message.',
+      )
+      return
+    }
 
     try {
       if (cmd === 'enable') {

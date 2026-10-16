@@ -1413,6 +1413,9 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
   model.to_string()
 }
 
+const UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL: &str =
+  "knapsack-action-required/select-supported-openai-model";
+
 /// Resolve the Groq model used only when another provider's request needs a
 /// fallback. Keep the user's selected Groq model for direct use, but prefer
 /// Groq Compound here because it handles the gateway's native tool calls.
@@ -1522,13 +1525,22 @@ pub(crate) fn gateway_model_ref_usable(model_ref: &str) -> bool {
 }
 
 pub fn resolve_default_model() -> String {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  // An unsupported persisted choice is action-required under every privacy
+  // policy. Policy enforcement must not silently substitute another provider.
+  if active == "openai" {
+    let model =
+      std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
+    if crate::clawd::service::is_unsupported_desktop_openai_model(&model) {
+      return UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL.to_string();
+    }
+  }
   if crate::privacy_mode::is_enabled() {
     if !crate::privacy_mode::is_local_only() {
-      let provider = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
-      if provider == "knapsack" && gateway_model_ref_usable("knapsack-local/default") {
+      if active == "knapsack" && gateway_model_ref_usable("knapsack-local/default") {
         return "knapsack-local/default".to_string();
       }
-      let candidate = match provider.as_str() {
+      let candidate = match active.as_str() {
         "trustedrouter" => Some(("trustedrouter/zdr".to_string(), "https://api.trustedrouter.com/v1", "TRUSTEDROUTER_API_KEY")),
         "groq" => Some((std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string()), "https://api.groq.com/openai/v1", "GROQ_API_KEY")),
         _ => None,
@@ -1536,8 +1548,8 @@ pub fn resolve_default_model() -> String {
       if let Some((model, endpoint, key_name)) = candidate {
         let key = std::env::var(key_name).unwrap_or_default();
         if !key.trim().is_empty() {
-          if let Ok(approved) = crate::privacy_mode::enforce_route(&provider, &model, endpoint, &key) {
-            return format!("{}/{}", provider, approved);
+          if let Ok(approved) = crate::privacy_mode::enforce_route(&active, &model, endpoint, &key) {
+            return format!("{}/{}", active, approved);
           }
         }
       }
@@ -1545,7 +1557,6 @@ pub fn resolve_default_model() -> String {
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
     return format!("ollama/{}", normalize_provider_model("ollama", &model));
   }
-  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let has_key = |var: &str| {
     std::env::var(var)
       .map(|k| !k.trim().is_empty())
@@ -1620,6 +1631,9 @@ pub fn resolve_default_model() -> String {
     "openai" if has_key("OPENAI_API_KEY") => {
       let model =
         std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
+      if crate::clawd::service::is_unsupported_desktop_openai_model(&model) {
+        return UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL.to_string();
+      }
       return format!("openai/{}", normalize_provider_model("openai", &model));
     }
     "groq" if has_key("GROQ_API_KEY") => {
@@ -1677,6 +1691,9 @@ pub fn resolve_default_model() -> String {
     if has_key("OPENAI_API_KEY") {
       let model =
         std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
+      if crate::clawd::service::is_unsupported_desktop_openai_model(&model) {
+        return UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL.to_string();
+      }
       log::warn!(
         "[resolve_default_model] Falling back to openai/{} (active={})",
         model,
@@ -1746,6 +1763,11 @@ pub fn resolve_default_model() -> String {
 /// Called by `build_model_config()` — prefer that over calling this directly.
 pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   if crate::privacy_mode::is_enabled() {
+    return Vec::new();
+  }
+  // A persisted unsupported OpenAI selection requires an explicit user choice.
+  // Never attach fallbacks that could silently route private content elsewhere.
+  if primary == UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL {
     return Vec::new();
   }
   let has_key = |var: &str| {
@@ -4055,6 +4077,39 @@ mod tests {
     std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
     std::env::remove_var("TRUSTEDROUTER_API_KEY");
     std::env::remove_var("KNAPSACK_TRUSTEDROUTER_MODEL");
+  }
+
+  #[test]
+  fn resolve_default_model_fails_closed_for_unsupported_saved_openai_model() {
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
+    std::env::remove_var("OPENAI_API_KEY");
+    std::env::set_var("ANTHROPIC_API_KEY", "sk-test");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-6.1");
+    let policy = crate::privacy_mode::write_test_policy(
+      true,
+      crate::privacy_mode::routes::InferencePrivacy::LocalOnly,
+    );
+
+    assert_eq!(
+      resolve_default_model(),
+      UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL
+    );
+
+    std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    std::env::remove_var("ANTHROPIC_API_KEY");
+    std::env::remove_var("KNAPSACK_OPENAI_MODEL");
+    std::fs::remove_dir_all(policy.parent().unwrap()).unwrap();
+  }
+
+  #[test]
+  fn action_required_model_never_receives_gateway_fallbacks() {
+    std::env::set_var("ANTHROPIC_API_KEY", "sk-test");
+    std::env::set_var("GROQ_API_KEY", "gsk-test");
+
+    assert!(collect_fallback_models(UNSUPPORTED_OPENAI_ACTION_REQUIRED_MODEL).is_empty());
+
+    std::env::remove_var("ANTHROPIC_API_KEY");
+    std::env::remove_var("GROQ_API_KEY");
   }
 
   #[test]

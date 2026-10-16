@@ -54,6 +54,7 @@ test('OpenAI refresh excludes GPT-6.1 until the desktop route supports it', () =
 
   assert.deepEqual(ids, [
     'gpt-6-astra',
+    'gpt-6.2',
     'gpt-6',
     'gpt-5.6',
     'gpt-5.5',
@@ -65,9 +66,26 @@ test('OpenAI refresh excludes GPT-6.1 until the desktop route supports it', () =
   assert.match(source, /id: 'gpt-6-astra'/)
   assert.doesNotMatch(source, /id: 'gpt-6\.1'/)
   assert.doesNotMatch(source, /id: 'gpt-6\.1-sol'/)
-  assert.doesNotMatch(source, /id: 'gpt-6\.2'/)
+  assert.match(source, /id: 'gpt-6\.2'/)
   assert.doesNotMatch(source, /id: 'gpt-6\.2-sol'/)
   assert.match(source, /DEFAULT_OPENAI_MODEL = 'gpt-5-mini'/)
+})
+
+test('OpenAI refresh preserves unrelated bare families when docs mention Sol variants', () => {
+  assert.deepEqual(
+    canonicalOpenAIModelIdsFromHtml('gpt-6 gpt-6-sol gpt-5.6 gpt-5.6-sol'),
+    ['gpt-6', 'gpt-5.6'],
+  )
+  assert.deepEqual(canonicalOpenAIModelIdsFromHtml('gpt-6.2-sol'), [])
+})
+
+test('checked-in OpenAI catalog round-trips through its generator', () => {
+  const catalog = fs.readFileSync(
+    new URL('../src/utils/openaiModels.ts', import.meta.url),
+    'utf8',
+  )
+  const ids = [...catalog.matchAll(/\{ id: '([^']+)'/g)].map(match => match[1])
+  assert.equal(buildOpenAISource(ids), catalog)
 })
 
 test('Anthropic catalog parser recognizes Fable 5.1 from dedicated launch content', () => {
