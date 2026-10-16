@@ -49,7 +49,7 @@ test('generated Gemini catalog exposes 3.8 Flash and provider summary', () => {
 
 test('OpenAI refresh excludes GPT-6.1 until the desktop route supports it', () => {
   const ids = canonicalOpenAIModelIdsFromHtml(
-    'gpt-6-astra GPT-6.1 Sol gpt-6.1-sol gpt-6 gpt-5.6 gpt-5.5 gpt-5.4 gpt-5-mini o3 gpt-6-astra-preview',
+    'gpt-6-astra GPT-6.1 Sol gpt-6.1-sol gpt-6.2 gpt-6.2-sol gpt-6 gpt-5.6 gpt-5.5 gpt-5.4 gpt-5-mini o3 gpt-6-astra-preview',
   )
 
   assert.deepEqual(ids, [
@@ -65,6 +65,8 @@ test('OpenAI refresh excludes GPT-6.1 until the desktop route supports it', () =
   assert.match(source, /id: 'gpt-6-astra'/)
   assert.doesNotMatch(source, /id: 'gpt-6\.1'/)
   assert.doesNotMatch(source, /id: 'gpt-6\.1-sol'/)
+  assert.doesNotMatch(source, /id: 'gpt-6\.2'/)
+  assert.doesNotMatch(source, /id: 'gpt-6\.2-sol'/)
   assert.match(source, /DEFAULT_OPENAI_MODEL = 'gpt-5-mini'/)
 })
 

@@ -235,10 +235,10 @@ export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/claude-haiku-4-5'
 }
 
 const OPENAI_MODEL_ID_PATTERN = /\b(?:gpt-\d+(?:\.\d+)?(?:-astra|-mini|-sol)?|o3)\b/gi
-// GPT-6.1 Sol's full tool surface requires the Responses API. Desktop's
-// OpenAI agent route currently uses tool-enabled Chat Completions, so do not
-// offer either the invalid bare alias or the canonical Sol ID until that route
-// is implemented and exercised end to end.
+// Sol models' full tool surface requires the Responses API. Desktop's OpenAI
+// agent route currently uses tool-enabled Chat Completions, so do not offer
+// Sol IDs until that route is implemented and exercised end to end. Keep the
+// explicit 6.1 aliases blocked even if a source contains only the prose name.
 const UNSUPPORTED_DESKTOP_OPENAI_MODEL_IDS = new Set(['gpt-6.1', 'gpt-6.1-sol'])
 
 function openAIVersionParts(modelId) {
@@ -270,6 +270,7 @@ export function canonicalOpenAIModelIdsFromHtml(html) {
   return [...ids]
     .filter((id) => id === 'o3' || id === 'gpt-5-mini' || /^gpt-\d+(?:\.\d+)?(?:-(?:astra|sol))?$/.test(id))
     .filter((id) => !UNSUPPORTED_DESKTOP_OPENAI_MODEL_IDS.has(id))
+    .filter((id) => !id.endsWith('-sol'))
     // Documentation headings such as "GPT-6.1 Sol" contain the bare family
     // name as prose as well as the canonical `gpt-6.1-sol` API identifier.
     .filter((id) => !ids.has(`${id}-sol`))

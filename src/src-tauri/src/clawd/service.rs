@@ -6948,13 +6948,46 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
       if provider == "openrouter" && bare.eq_ignore_ascii_case("free") {
         return "qwen/qwen3.8-27b:free".to_string();
       }
+      if provider == "openai"
+        && (bare.eq_ignore_ascii_case("gpt-6.1")
+          || bare.eq_ignore_ascii_case("gpt-6.1-sol"))
+      {
+        return "gpt-5-mini".to_string();
+      }
       return bare.to_string();
     }
   }
   if provider == "openrouter" && model.eq_ignore_ascii_case("free") {
     return "qwen/qwen3.8-27b:free".to_string();
   }
+  if provider == "openai"
+    && (model.eq_ignore_ascii_case("gpt-6.1")
+      || model.eq_ignore_ascii_case("gpt-6.1-sol"))
+  {
+    return "gpt-5-mini".to_string();
+  }
   model.to_string()
+}
+
+#[cfg(test)]
+mod provider_model_normalization_tests {
+  use super::normalize_provider_model;
+
+  #[test]
+  fn unsupported_persisted_openai_models_migrate_to_supported_default() {
+    for model in [
+      "gpt-6.1",
+      "gpt-6.1-sol",
+      "openai/gpt-6.1",
+      "openai/gpt-6.1-sol",
+    ] {
+      assert_eq!(normalize_provider_model("openai", model), "gpt-5-mini");
+    }
+    assert_eq!(
+      normalize_provider_model("openai", "gpt-6-astra"),
+      "gpt-6-astra"
+    );
+  }
 }
 
 async fn wait_for_gateway_and_channels_ready(
