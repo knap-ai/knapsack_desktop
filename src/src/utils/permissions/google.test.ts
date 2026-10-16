@@ -40,20 +40,42 @@ describe('Google OAuth browser launch', () => {
     expect(browserFallback).toHaveBeenCalledOnce()
   })
 
-  it('rejects when both browser launch paths fail', async () => {
+  it('treats a null noopener return as a successful browser launch', async () => {
     vi.mocked(open).mockRejectedValue(new Error('synthetic shell failure'))
-    vi.stubGlobal('window', { open: vi.fn(() => null) })
+    const browserFallback = vi.fn(() => null)
+    vi.stubGlobal('window', { open: browserFallback })
 
     await expect(
       openGoogleAuthScreen('synthetic.scope', undefined, { rejectOnLaunchFailure: true }),
-    ).rejects.toThrow(
-      'Unable to open Google Auth screen.',
+    ).resolves.toBeUndefined()
+
+    expect(browserFallback).toHaveBeenCalledWith(
+      expect.stringContaining('synthetic.scope'),
+      '_blank',
+      'noopener,noreferrer',
     )
+  })
+
+  it('rejects when both browser launch paths fail', async () => {
+    vi.mocked(open).mockRejectedValue(new Error('synthetic shell failure'))
+    vi.stubGlobal('window', {
+      open: vi.fn(() => {
+        throw new Error('synthetic browser failure')
+      }),
+    })
+
+    await expect(
+      openGoogleAuthScreen('synthetic.scope', undefined, { rejectOnLaunchFailure: true }),
+    ).rejects.toThrow('synthetic browser failure')
   })
 
   it('preserves non-rejecting behavior for existing fire-and-forget callers', async () => {
     vi.mocked(open).mockRejectedValue(new Error('synthetic shell failure'))
-    vi.stubGlobal('window', { open: vi.fn(() => null) })
+    vi.stubGlobal('window', {
+      open: vi.fn(() => {
+        throw new Error('synthetic browser failure')
+      }),
+    })
 
     await expect(openGoogleAuthScreen('synthetic.scope')).resolves.toBeUndefined()
   })
