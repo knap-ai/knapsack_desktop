@@ -3,6 +3,7 @@ import type { SharingBinding } from 'src/utils/accountConversationState'
 import { logError } from 'src/utils/errorHandling'
 import { localSystemVoice, getLocalSpeechStatus, transcribeLocalAudio } from 'src/utils/localSpeech'
 import { notificationDisplayText, notificationContextText, editedQueuedMessage } from 'src/utils/notificationReply'
+import { shouldUseDirectMeetingContext } from 'src/utils/meetingContextRouting'
 import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
@@ -5880,7 +5881,10 @@ ${actualText}`
         // rooms must still enter the harness so the backend can run each
         // selected member independently and synthesize their contributions.
         const requiresHarness = chatId.startsWith('group-') || chatId === 'onboarding-slack'
-        let useDirectChat = isSmartPrompt && usedNativeEmailCalendarContext && !requiresHarness
+        let useDirectChat = !requiresHarness && (
+          (isSmartPrompt && usedNativeEmailCalendarContext) ||
+          shouldUseDirectMeetingContext(visibleText)
+        )
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null

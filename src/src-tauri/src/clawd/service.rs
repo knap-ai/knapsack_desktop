@@ -56,6 +56,13 @@ fn windows_log_path(stream: &str) -> PathBuf {
 /// the gateway would restart with the stale plist that was written at enable-time.
 #[cfg(target_os = "macos")]
 fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] regenerate_macos_plist: gateway management disabled in local-only QA"
+    );
+    return false;
+  }
+
   const DYNAMIC_ENV_KEYS: &[&str] = &[
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
@@ -135,6 +142,11 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
 /// Enhanced with retry logic to ensure the port is actually freed.
 #[cfg(target_os = "windows")]
 fn kill_process_on_port(port: u16) {
+  if port == 18789 && qa_local_only_mode() {
+    eprintln!("[clawd/service] refusing to kill gateway port in local-only QA");
+    return;
+  }
+
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -215,6 +227,11 @@ fn lsof_listener_args(port: u16) -> Vec<String> {
 
 #[cfg(not(target_os = "windows"))]
 fn kill_process_on_port(port: u16) {
+  if port == 18789 && qa_local_only_mode() {
+    eprintln!("[clawd/service] refusing to kill gateway port in local-only QA");
+    return;
+  }
+
   // Try up to 5 times to kill the process and verify port is free
   for attempt in 1..=5 {
     let output = std::process::Command::new("lsof")
@@ -594,6 +611,26 @@ fn qa_direct_gateway_mode() -> bool {
   std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1")
 }
 
+fn qa_local_only_value(value: Option<&str>) -> bool {
+  value == Some("1")
+}
+
+fn qa_local_only_enabled(debug_build: bool, value: Option<&str>) -> bool {
+  debug_build && qa_local_only_value(value)
+}
+
+/// Local-only QA must not write, start, stop, or repair any gateway service.
+/// Kept visible to the supervisor so every gateway lifecycle entry point can
+/// fail closed even when invoked indirectly by a frontend refresh.
+pub(crate) fn qa_local_only_mode() -> bool {
+  qa_local_only_enabled(
+    cfg!(debug_assertions),
+    std::env::var("KNAPSACK_QA_SKIP_GATEWAY")
+      .ok()
+      .as_deref(),
+  )
+}
+
 /// A QA launch uses a disposable OpenClaw state directory. It must never
 /// "repair" the user's CLI state under `~/.openclaw`, even if that state is
 /// present on the machine running the test.
@@ -601,8 +638,8 @@ fn should_manage_global_cli_state(qa_direct: bool) -> bool {
   !qa_direct
 }
 
-fn should_restart_gateway_via_launchd(qa_direct: bool) -> bool {
-  !qa_direct
+fn should_restart_gateway_via_launchd(qa_direct: bool, qa_local_only: bool) -> bool {
+  !qa_direct && !qa_local_only
 }
 
 fn qa_direct_gateway_grace_active() -> Option<u64> {
@@ -708,6 +745,11 @@ fn kill_stale_clawdbot_chromes() {
 /// so that a competing service cannot prevent recovery after a gateway crash.
 #[cfg(target_os = "macos")]
 fn evict_competing_gateway_plists() -> Vec<String> {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] refusing to evict gateway plists in local-only QA");
+    return vec![];
+  }
+
   const KNOWN_COMPETING_LABELS: &[&str] = &[
     "ai.openclaw.gateway",
     "com.openclaw.gateway",
@@ -844,6 +886,11 @@ fn kill_standalone_openclaw_gateway_on_port(port: u16) {
 /// when no plist was found (started via `openclaw gateway start` with no
 /// LaunchAgent registration).
 fn remove_stale_standalone_gateway() {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] stale gateway cleanup disabled in local-only QA");
+    return;
+  }
+
   let evicted = evict_competing_gateway_plists();
   if !evicted.is_empty() {
     kill_process_on_port(18789);
@@ -871,6 +918,11 @@ fn remove_stale_standalone_gateway() {
 /// non-LaunchAgent process, the kill is the only way to clear the port.
 #[cfg(target_os = "macos")]
 pub async fn self_heal_gateway_conflict(token: &str) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] gateway conflict self-heal disabled in local-only QA");
+    return;
+  }
+
   let _lifecycle_guard = GATEWAY_LIFECYCLE_MUTEX.lock().await;
   if let Some(elapsed_ms) = gateway_self_heal_cooldown_active() {
     eprintln!(
@@ -4315,6 +4367,13 @@ fn launchctl_status_with_timeout(
 
 #[cfg(target_os = "macos")]
 fn launchctl_kickstart_with_timeout(service: &str, context: &str) {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] {}: launchctl kickstart disabled in local-only QA",
+      context
+    );
+    return;
+  }
   if qa_direct_gateway_mode() {
     eprintln!(
       "[clawd/service] {}: skipping launchctl kickstart in QA direct gateway mode",
@@ -4334,6 +4393,13 @@ fn launchctl_kickstart_with_timeout(service: &str, context: &str) {
 
 #[cfg(target_os = "macos")]
 fn launchctl_kickstart_detached(service: &str, context: &str) {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] {}: launchctl kickstart disabled in local-only QA",
+      context
+    );
+    return;
+  }
   if qa_direct_gateway_mode() {
     eprintln!(
       "[clawd/service] {}: skipping launchctl kickstart in QA direct gateway mode",
@@ -4362,6 +4428,14 @@ fn launchctl_kickstart_detached(service: &str, context: &str) {
 
 #[cfg(target_os = "macos")]
 fn spawn_gateway_process_detached(setup: &ServiceSetup, context: &str) -> bool {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] {}: direct gateway spawn disabled in local-only QA",
+      context
+    );
+    return false;
+  }
+
   let log_dir = gateway_log_dir();
   if let Err(e) = fs::create_dir_all(&log_dir) {
     eprintln!(
@@ -4430,6 +4504,14 @@ fn spawn_gateway_process_detached(setup: &ServiceSetup, context: &str) -> bool {
 
 #[cfg(target_os = "macos")]
 fn bootstrap_current_launch_agent_detached(context: &str) {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] {}: LaunchAgent bootstrap disabled in local-only QA",
+      context
+    );
+    return;
+  }
+
   let plist_path = match launch_agent_plist_path() {
     Ok(path) => path,
     Err(e) => {
@@ -4467,6 +4549,14 @@ fn bootstrap_current_launch_agent_detached(context: &str) {
 
 #[cfg(target_os = "macos")]
 fn bootstrap_current_launch_agent_without_bootout_detached(context: &str) {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] {}: LaunchAgent bootstrap disabled in local-only QA",
+      context
+    );
+    return;
+  }
+
   let plist_path = match launch_agent_plist_path() {
     Ok(path) => path,
     Err(e) => {
@@ -4533,6 +4623,14 @@ fn launch_agent_plist_looks_current(app_handle: &tauri::AppHandle) -> bool {
 
 #[cfg(target_os = "macos")]
 async fn write_current_launch_agent_plist(app_handle: &tauri::AppHandle, context: &str) -> bool {
+  if qa_local_only_mode() {
+    eprintln!(
+      "[clawd/service] {}: LaunchAgent plist write disabled in local-only QA",
+      context
+    );
+    return false;
+  }
+
   let plist_path = match launch_agent_plist_path() {
     Ok(path) => path,
     Err(e) => {
@@ -7345,6 +7443,11 @@ fn run_openclaw_doctor_fix(setup: &ServiceSetup, context: &str) -> bool {
 
 #[cfg(target_os = "macos")]
 fn bootout_gateway_launch_agent(label: &str) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] refusing to boot out gateway in local-only QA");
+    return;
+  }
+
   let uid = unsafe { libc::getuid() };
   let service = format!("gui/{}/{}", uid, label);
   match std::process::Command::new("launchctl")
@@ -7368,6 +7471,12 @@ async fn run_gateway_self_heal_cycle(
   token: String,
   log_snapshot_lower: String,
 ) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] gateway recovery cycle disabled in local-only QA");
+    GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+    return;
+  }
+
   let crash_class = classify_gateway_crash(&log_snapshot_lower).to_string();
   eprintln!(
     "[clawd/service] self-heal: starting recovery cycle (class={})",
@@ -8440,6 +8549,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         gateway_probe_failed,
         post_bind_startup
       );
+    } else if !gateway_ok && qa_local_only_mode() {
+      eprintln!("[clawd/service] gateway self-heal disabled in local-only QA");
     } else if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
       // Check if restarts are suppressed after too many consecutive failures.
       let now_secs = std::time::SystemTime::now()
@@ -8924,7 +9035,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   let gateway_port_open_for_startup =
     gateway_tcp_port_open(std::time::Duration::from_millis(50)).await;
   #[cfg(target_os = "macos")]
-  if !gateway_port_open_for_startup {
+  if !gateway_port_open_for_startup && !qa_local_only_mode() {
     if let Some(grace_ms) = gateway_launch_grace_active() {
       eprintln!(
         "[clawd/service] startup-ready: gateway launch already in progress for {}ms; waiting",
@@ -8973,7 +9084,9 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   }
 
   #[cfg(target_os = "windows")]
-  if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+  if !qa_local_only_mode()
+    && !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await
+  {
     if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
       let tracked_pid = GATEWAY_PID.load(Ordering::Relaxed);
       let stale_launch = gateway_launch_grace_active()
@@ -10199,6 +10312,15 @@ pub async fn set_api_key(
       "[clawd/service] Provider switch to '{}' (model: {}) — restarting gateway for provider re-discovery",
       provider, switch_model
     );
+    if qa_local_only_mode() {
+      return HttpResponse::Ok().json(SetApiKeyResponse {
+        success: true,
+        message: format!(
+          "Switched to {}. Gateway remains disabled for local-only QA.",
+          provider_name
+        ),
+      });
+    }
     crate::clawd::gateway_client::invalidate();
     #[cfg(target_os = "windows")]
     {
@@ -10217,7 +10339,7 @@ pub async fn set_api_key(
             provider
           );
         }
-        if should_restart_gateway_via_launchd(qa_direct) {
+        if should_restart_gateway_via_launchd(qa_direct, qa_local_only_mode()) {
           let uid = unsafe { libc::getuid() };
           let domain = format!("gui/{}", uid);
           let _ = std::process::Command::new("launchctl")
@@ -10532,6 +10654,15 @@ pub async fn set_api_key(
     "[clawd/service] API key saved for '{}' (model: {}) — restarting gateway for provider re-discovery",
     provider, model_for_gateway
   );
+  if qa_local_only_mode() {
+    return HttpResponse::Ok().json(SetApiKeyResponse {
+      success: true,
+      message: format!(
+        "{} API key saved. Gateway remains disabled for local-only QA.",
+        provider_name
+      ),
+    });
+  }
   crate::clawd::gateway_client::invalidate();
   #[cfg(target_os = "windows")]
   {
@@ -10546,7 +10677,7 @@ pub async fn set_api_key(
       // which re-uses the old (stale) plist.
       regenerate_macos_plist_with_current_env(&plist_path);
       let qa_direct = qa_direct_gateway_mode();
-      if should_restart_gateway_via_launchd(qa_direct) {
+      if should_restart_gateway_via_launchd(qa_direct, qa_local_only_mode()) {
         let uid = unsafe { libc::getuid() };
         let domain = format!("gui/{}", uid);
         let _ = std::process::Command::new("launchctl")
@@ -11529,6 +11660,16 @@ pub async fn ollama_configure(
     "[clawd/service] Ollama configure (enabled={}, model: {}) - restarting gateway for provider re-discovery",
     payload.enabled, ollama_model
   );
+  if qa_local_only_mode() {
+    return HttpResponse::Ok().json(SetApiKeyResponse {
+      success: true,
+      message: if payload.enabled {
+        "Ollama enabled. Gateway remains disabled for local-only QA.".to_string()
+      } else {
+        "Ollama disabled. Gateway remains disabled for local-only QA.".to_string()
+      },
+    });
+  }
   crate::clawd::gateway_client::invalidate();
   #[cfg(target_os = "windows")]
   {
@@ -13738,6 +13879,15 @@ pub async fn set_service_enabled(
     });
   }
 
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] service management disabled in local-only QA");
+    return HttpResponse::Ok().json(EnableServiceResponse {
+      success: true,
+      enabled: false,
+      message: "Gateway service management is disabled for local-only QA".to_string(),
+    });
+  }
+
   let _lifecycle_guard = GATEWAY_LIFECYCLE_MUTEX.lock().await;
 
   #[cfg(target_os = "macos")]
@@ -15681,6 +15831,11 @@ pub async fn set_service_enabled(
 /// requiring the user to manually click Enable/Disable.
 #[cfg(target_os = "macos")]
 pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] service cycle disabled in local-only QA");
+    return;
+  }
+
   let Ok(plist_path) = launch_agent_plist_path() else {
     return;
   };
@@ -15712,6 +15867,11 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
 
 #[cfg(target_os = "windows")]
 pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] service cycle disabled in local-only QA");
+    return;
+  }
+
   eprintln!("[clawd/service] Auto-cycling service on Windows...");
 
   // Kill the current gateway process
@@ -15745,6 +15905,11 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
 /// Called from the quit handler so orphaned processes don't linger.
 #[cfg(target_os = "windows")]
 pub fn cleanup_gateway_on_exit() {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] gateway exit cleanup disabled in local-only QA");
+    return;
+  }
+
   use std::os::windows::process::CommandExt;
   use std::sync::atomic::Ordering;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -16270,6 +16435,11 @@ async fn do_gemini_connect(app_handle: &tauri::AppHandle, code: &str) -> Result<
         }
       }
     }
+  }
+
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] Gemini CLI OAuth saved; gateway disabled in local-only QA");
+    return Ok(email);
   }
 
   crate::clawd::gateway_client::invalidate();
@@ -17094,6 +17264,11 @@ fn save_and_restart_for_oauth(
   std::env::remove_var("OLLAMA_API_KEY");
 
   // Restart gateway (same logic as set_api_key)
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] provider OAuth saved; gateway disabled in local-only QA");
+    return Ok(());
+  }
+
   crate::clawd::gateway_client::invalidate();
 
   #[cfg(target_os = "windows")]
@@ -17192,6 +17367,11 @@ fn oauth_html_page(success: bool, message: &str) -> HttpResponse {
 /// to the user.  The toggle in Settings remains the authoritative control.
 #[cfg(target_os = "macos")]
 pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] auto_enable: gateway disabled in local-only QA");
+    return;
+  }
+
   let plist_path = match launch_agent_plist_path() {
     Ok(p) => p,
     Err(e) => {
@@ -17610,6 +17790,11 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
 
 #[cfg(target_os = "windows")]
 pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
+  if qa_local_only_mode() {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway disabled in local-only QA");
+    return;
+  }
+
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -19644,7 +19829,8 @@ mod service_status_message_tests {
   use super::{
     external_port_holder_pids, is_noisy_browser_probe_error, is_transient_browser_probe_error,
     lsof_listener_args, mac_service_status_summary, managed_browser_pids_from_ps,
-    parse_browser_control_status_body, should_restart_gateway_via_launchd, BrowserControlProbe,
+    parse_browser_control_status_body, qa_local_only_enabled, qa_local_only_value,
+    should_restart_gateway_via_launchd, BrowserControlProbe,
     GATEWAY_READY_BUDGET_MS, PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS, STARTUP_READY_BUDGET_MS,
   };
 
@@ -19699,8 +19885,19 @@ mod service_status_message_tests {
 
   #[test]
   fn qa_direct_provider_switch_does_not_restart_launchd_gateway() {
-    assert!(!should_restart_gateway_via_launchd(true));
-    assert!(should_restart_gateway_via_launchd(false));
+    assert!(!should_restart_gateway_via_launchd(true, false));
+    assert!(should_restart_gateway_via_launchd(false, false));
+    assert!(!should_restart_gateway_via_launchd(false, true));
+  }
+
+  #[test]
+  fn local_only_qa_flag_is_fail_closed() {
+    assert!(qa_local_only_value(Some("1")));
+    assert!(!qa_local_only_value(Some("true")));
+    assert!(!qa_local_only_value(Some("0")));
+    assert!(!qa_local_only_value(None));
+    assert!(qa_local_only_enabled(true, Some("1")));
+    assert!(!qa_local_only_enabled(false, Some("1")));
   }
 
   #[test]

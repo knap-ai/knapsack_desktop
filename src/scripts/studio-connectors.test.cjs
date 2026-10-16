@@ -95,7 +95,7 @@ test('chat applies account-wide connector context and inline recovery to gateway
     'utf8',
   )
   assert.match(chatSource, /trusted account-wide connector inventory/)
-  assert.match(chatSource, /userText: text/)
+  assert.match(chatSource, /userText: visibleText/)
   assert.match(chatSource, /surfaceMissingStudioConnector\(displayText\)/)
   assert.match(chatSource, /studioAvailableConnectorsRef\.current,\s*true,/)
 })
@@ -195,7 +195,8 @@ test('group runtime bypasses single-agent shortcuts and aborts timed-out members
     new URL('../src-tauri/src/clawd/gateway_client.rs', `file://${__filename}`),
     'utf8',
   )
-  assert.match(browserBackendSource, /if !is_group_agent_request\(&body\)/)
+  assert.match(browserBackendSource, /if allows_native_capability_shortcuts\(&body\)/)
+  assert.match(browserBackendSource, /if is_group_agent_request\(body\)[\s\S]*?return false/)
   assert.match(browserBackendSource, /google_capability_reply\(email, user_text\)/)
   assert.match(harnessSource, /abort_chat_session\(&session_key, None\)/)
   assert.match(gatewaySource, /"chat\.abort"/)

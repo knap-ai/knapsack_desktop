@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { Button, ButtonSize, ButtonVariant } from 'src/components/atoms/button'
 
 interface CopyButtonProps {
-  onClick: () => void
+  onClick: () => void | Promise<void>
 }
 
 export enum CopyButtonVariant {
@@ -30,9 +30,13 @@ const CopyButton: React.FC<CopyButtonProps> = ({
     };
   }, [isCopied]);
 
-  const handleClick = () => {
-    setIsCopied(true);
-    onClick();
+  const handleClick = async () => {
+    try {
+      await onClick()
+      setIsCopied(true)
+    } catch {
+      // The caller owns user-visible error reporting. Do not claim success.
+    }
   };
 
   return (

@@ -24,8 +24,8 @@ const loadTypeScriptModule = (relativePath) => {
   return loaded.exports;
 };
 
-test("Slack copy uses rich Slack conventions and aligned tables", () => {
-  const { formatMeetingNotesForSlack } = loadTypeScriptModule(
+test("Slack copy uses rich HTML with a marker-free plain-text fallback", () => {
+  const { buildSlackClipboardPayload } = loadTypeScriptModule(
     "src/utils/slackMeetingNotes.ts",
   );
   const markdown = `## Decisions
@@ -40,24 +40,13 @@ test("Slack copy uses rich Slack conventions and aligned tables", () => {
 
 [Open brief](https://example.com)`;
 
-  assert.equal(
-    formatMeetingNotesForSlack(markdown, "Demo Meeting"),
-    `*Demo Meeting*
-
-*Decisions*
-• *Pilot:* Ship now
-
-*Action items*
-☐ *Mark* — Send recap
-
-\`\`\`
-Metric  |  Result
-────────┼────────
-Lift    |  3%
-\`\`\`
-
-<https://example.com|Open brief>`,
-  );
+  const payload = buildSlackClipboardPayload(markdown, "Demo Meeting");
+  assert.match(payload.html, /<h2>Demo Meeting<\/h2>/);
+  assert.match(payload.html, /<strong>Pilot:<\/strong> Ship now/);
+  assert.match(payload.html, /<a href="https:\/\/example\.com">Open brief<\/a>/);
+  assert.match(payload.html, /<pre>Metric\s+\|\s+Result/);
+  assert.doesNotMatch(payload.text, /\*Demo Meeting\*/);
+  assert.match(payload.text, /Decisions\n• Pilot: Ship now/);
 });
 
 test("legacy missing-deadline placeholders disappear from displayed notes", () => {
@@ -70,4 +59,20 @@ test("legacy missing-deadline placeholders disappear from displayed notes", () =
     ),
     "## Action items\n\n- [ ] **Mark** — Send recap",
   );
+});
+
+test("meeting chat stays centered without hiding recording state or stop control", () => {
+  const meetingMode = fs.readFileSync(
+    path.join(root, "src/components/organisms/MeetingNotesMode/index.tsx"),
+    "utf8",
+  );
+  const styles = fs.readFileSync(path.join(root, "src/main.css"), "utf8");
+
+  assert.doesNotMatch(meetingMode, /Privately transcribing/);
+  assert.match(meetingMode, /placeholder="Ask about this meeting"/);
+  assert.match(meetingMode, /Knapsack is[\s\S]*?transcribing[\s\S]*?your meeting\./);
+  assert.match(meetingMode, /aria-label="Stop recording"/);
+  assert.match(styles, /\.notetaker-note__bottom-bar \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) minmax\(220px, 420px\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.notetaker-note__bottom-chat \{[\s\S]*?grid-column: 2/);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?grid-template-columns: auto minmax\(0, 1fr\) auto/);
 });

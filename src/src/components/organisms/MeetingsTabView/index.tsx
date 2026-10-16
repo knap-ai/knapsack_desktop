@@ -24,7 +24,7 @@ import MeetingTasks from 'src/components/molecules/MeetingTasks'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { KN_API_NOTES } from 'src/utils/constants'
 import { getEventUrl } from 'src/utils/meetingUtils'
-import { formatMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 import { TaskItem } from 'src/components/organisms/CenterWorkspace'
 
 import CalendarIcon from '/assets/images/dataSources/gcal.svg'
@@ -158,7 +158,7 @@ const MeetingsTabView = ({
       const notes = data?.data?.notes
       if (!response.ok || !data?.data?.exists || !notes?.trim()) throw new Error('No saved notes are available to share yet.')
       if (email) onEmailClick?.(notes, selectedMeeting?.getCalendarEvent())
-      else { copyToClipboard(formatMeetingNotesForSlack(notes, selectedMeeting?.getTitle?.())); setCopyStatus('Notes copied') }
+      else { await copyMeetingNotesForSlack(notes, selectedMeeting?.getTitle?.()); setCopyStatus('Notes copied') }
       setShareOpen(false)
     } catch (error) { handleErrorContact(error instanceof Error ? error.message : 'Unable to share notes.') }
   }

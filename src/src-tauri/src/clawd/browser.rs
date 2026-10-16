@@ -5190,7 +5190,12 @@ pub async fn chat(
 
       match crate::clawd::meeting_context::get_transcript_content(thread_id) {
         Ok(content) => {
-          return Ok(json!({"ok": true, "thread_id": thread_id, "transcript": content}));
+          let source = crate::clawd::meeting_context::meeting_evidence_source(
+            thread_id,
+            "meeting_transcript",
+          )
+          .await;
+          return Ok(json!({"ok": true, "thread_id": thread_id, "transcript": content, "source": source}));
         }
         Err(e) => {
           return Ok(json!({"ok": false, "error": format!("Failed to get transcript: {}", e)}));
@@ -5206,7 +5211,12 @@ pub async fn chat(
 
       match crate::clawd::meeting_context::get_notes_content(thread_id) {
         Ok(Some(content)) => {
-          return Ok(json!({"ok": true, "thread_id": thread_id, "notes": content}));
+          let source = crate::clawd::meeting_context::meeting_evidence_source(
+            thread_id,
+            "saved_meeting_notes",
+          )
+          .await;
+          return Ok(json!({"ok": true, "thread_id": thread_id, "notes": content, "source": source}));
         }
         Ok(None) => {
           return Ok(
@@ -6214,11 +6224,21 @@ When the user asks "what can you do" or "what skills do you have", mention that 
 
   // Build meeting context — lightweight metadata only (titles, dates, participants)
   let meeting_manifest = crate::clawd::meeting_context::build_meeting_manifest(30).await;
-  let meeting_section = if !meeting_manifest.is_empty() {
-    format!("\n\n{}\n", meeting_manifest)
-  } else {
-    String::new()
-  };
+  let current_local_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z (%:z)");
+  let meeting_section = format!(
+    r#"
+
+{}
+
+## MEETING EVIDENCE AND TIME
+Current local time on this computer: **{}**.
+- For “what happened”, “what was discussed”, decisions, recap, or action-item questions, calendar entries only prove that an event was scheduled. They are not evidence of what happened.
+- For “latest/last call” follow-ups, use prior conversation turns to infer the person or company when helpful, call `list_recent_meetings`, then read `get_meeting_notes` and/or `get_meeting_transcript` before answering.
+- When meeting content is returned, cite the exact `source.citation` supplied by the tool. If no saved notes or transcript are available on this computer, say so; never replace missing content with calendar or email inference.
+- Compare event timestamps with the current local time above. Never describe an already-started or elapsed event as “coming up.”
+"#,
+    meeting_manifest, current_local_time
+  );
   let connected_accounts_section = connected_google_accounts_section(&user_email);
 
   let email_section = if !user_email.is_empty() {

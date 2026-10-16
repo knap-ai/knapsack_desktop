@@ -135,6 +135,14 @@ fn check_app_bundle_signature_uncached() -> Option<String> {
 
 #[cfg(target_os = "macos")]
 pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
+  if super::service::qa_local_only_mode() {
+    eprintln!(
+      "[gateway_supervisor] skipping launchctl kickstart for {} in local-only QA",
+      label
+    );
+    return Ok(());
+  }
+
   if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1") {
     eprintln!(
       "[gateway_supervisor] skipping launchctl kickstart for {} in QA direct gateway mode",
@@ -314,6 +322,14 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
 /// Protected by a mutex — only one restart attempt runs at a time.  Concurrent
 /// callers wait for the in-progress attempt to finish and then re-check health.
 pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureResponse {
+  if super::service::qa_local_only_mode() {
+    return GatewayEnsureResponse {
+      success: true,
+      running: false,
+      message: "Gateway disabled for local-only QA".to_string(),
+    };
+  }
+
   // Fast path: if already healthy, skip the mutex entirely.
   if is_gateway_healthy_or_ready(token).await {
     return GatewayEnsureResponse {

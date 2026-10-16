@@ -9,6 +9,7 @@
  */
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 const { assertNoInstalledKnapsackListeners } = require("./qa-process-safety.cjs");
@@ -59,7 +60,12 @@ const qaDbPath = path.join(qaStateDir, "knapsack-qa.db");
 // hardens every regular file in that state tree to 0600, which would strip
 // execute permission from an app bundle stored there and break bundled MCP
 // subprocesses with EACCES.
-const qaAppBundle = path.join(projectDir, ".qa-dev-app", "Knapsack Dev.app");
+const prepareOnlyRequested =
+  String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
+const qaAppRoot = prepareOnlyRequested
+  ? path.join(os.tmpdir(), "knapsack-qa-prepare")
+  : path.join(projectDir, ".qa-dev-app");
+const qaAppBundle = path.join(qaAppRoot, "Knapsack Dev.app");
 const qaAppExecutable = path.join(
   qaAppBundle,
   "Contents",
@@ -1074,8 +1080,14 @@ function binaryNeedsRebuild() {
   return rustSourceMtime > binaryMtime;
 }
 
-function prepareMacDevAppBundle() {
+function prepareMacDevAppBundle({ localOnly = false } = {}) {
   if (process.platform !== "darwin") return binary;
+
+  fs.mkdirSync(qaAppRoot, { recursive: true });
+  const rootStat = fs.lstatSync(qaAppRoot);
+  if (rootStat.isSymbolicLink()) {
+    throw new Error(`Refusing unsafe QA app root: ${qaAppRoot}`);
+  }
 
   const contentsDir = path.join(qaAppBundle, "Contents");
   const macosDir = path.join(contentsDir, "MacOS");
@@ -1090,7 +1102,7 @@ function prepareMacDevAppBundle() {
   fs.chmodSync(qaAppExecutable, 0o755);
 
   const debugResources = path.join(tauriDir, "target", "debug", "resources");
-  if (fs.existsSync(debugResources)) {
+  if (!localOnly && fs.existsSync(debugResources)) {
     // Keep the generated app self-contained. A symlink that escapes the app
     // bundle makes codesign reject it and macOS may terminate the QA app as an
     // invalid or malicious bundle before the service API becomes available.
@@ -1115,6 +1127,18 @@ function prepareMacDevAppBundle() {
 </plist>
 `;
   fs.writeFileSync(path.join(contentsDir, "Info.plist"), infoPlist);
+
+  // Files copied from the installed bundle can retain provenance/resource-fork
+  // metadata. macOS rejects ad-hoc signing when that metadata is present, even
+  // though the generated QA bundle is otherwise self-contained.
+  const clearMetadataResult = spawnSync("xattr", ["-cr", qaAppBundle], {
+    encoding: "utf8",
+  });
+  if (clearMetadataResult.status !== 0) {
+    throw new Error(
+      `Failed to clear QA app bundle metadata: ${String(clearMetadataResult.stderr || clearMetadataResult.stdout || "unknown xattr error").trim()}`,
+    );
+  }
 
   // The debug binary is linker-signed before it is copied into this generated
   // app. Sign the completed bundle so its Info.plist and resources are sealed
@@ -1162,11 +1186,12 @@ function syncDevClawdbotResources() {
 }
 
 async function main() {
-  if (process.platform === "darwin") {
+  const localOnly = String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1";
+  const prepareOnly = prepareOnlyRequested;
+  if (process.platform === "darwin" && !prepareOnly) {
     assertNoInstalledKnapsackListeners([8897, 18789, 18791].flatMap(listeningPortHolderPids));
   }
-  const localOnly = String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1";
-  backupExistingLaunchAgentIfNeeded();
+  if (!localOnly && !prepareOnly) backupExistingLaunchAgentIfNeeded();
   ensureRootNodeModules();
   runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
   if (!localOnly) {
@@ -1175,28 +1200,6 @@ async function main() {
     ]);
     syncDevClawdbotResources();
   }
-  const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
-  const preserveQaState =
-    String(process.env.KNAPSACK_QA_PRESERVE_STATE || "").trim() === "1";
-  fs.mkdirSync(qaStateDir, { recursive: true });
-  if (!preserveQaState) {
-    syncQaGatewayState();
-  } else {
-    console.log("[qa-dev-run] preserving existing isolated QA gateway state");
-  }
-  // Preserve user-created meetings when resuming an isolated QA session.
-  if (!preserveQaState || !fs.existsSync(qaDbPath)) {
-    seedQaDatabaseFromProd();
-  }
-  if (!preserveQaState) {
-    seedQaProviderTokensFromProd();
-  }
-  seedQaConfigFromProd();
-  bootoutLaunchAgent();
-  killStaleVitePort();
-  killStaleGateways();
-  if (!localOnly) killStaleOpenClawChrome();
-
   if (binaryNeedsRebuild()) {
     const tauriConfig = JSON.stringify({
       package: {
@@ -1219,11 +1222,36 @@ async function main() {
   }
 
   if (prepareOnly) {
+    prepareMacDevAppBundle({ localOnly });
+    console.log(`[qa-dev-run] prepared signed QA app bundle at ${qaAppBundle}`);
     process.exit(0);
     return;
   }
 
-  const appExecutable = prepareMacDevAppBundle();
+  const preserveQaState =
+    String(process.env.KNAPSACK_QA_PRESERVE_STATE || "").trim() === "1";
+  fs.mkdirSync(qaStateDir, { recursive: true });
+  if (!preserveQaState) {
+    syncQaGatewayState();
+  } else {
+    console.log("[qa-dev-run] preserving existing isolated QA gateway state");
+  }
+  // Preserve user-created meetings when resuming an isolated QA session.
+  if (!preserveQaState || !fs.existsSync(qaDbPath)) {
+    seedQaDatabaseFromProd();
+  }
+  if (!preserveQaState) {
+    seedQaProviderTokensFromProd();
+  }
+  seedQaConfigFromProd();
+  killStaleVitePort();
+  if (!localOnly) {
+    bootoutLaunchAgent();
+    killStaleGateways();
+    killStaleOpenClawChrome();
+  }
+
+  const appExecutable = prepareMacDevAppBundle({ localOnly });
 
   const vite = spawnVite();
   let gateway = null;
@@ -1236,14 +1264,16 @@ async function main() {
     if (gateway && !gateway.killed) gateway.kill("SIGTERM");
     if (app && !app.killed) app.kill("SIGTERM");
     try {
-      bootoutLaunchAgent();
-      killStaleGateways();
-      if (!localOnly) killStaleOpenClawChrome();
-      removeQaLaunchAgentIfPresent();
+      if (!localOnly) {
+        bootoutLaunchAgent();
+        killStaleGateways();
+        killStaleOpenClawChrome();
+        removeQaLaunchAgentIfPresent();
+      }
     } catch (error) {
       console.warn(`[qa-dev-run] leaving protected service running: ${error.message}`);
     } finally {
-      restoreLaunchAgentBackupIfPresent();
+      if (!localOnly) restoreLaunchAgentBackupIfPresent();
     }
   };
   process.on("SIGINT", () => {
@@ -1274,9 +1304,11 @@ async function main() {
     "http://127.0.0.1:1420/",
     Number(process.env.KNAPSACK_QA_VITE_READY_TIMEOUT_MS || 90_000),
   );
-  bootoutLaunchAgent();
-  killStaleGateways({ requireFree: true });
-  if (!localOnly) killStaleOpenClawChrome();
+  if (!localOnly) {
+    bootoutLaunchAgent();
+    killStaleGateways({ requireFree: true });
+    killStaleOpenClawChrome();
+  }
 
   const appEnv =
     process.platform === "darwin"

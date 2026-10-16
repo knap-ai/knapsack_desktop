@@ -15,6 +15,7 @@ import { Profile } from 'src/hooks/auth/useAuth'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
 import { KN_API_GET_USER_EMAIL, KN_SERVER_HOST } from 'src/utils/constants'
+import { googleAccountConnectPresentation } from 'src/utils/accountConnectionPresentation'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
@@ -291,7 +292,7 @@ const UpdateSection = () => {
           updateState.status === 'up-to-date' ||
           updateState.status === 'error') && (
           <button
-            onClick={checkForUpdates}
+            onClick={() => void checkForUpdates('user')}
             className="text-sm text-red-600 hover:text-red-700 font-medium"
           >
             Check for Updates
@@ -751,6 +752,9 @@ export const SettingsDialog = ({
   const [slackOauthAccounts, setSlackOauthAccounts] = useState<StudioOauthAccount[]>([])
   const [slackOauthBusy, setSlackOauthBusy] = useState(false)
   const [slackOauthMessage, setSlackOauthMessage] = useState('')
+  const [googleOauthBusy, setGoogleOauthBusy] = useState(false)
+  const [googleOauthMessage, setGoogleOauthMessage] = useState('')
+  const [googleOauthError, setGoogleOauthError] = useState(false)
   const isMacPlatform = navigator.platform?.includes('Mac')
   const isWindowsPlatform = navigator.platform?.includes('Win')
   const showKeepAwakePowerControls = isMacPlatform || isWindowsPlatform
@@ -920,10 +924,23 @@ export const SettingsDialog = ({
     [googlePrimaryEmail],
   )
 
-  const handleAddGoogleWorkspace = useCallback(() => {
+  const handleAddGoogleWorkspace = useCallback(async () => {
+    if (googleOauthBusy) return
+    setGoogleOauthBusy(true)
+    setGoogleOauthMessage('')
+    setGoogleOauthError(false)
     const primaryEmail = requireGooglePrimaryEmail('workspace')
-    if (primaryEmail) openAddGoogleWorkspaceScreen(primaryEmail)
-  }, [requireGooglePrimaryEmail])
+    try {
+      if (!primaryEmail) throw new Error('Sign in to Knapsack before connecting Google.')
+      await Promise.resolve(openAddGoogleWorkspaceScreen(primaryEmail))
+      setGoogleOauthMessage('Finish authorizing Google in your browser, then return to Knapsack.')
+    } catch (error) {
+      setGoogleOauthError(true)
+      setGoogleOauthMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setGoogleOauthBusy(false)
+    }
+  }, [googleOauthBusy, requireGooglePrimaryEmail])
 
   const getGoogleAccountLabel = useCallback(
     (item: Connection) =>
@@ -955,6 +972,12 @@ export const SettingsDialog = ({
   )
     .map(([accountEmail, services]) => ({ accountEmail, services }))
     .sort((a, b) => a.accountEmail.localeCompare(b.accountEmail))
+  const googleConnectPresentation = googleAccountConnectPresentation(
+    googleAccounts.length,
+    googleOauthBusy,
+    !!googlePrimaryEmail,
+    googleOauthError,
+  )
 
   // Settings fetches an aggregate inventory so it can show every account, but
   // the live connection state belongs to the app-level connection map. Match
@@ -2329,52 +2352,67 @@ export const SettingsDialog = ({
                 </div>
               ))}
 
-            {googlePrimaryEmail && (
-              <div className="flex items-center justify-between mt-1 gap-4">
-                <Typography className="text-xs text-gray-500">
-                  {googleAccounts.length > 0 ? 'Connected Google accounts' : 'Google accounts'}
-                </Typography>
+            <div className="flex flex-col gap-2 py-2 border-b border-zinc-100">
+              <div className="flex justify-between min-h-[36px] items-center gap-4">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Typography weight={TypographyWeight.medium}>Google accounts</Typography>
+                  <Typography className="text-xs text-gray-500">
+                    Read Gmail, Calendar, and Drive using each Google account you authorize.
+                  </Typography>
+                </div>
                 <button
                   type="button"
-                  className={`text-xs cursor-pointer shrink-0 ${styles.link}`}
+                  className="px-3 py-1.5 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50 shrink-0"
+                  disabled={googleConnectPresentation.disabled}
                   onClick={handleAddGoogleWorkspace}
+                  aria-label={googleConnectPresentation.ariaLabel}
+                  title={!googlePrimaryEmail ? 'Sign in to Knapsack before connecting Google' : undefined}
                 >
-                  Add another
+                  {googleConnectPresentation.buttonLabel}
                 </button>
               </div>
-            )}
-            {googleAccounts.map(account => (
-              <div
-                className="flex flex-col gap-1 py-2 border-b border-zinc-100 last:border-b-0"
-                key={`google-account-${account.accountEmail}`}
-              >
-                <Typography weight={TypographyWeight.medium}>{account.accountEmail}</Typography>
-                <div className="flex flex-col gap-1">
-                  {account.services.map(({ connection, service }) => (
-                    <div
-                      className="flex justify-between items-center min-h-[28px] pl-3"
-                      key={`${service}-${connection.id}-${connection.ownerEmail}`}
-                    >
-                      <div className="flex flex-col">
-                        <Typography className="text-sm text-gray-600">{service}</Typography>
-                        {(liveConnectionStateById.get(connection.id) ?? connection.state) ===
-                          ConnectionStates.FAILED && (
-                          <Typography className="text-xs text-red-600">
-                            Needs reconnect — no new data is being read
-                          </Typography>
-                        )}
-                      </div>
-                      <Typography
-                        className={`cursor-pointer ${styles.link}`}
-                        onClick={() => handleDeleteConnection(connection)}
+              {googleAccounts.map(account => (
+                <div
+                  className="flex flex-col gap-1 py-2 pl-3"
+                  key={`google-account-${account.accountEmail}`}
+                >
+                  <Typography weight={TypographyWeight.medium}>{account.accountEmail}</Typography>
+                  <div className="flex flex-col gap-1">
+                    {account.services.map(({ connection, service }) => (
+                      <div
+                        className="flex justify-between items-center min-h-[28px] pl-3"
+                        key={`${service}-${connection.id}-${connection.ownerEmail}`}
                       >
-                        Remove
-                      </Typography>
-                    </div>
-                  ))}
+                        <div className="flex flex-col">
+                          <Typography className="text-sm text-gray-600">{service}</Typography>
+                          {(liveConnectionStateById.get(connection.id) ?? connection.state) ===
+                            ConnectionStates.FAILED && (
+                            <Typography className="text-xs text-red-600">
+                              Needs reconnect — no new data is being read
+                            </Typography>
+                          )}
+                        </div>
+                        <Typography
+                          className={`cursor-pointer ${styles.link}`}
+                          onClick={() => handleDeleteConnection(connection)}
+                        >
+                          Remove
+                        </Typography>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+              {googleOauthMessage && (
+                <div role={googleConnectPresentation.messageRole}>
+                  <Typography
+                    className={googleConnectPresentation.messageClassName}
+                  >
+                    {googleOauthMessage}
+                  </Typography>
+                </div>
+              )}
+            </div>
 
             {/* Microsoft Calendar */}
             {connections[ConnectionKeys.MICROSOFT_CALENDAR] && (

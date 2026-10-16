@@ -10,13 +10,18 @@ import { invoke } from '@tauri-apps/api'
 import { platform } from '@tauri-apps/api/os'
 import { relaunch } from '@tauri-apps/api/process'
 import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/updater'
+import { listen } from '@tauri-apps/api/event'
 import { getAppVersion } from 'src/utils/app'
-import { installAppUpdate } from 'src/utils/appUpdate'
+import {
+  checkAppUpdateStatus,
+  installAppUpdate,
+  normalizeAppVersion,
+} from 'src/utils/appUpdate'
 
 export type UpdateStatus =
   | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'up-to-date' }
+  | { status: 'checking'; source: 'automatic' | 'user' }
+  | { status: 'up-to-date'; source: 'automatic' | 'user' }
   | { status: 'available'; version: string }
   | { status: 'downloading' }
   | { status: 'ready' }
@@ -26,7 +31,7 @@ type AppUpdateContextValue = {
   updateState: UpdateStatus
   autoInstallEnabled: boolean
   countdownRemainingSec: number | null
-  checkForUpdates: () => Promise<void>
+  checkForUpdates: (source?: 'automatic' | 'user') => Promise<void>
   startInstall: () => Promise<void>
   restartApp: () => Promise<void>
   setAutoInstallEnabled: (enabled: boolean) => Promise<void>
@@ -45,13 +50,6 @@ async function prepareNativeUpdateInstall() {
     return
   }
   await invoke('kn_prepare_updater_temp_dir')
-}
-
-function normalizeVersion(version: string | undefined | null): string {
-  return String(version ?? '')
-    .trim()
-    .replace(/^v/i, '')
-    .split('+')[0]
 }
 
 function readAutoInstallSnooze(): { version: string; until: number } | null {
@@ -88,7 +86,7 @@ function writeAutoInstallSnooze(
   try {
     window.localStorage.setItem(
       AUTO_INSTALL_SNOOZE_KEY,
-      JSON.stringify({ version: normalizeVersion(version), until }),
+      JSON.stringify({ version: normalizeAppVersion(version), until }),
     )
   } catch {
     // Ignore storage failures; updater flow still works without persistence.
@@ -118,7 +116,7 @@ function isAutoInstallSnoozed(version: string): boolean {
     return false
   }
 
-  return normalizeVersion(snooze.version) === normalizeVersion(version)
+  return normalizeAppVersion(snooze.version) === normalizeAppVersion(version)
 }
 
 export function useAppUpdate() {
@@ -133,6 +131,8 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const [countdownRemainingSec, setCountdownRemainingSec] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const installInFlightRef = useRef(false)
+  const checkInFlightRef = useRef(false)
+  const checkSourceRef = useRef<'automatic' | 'user'>('automatic')
 
   // Listen to updater events
   useEffect(() => {
@@ -165,23 +165,35 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {})
   }, [])
 
-  const checkForUpdates = useCallback(async () => {
-    setState({ status: 'checking' })
+  const checkForUpdates = useCallback(async (source: 'automatic' | 'user' = 'user') => {
+    if (checkInFlightRef.current) {
+      // A tray/settings click during the startup check must still surface the
+      // in-flight check and its final up-to-date result to the user.
+      if (source === 'user') {
+        checkSourceRef.current = 'user'
+        setState(current => current.status === 'checking'
+          ? { status: 'checking', source: 'user' }
+          : current)
+        setDismissed(false)
+      }
+      return
+    }
+    checkInFlightRef.current = true
+    checkSourceRef.current = source
+    setState({ status: 'checking', source })
     setDismissed(false)
     try {
-      const currentVersion = normalizeVersion(await getAppVersion())
-      const { shouldUpdate, manifest } = await checkUpdate()
-      const targetVersion = normalizeVersion(manifest?.version)
-      if (shouldUpdate && manifest && targetVersion && targetVersion !== currentVersion) {
+      const result = await checkAppUpdateStatus(await getAppVersion(), checkUpdate)
+      if (result.status === 'available') {
         KNAnalytics.trackEvent('update_available', {
           from_version: KNAnalytics.APP_VERSION,
-          to_version: manifest.version,
+          to_version: result.version,
           timestamp: new Date().toISOString(),
         })
-        setState({ status: 'available', version: manifest.version })
+        setState(result)
       } else {
         clearAutoInstallSnooze()
-        setState({ status: 'up-to-date' })
+        setState({ status: 'up-to-date', source: checkSourceRef.current })
       }
     } catch (err) {
       const msg = String(err)
@@ -190,8 +202,17 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
           ? 'Could not reach the update server. Check your connection and try again.'
           : msg
       setState({ status: 'error', message: friendlyMsg })
+    } finally {
+      checkInFlightRef.current = false
     }
   }, [])
+
+  useEffect(() => {
+    const unlisten = listen('check_for_updates', () => {
+      void checkForUpdates('user')
+    })
+    return () => { unlisten.then(stop => stop()) }
+  }, [checkForUpdates])
 
   const runInstall = useCallback(async (targetVersion?: string) => {
     if (installInFlightRef.current) {
@@ -304,7 +325,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   // Auto-check on mount — only checks, does NOT install.
   // Installing and relaunching must happen together (see restartApp).
   useEffect(() => {
-    checkForUpdates()
+    void checkForUpdates('automatic')
   }, [])
 
   return (

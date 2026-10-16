@@ -69,3 +69,39 @@ test("native updater never starts installation when preparation fails", async ()
   );
   assert.equal(installed, false);
 });
+
+test("stubbed updater check reports availability without install or relaunch capability", async () => {
+  const { checkAppUpdateStatus } = await loadAppUpdateModule();
+  const calls = [];
+  const result = await checkAppUpdateStatus("3.4.2+20261013", async () => {
+    calls.push("check");
+    return { shouldUpdate: true, manifest: { version: "v3.4.3" } };
+  });
+
+  assert.deepEqual(calls, ["check"]);
+  assert.deepEqual(result, { status: "available", version: "3.4.3" });
+});
+
+test("stubbed updater check treats same normalized version as up to date", async () => {
+  const { checkAppUpdateStatus } = await loadAppUpdateModule();
+  const result = await checkAppUpdateStatus("v3.4.2+12", async () => ({
+    shouldUpdate: true,
+    manifest: { version: "3.4.2+99" },
+  }));
+
+  assert.deepEqual(result, { status: "up-to-date" });
+});
+
+test("tray update action reaches the updater hook with visible user feedback and a repeat guard", async () => {
+  const main = await fs.readFile(new URL("../src-tauri/src/main.rs", `file://${__filename}`), "utf8");
+  const hook = await fs.readFile(new URL("../src/hooks/useAppUpdate.tsx", `file://${__filename}`), "utf8");
+  const banner = await fs.readFile(new URL("../src/components/molecules/UpdateBanner/index.tsx", `file://${__filename}`), "utf8");
+
+  assert.match(main, /emit\("check_for_updates"/);
+  assert.match(hook, /listen\('check_for_updates'/);
+  assert.match(hook, /if \(checkInFlightRef\.current\) \{/);
+  assert.match(hook, /checkSourceRef\.current = 'user'/);
+  assert.match(hook, /status: 'up-to-date', source: checkSourceRef\.current/);
+  assert.match(banner, /Checking for Knapsack updates/);
+  assert.match(banner, /Knapsack is up to date/);
+});

@@ -676,6 +676,6 @@ function StateBackupControlAvailable({ isOpen = true, onSignIn }: { isOpen?: boo
 }
 
 export default function StateBackupControl(props: { isOpen?: boolean; onSignIn?: () => void }) {
-  if (!ACCOUNT_CONTINUITY_ENABLED) return props.isOpen === false ? null : <p role="status">Computer backup is not available in this build.</p>
+  if (!ACCOUNT_CONTINUITY_ENABLED) return props.isOpen === false ? null : <p role="status">Encrypted snapshot backup and cross-computer restore are not available in this build. Knapsack does not continuously sync meeting notes between computers.</p>
   return <StateBackupControlAvailable {...props} />
 }
