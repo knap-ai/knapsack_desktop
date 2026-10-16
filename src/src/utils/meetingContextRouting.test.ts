@@ -7,6 +7,7 @@ describe('meeting context routing', () => {
     'tell me about our chat with xerpa on 9/24',
     'summarize the meeting notes for Bankaya',
     'what did we decide about the pilot?',
+    'what happened in our latest call?',
     'read yesterday\'s transcript',
   ])('routes local meeting-history requests to the direct tool loop: %s', prompt => {
     expect(shouldUseDirectMeetingContext(prompt)).toBe(true)

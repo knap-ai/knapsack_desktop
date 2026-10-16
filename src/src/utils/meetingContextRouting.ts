@@ -8,6 +8,7 @@ export function shouldUseDirectMeetingContext(userText: string): boolean {
   const text = userText.trim().toLowerCase()
   if (!text) return false
   if (/\b(our|the)\s+(chat|call|conversation|discussion)\s+with\b/.test(text)) return true
+  if (/\bwhat\s+happened\s+(?:in|on|during)\s+(?:our|the|my)\s+(?:latest|last|previous)\s+(?:call|meeting|conversation|discussion)\b/.test(text)) return true
   if (/\bwhat\s+(?:did|was)\s+we\s+(?:discuss|decide|agree|cover)\b/.test(text)) return true
 
   const hasDatedConversation =

@@ -3,6 +3,51 @@ use crate::db::models::transcript::Transcript;
 use chrono::Utc;
 use serde_json::json;
 use std::fs::read_to_string;
+use std::path::{Path, PathBuf};
+
+fn notes_path_for_home(home_dir: &Path, thread_id: u64) -> PathBuf {
+  home_dir
+    .join(".knapsack")
+    .join("notes")
+    .join(thread_id.to_string())
+}
+
+fn notes_exist(thread_id: u64) -> bool {
+  dirs::home_dir()
+    .map(|home_dir| notes_path_for_home(&home_dir, thread_id).is_file())
+    .unwrap_or(false)
+}
+
+/// Metadata attached to meeting content tool results so the model can cite the
+/// local source it actually read. This never reads or returns another note body.
+pub async fn meeting_evidence_source(thread_id: u64, source_type: &str) -> serde_json::Value {
+  let transcript = Transcript::find_by_thread_id(thread_id).ok().flatten();
+  let title = match get_metadata(thread_id).await {
+    Ok(metadata) if !metadata.filename.trim().is_empty() => metadata.filename,
+    _ => transcript
+      .as_ref()
+      .map(|item| item.filename.clone())
+      .unwrap_or_else(|| format!("Meeting {}", thread_id)),
+  };
+  let date = transcript
+    .and_then(|item| item.timestamp)
+    .and_then(|timestamp| chrono::DateTime::from_timestamp(timestamp, 0))
+    .map(|value| value.format("%Y-%m-%d %H:%M UTC").to_string())
+    .unwrap_or_else(|| "unknown date".to_string());
+  let label = match source_type {
+    "saved_meeting_notes" => "Meeting notes",
+    _ => "Meeting transcript",
+  };
+  let citation = format!("[{}: {} — {} — thread {}]", label, title, date, thread_id);
+
+  json!({
+    "type": source_type,
+    "thread_id": thread_id,
+    "title": title,
+    "date": date,
+    "citation": citation,
+  })
+}
 
 /// Build a compact meeting manifest for the system prompt.
 /// Lists recent meeting metadata (title, date, participants, thread_id) without loading
@@ -37,7 +82,7 @@ pub async fn build_meeting_manifest(days: u32) -> String {
         let date_str = t
           .timestamp
           .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
-          .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+          .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
           .unwrap_or_else(|| "unknown date".to_string());
 
         let duration_str = match (meta.start_time, meta.end_time) {
@@ -137,7 +182,7 @@ pub async fn list_meetings(days: u32, search: Option<&str>) -> serde_json::Value
         let date_str = t
           .timestamp
           .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
-          .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+          .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
           .unwrap_or_else(|| "unknown".to_string());
 
         let duration_mins = match (meta.start_time, meta.end_time) {
@@ -157,6 +202,7 @@ pub async fn list_meetings(days: u32, search: Option<&str>) -> serde_json::Value
           "date": date_str,
           "duration_minutes": duration_mins,
           "participants": participants,
+          "has_saved_notes": notes_exist(tid),
         }));
       }
       Err(_) => continue,
@@ -199,10 +245,7 @@ pub fn get_transcript_content(thread_id: u64) -> Result<String, String> {
 /// Get the user's notes for a specific meeting. Returns None if no notes exist.
 pub fn get_notes_content(thread_id: u64) -> Result<Option<String>, String> {
   let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
-  let notes_path = home_dir
-    .join(".knapsack")
-    .join("notes")
-    .join(thread_id.to_string());
+  let notes_path = notes_path_for_home(&home_dir, thread_id);
 
   if !notes_path.exists() {
     return Ok(None);
@@ -212,6 +255,20 @@ pub fn get_notes_content(thread_id: u64) -> Result<Option<String>, String> {
     read_to_string(&notes_path).map_err(|e| format!("Failed to read notes file: {}", e))?;
 
   Ok(Some(content))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::notes_path_for_home;
+  use std::path::Path;
+
+  #[test]
+  fn notes_path_is_scoped_to_the_local_home_and_thread() {
+    assert_eq!(
+      notes_path_for_home(Path::new("/tmp/knapsack-meeting-evidence"), 1256),
+      Path::new("/tmp/knapsack-meeting-evidence/.knapsack/notes/1256")
+    );
+  }
 }
 
 /// Extract participant names/emails from the JSON attendees string for compact display.
