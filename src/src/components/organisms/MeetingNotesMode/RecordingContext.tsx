@@ -1,9 +1,9 @@
 import { postMeetingSourceId } from 'src/utils/postMeetingSource'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import { getLocalSpeechStatus } from 'src/utils/localSpeech'
-import React, { createContext, ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
-import { pauseRecord, startRecord, stopRecord } from 'src/api/recording'
+import { isRecordingStatus, pauseRecord, startRecord, stopRecord } from 'src/api/recording'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
@@ -72,6 +72,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   const [hasSynthesizedState, setHasSynthesizedState] = useState<Map<number, boolean>>(new Map())
   const [isAnyRecording, setIsAnyRecording] = useState(false)
   const [activeRecordingThreadId, setActiveRecordingThreadId] = useState<number | null>(null)
+  const activeRecordingThreadIdRef = useRef<number | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const isStartingRef = useRef(false)
   const [startingRecordingThreadId, setStartingRecordingThreadId] = useState<number | null>(null)
@@ -98,15 +99,55 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
 
   const setIsRecording = useCallback((threadId: number, isRecording: boolean) => {
     setIsRecordingStates(prev => {
-      const newMap = new Map(prev).set(threadId, isRecording)
+      if ((prev.get(threadId) || false) === isRecording) return prev
+      const newMap = new Map(prev)
+      if (isRecording) {
+        // The native capture service supports one active recording. If capture
+        // moved to another thread, clear every stale CTA before marking it.
+        newMap.forEach((_value, key) => newMap.set(key, false))
+      }
+      newMap.set(threadId, isRecording)
       setIsAnyRecording(Array.from(newMap.values()).some(Boolean))
       return newMap
     })
     setActiveRecordingThreadId(prev => {
-      if (isRecording) return threadId
-      return prev === threadId ? null : prev
+      const next = isRecording ? threadId : prev === threadId ? null : prev
+      activeRecordingThreadIdRef.current = next
+      return next
     })
   }, [])
+
+  // Native capture is authoritative. Recording can start from the calendar
+  // sidebar or an automatic capture path that does not call this provider's
+  // startRecording method. Reconcile active native capture into the shared UI
+  // state so every Start/Join CTA becomes Stop/Pause and the correct event is
+  // highlighted. Stop remains owned by stopRecording to preserve synthesis.
+  useEffect(() => {
+    let disposed = false
+    let checking = false
+    const reconcile = async () => {
+      if (checking) return
+      checking = true
+      try {
+        const native = await isRecordingStatus()
+        if (!disposed && native && native.isRecording && native.threadId != null) {
+          setIsRecording(native.threadId, true)
+        } else if (
+          !disposed && native && !native.isRecording && !native.isStarting && !native.isStopping &&
+          activeRecordingThreadIdRef.current != null
+        ) {
+          setIsRecording(activeRecordingThreadIdRef.current, false)
+        }
+      } catch {
+        // A transient local-server failure is not evidence that capture stopped.
+      } finally {
+        checking = false
+      }
+    }
+    void reconcile()
+    const timer = window.setInterval(reconcile, 1000)
+    return () => { disposed = true; window.clearInterval(timer) }
+  }, [setIsRecording])
 
   const startRecording = useCallback(async (
     setFeedIsRecording: (isRecording: boolean | undefined) => void,

@@ -612,14 +612,6 @@ function Home({
               Computers
             </button>}
             <PrivacyModeControl />
-            <button
-              type="button"
-              className="rounded-md px-2 py-1 text-xs text-ks-warm-grey-600 hover:bg-ks-warm-grey-100"
-              title="Open Quick Chat"
-              onClick={() => safeInvoke('toggle_overlay_window').catch(() => handleErrorContact('Quick Chat could not open. Please try again.'))}
-            >
-              Quick Chat
-            </button>
           </div>
         }
         rightComponent={

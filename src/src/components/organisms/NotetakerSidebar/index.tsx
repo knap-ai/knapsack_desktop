@@ -13,6 +13,7 @@ import {
 } from 'src/agents/teamRoster'
 import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { FeedItem } from 'src/api/feed_items'
+import { isRecordingStatus } from 'src/api/recording'
 import { ThreadType } from 'src/api/threads'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
 import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
@@ -1011,6 +1012,10 @@ function NotetakerSidebar({
                                       try {
                                         const started = await feed.startCalendarMeeting(item)
                                         if (!started) return
+                                        const native = await isRecordingStatus()
+                                        if (native && native.isRecording && native.threadId === started.threadId) {
+                                          recordingHandlers?.setIsRecording(started.threadId, true)
+                                        }
                                         onMeetingSelect?.()
                                         onTabChange(TabChoices.Meeting, 'meetings')
                                       } catch (error) {

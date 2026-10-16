@@ -291,7 +291,7 @@ const UpdateSection = () => {
           updateState.status === 'up-to-date' ||
           updateState.status === 'error') && (
           <button
-            onClick={checkForUpdates}
+            onClick={() => void checkForUpdates('user')}
             className="text-sm text-red-600 hover:text-red-700 font-medium"
           >
             Check for Updates

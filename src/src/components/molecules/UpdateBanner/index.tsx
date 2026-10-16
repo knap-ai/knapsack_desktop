@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
 
 export function UpdateBanner() {
@@ -10,11 +11,20 @@ export function UpdateBanner() {
     dismissed,
   } = useAppUpdate()
 
-  // Show when an update is available (to install+restart) or on error.
+  useEffect(() => {
+    if (state.status !== 'up-to-date' || state.source !== 'user') return
+    const timer = window.setTimeout(dismiss, 5000)
+    return () => window.clearTimeout(timer)
+  }, [dismiss, state])
+
+  // User-triggered checks show explicit progress/completion. Automatic startup
+  // checks stay quiet unless an update or error needs attention.
   // 'downloading' shows a transient "Installing…" state while restartApp runs.
   const visible =
     !dismissed &&
-    (state.status === 'available' ||
+    ((state.status === 'checking' && state.source === 'user') ||
+      (state.status === 'up-to-date' && state.source === 'user') ||
+      state.status === 'available' ||
       state.status === 'ready' ||
       state.status === 'downloading' ||
       state.status === 'error')
@@ -24,6 +34,15 @@ export function UpdateBanner() {
   return (
     <div className="flex items-center justify-center px-4 py-2 text-sm bg-red-600 text-white z-50">
       <div className="flex items-center gap-2">
+        {state.status === 'checking' && <span>Checking for Knapsack updates…</span>}
+
+        {state.status === 'up-to-date' && (
+          <>
+            <span>Knapsack is up to date.</span>
+            <button onClick={dismiss} className="px-3 py-1 rounded border border-white/50 hover:bg-red-500 transition-colors">Dismiss</button>
+          </>
+        )}
+
         {(state.status === 'available' || state.status === 'ready') && (
           <>
             <span>

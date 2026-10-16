@@ -36,7 +36,7 @@ import { enterMeetingWindowLayout } from 'src/utils/meetingWindowLayout'
 import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { shouldSaveTranscript } from 'src/utils/settings'
-import { formatMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 import {
   INTERNAL_MEETING,
   MEETING_TEMPLATES,
@@ -229,7 +229,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   },
   setFeedIsRecording,
   feedItemId,
-  copyToClipboard,
   feed,
   synthesisState,
   onSynthesisFinish,
@@ -1638,7 +1637,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                     onClickResume={() => handleRecordClick(false)}
                     isRecording={recordingHandlers.isRecording(thread.id)}
                     isStarting={recordingHandlers.startingRecordingThreadId === thread.id}
-                    isDisabled={disableIsRecording}
+                    isDisabled={disableIsRecording || (recordingHandlers.isAnyRecording && !isMeetingRecording)}
                     isSynthesizing={isSynthesizing()}
                     isPaused={recordingHandlers.isPaused}
                   />
@@ -1690,6 +1689,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
             <button
               className="notetaker-note__bottom-stop"
               onClick={() => requestStopRecording('Manually')}
+              aria-label="Stop recording"
             >
               Stop recording
             </button>
@@ -1989,7 +1989,7 @@ Be direct, specific, and concise. No filler text.`
                   onClickResume={() => handleRecordClick(false)}
                   isRecording={recordingHandlers.isRecording(thread.id)}
                     isStarting={recordingHandlers.startingRecordingThreadId === thread.id}
-                  isDisabled={disableIsRecording}
+                  isDisabled={disableIsRecording || (recordingHandlers.isAnyRecording && !isMeetingRecording)}
                   isSynthesizing={isSynthesizing()}
                   isPaused={recordingHandlers.isPaused}
                 />
@@ -2124,12 +2124,15 @@ Be direct, specific, and concise. No filler text.`
             )}
             onTasksButtonClick={handleTasksButtonClick}
             onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
-            onCopyClick={() => {
-              if (copyToClipboard) {
-                copyToClipboard(formatMeetingNotesForSlack(
+            onCopyClick={async () => {
+              try {
+                await copyMeetingNotesForSlack(
                   notesMarkdown,
                   meeting?.title || thread.subtitle,
-                ))
+                )
+              } catch (error) {
+                handleErrorContact('Knapsack could not copy these notes. Please try again.')
+                throw error
               }
             }}
             canChangeTemplate={true}
@@ -2540,7 +2543,7 @@ Be direct, specific, and concise. No filler text.`
               >
                 <input
                   type="text"
-                  placeholder="Ask about the meeting"
+                  placeholder="Ask about this meeting"
                   className="notetaker-note__bottom-chat-input"
                   readOnly
                   style={{ cursor: 'pointer' }}
@@ -2550,6 +2553,7 @@ Be direct, specific, and concise. No filler text.`
             <button
               className="notetaker-note__bottom-stop"
               onClick={() => requestStopRecording('Manually')}
+              aria-label="Stop recording"
             >
               Stop recording
             </button>

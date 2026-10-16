@@ -1680,6 +1680,7 @@ fn handle_tray_menu_click(app: &AppHandle, id: &str) {
       if let Some(window) = app.get_window("main") {
         window.show().unwrap();
         window.set_focus().unwrap();
+        let _ = window.emit("check_for_updates", {});
       }
     }
     "quit" => {

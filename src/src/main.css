@@ -855,7 +855,8 @@ html, body {
 }
 
 .notetaker-note__bottom-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 420px) minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
@@ -865,7 +866,7 @@ html, body {
 }
 
 .notetaker-note__bottom-bar--chat-launcher {
-  justify-content: flex-end;
+  justify-content: stretch;
 }
 
 .notetaker-note__bottom-audio {
@@ -880,6 +881,9 @@ html, body {
   color: #ABA9A9;
   cursor: pointer;
   transition: all 0.1s ease;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
 }
 
 .notetaker-note__bottom-audio:hover {
@@ -888,12 +892,15 @@ html, body {
 }
 
 .notetaker-note__bottom-chat {
-  flex: 1;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  width: 100%;
 }
 
 .notetaker-note__bottom-bar--chat-launcher .notetaker-note__bottom-chat {
-  flex: 0 1 420px;
-  max-width: min(420px, 100%);
+  max-width: 420px;
+  justify-self: center;
 }
 
 .notetaker-note__bottom-chat-input {
@@ -934,6 +941,9 @@ html, body {
   font-family: 'Inter', sans-serif;
   white-space: nowrap;
   transition: background 0.1s ease;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
 }
 
 .notetaker-note__bottom-action:hover {
@@ -1087,10 +1097,29 @@ html, body {
   font-family: 'Inter', sans-serif;
   white-space: nowrap;
   transition: background 0.1s ease;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
 }
 
 .notetaker-note__bottom-stop:hover {
   background: #A23933;
+}
+
+@media (max-width: 760px) {
+  .notetaker-note__bottom-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-inline: 10px;
+  }
+
+  .notetaker-note__bottom-bar--chat-launcher .notetaker-note__bottom-chat {
+    max-width: none;
+  }
+
+  .notetaker-note__bottom-action,
+  .notetaker-note__bottom-stop {
+    padding-inline: 10px;
+  }
 }
 
 .notetaker-note__link-event-wrap {

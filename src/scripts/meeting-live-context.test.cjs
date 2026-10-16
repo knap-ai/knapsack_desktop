@@ -225,11 +225,11 @@ test("copy notes produces Slack-native emphasis, tasks, links, and tables", () =
   const formatter = read("src/utils/slackMeetingNotes.ts");
   const copyButton = read("src/components/molecules/CopyButton/index.tsx");
 
-  assert.match(meeting, /formatMeetingNotesForSlack/);
-  assert.match(formatter, /Slack has no native Markdown table syntax/);
-  assert.match(formatter, /'☑ ' : '☐ '/);
-  assert.match(formatter, /'<\$2\|\$1>'/);
-  assert.match(formatter, /renderSlackTable/);
+  assert.match(meeting, /copyMeetingNotesForSlack/);
+  assert.match(formatter, /ClipboardItem/);
+  assert.match(formatter, /'text\/html'/);
+  assert.match(formatter, /'text\/plain'/);
+  assert.match(formatter, /writeText\(payload\.text\)/);
   assert.match(copyButton, /Copy for Slack/);
 });
 
