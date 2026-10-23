@@ -32,7 +32,7 @@ test('Gemini refresh selects recent text models and excludes specialized variant
   ])
 })
 
-test('generated Gemini catalog exposes the exact paid-tier Argon id without changing the Flash default', () => {
+test('generated Gemini catalog withholds provider-available models unsupported by the desktop gateway', () => {
   const source = buildGeminiSource([
     'gemini-4-argon',
     'gemini-3.8-flash',
@@ -40,11 +40,10 @@ test('generated Gemini catalog exposes the exact paid-tier Argon id without chan
     'gemini-3.5-flash-lite',
   ])
 
-  assert.match(source, /id: 'gemini-4-argon'/)
-  assert.match(source, /paid Gemini API tier/)
+  assert.doesNotMatch(source, /id: 'gemini-4-argon'/)
   assert.match(source, /id: 'gemini-3\.8-flash'/)
   assert.match(source, /name: 'Gemini 3\.8 Flash'/)
-  assert.match(source, /GEMINI_PROVIDER_DESCRIPTION = 'Gemini 4 Argon, 3\.8 Flash, 3\.6 Flash, 3\.5 Flash Lite'/)
+  assert.match(source, /GEMINI_PROVIDER_DESCRIPTION = 'Gemini 3\.8 Flash, 3\.6 Flash, 3\.5 Flash Lite'/)
 })
 
 test('OpenAI refresh excludes GPT-6.1 until the desktop route supports it', () => {

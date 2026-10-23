@@ -51,7 +51,7 @@ import { Markdown } from 'tiptap-markdown'
 import MeetingNotesTabBar from 'src/components/molecules/MeetingNotesTabBar'
 import RecordControlPanel from 'src/components/molecules/RecordControlPanel'
 import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
-import ClawdChat from 'src/components/organisms/ClawdChat'
+import MeetingChatPanel from './MeetingChatPanel'
 
 import { Event, listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
@@ -2498,50 +2498,32 @@ Be direct, specific, and concise. No filler text.`
       </div>
 
       {isMeetingChatMounted && (
-        <section
-          className={`notetaker-note__chat-overlay ${isMeetingChatResizing ? 'notetaker-note__chat-overlay--resizing' : ''}`}
-          aria-label="Meeting chat"
-          style={{ height: `${meetingChatHeight}px` }}
-          hidden={meetingChatLifecycle.minimized}
-        >
-          <button
-            type="button"
-            className="notetaker-note__chat-overlay-handle"
-            aria-label="Resize meeting chat. Drag up to expand or down to collapse."
-            aria-expanded={meetingChatHeight > MEETING_CHAT_DEFAULT_HEIGHT}
-            title="Drag to resize · Click to expand or collapse"
-            onPointerDown={handleMeetingChatResizeStart}
-            onPointerMove={handleMeetingChatResizeMove}
-            onPointerUp={handleMeetingChatResizeEnd}
-            onPointerCancel={handleMeetingChatResizeEnd}
-            onClick={handleMeetingChatResizeClick}
-            onKeyDown={handleMeetingChatResizeKeyDown}
-          />
-          <button
-            type="button"
-            className="notetaker-note__chat-overlay-close"
-            onClick={() => dispatchMeetingChatLifecycle({ type: 'minimize' })}
-            title="Minimize meeting chat"
-            aria-label="Minimize meeting chat"
-          >
-            <span aria-hidden="true">—</span>
-          </button>
-          <ClawdChat
-            userName={userName}
-            userEmail={userEmail}
-            compact
-            title="Scout · Meeting chat"
-            agentName="Scout"
-            contextPrefix={meetingChatContext}
-            initialInput={meetingChatInitialInput}
-            initialInputKey={meetingChatInputNonce}
-            submitRequest={meetingChatSubmitRequest}
-            onSubmitRequestAccepted={() => setMeetingChatSubmitRequest(undefined)}
-            chatId={`meeting:${thread.id}`}
-            sessionId={`meeting:${thread.id}`}
-            onBusyChange={busy => dispatchMeetingChatLifecycle({ type: 'set-busy', busy })}
-          />
-        </section>
+        <MeetingChatPanel
+          height={meetingChatHeight}
+          minimized={meetingChatLifecycle.minimized}
+          resizing={isMeetingChatResizing}
+          onMinimize={() => dispatchMeetingChatLifecycle({ type: 'minimize' })}
+          onResizePointerDown={handleMeetingChatResizeStart}
+          onResizePointerMove={handleMeetingChatResizeMove}
+          onResizePointerUp={handleMeetingChatResizeEnd}
+          onResizeClick={handleMeetingChatResizeClick}
+          onResizeKeyDown={handleMeetingChatResizeKeyDown}
+          onBusyChange={busy => dispatchMeetingChatLifecycle({ type: 'set-busy', busy })}
+          chatProps={{
+            userName,
+            userEmail,
+            compact: true,
+            title: 'Scout · Meeting chat',
+            agentName: 'Scout',
+            contextPrefix: meetingChatContext,
+            initialInput: meetingChatInitialInput,
+            initialInputKey: meetingChatInputNonce,
+            submitRequest: meetingChatSubmitRequest,
+            onSubmitRequestAccepted: () => setMeetingChatSubmitRequest(undefined),
+            chatId: `meeting:${thread.id}`,
+            sessionId: `meeting:${thread.id}`,
+          }}
+        />
       )}
 
       {/* Notetaker bottom bar */}

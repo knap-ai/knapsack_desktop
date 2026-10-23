@@ -320,6 +320,9 @@ export const DEFAULT_OPENAI_MODEL = '${ids.includes('gpt-5-mini') ? 'gpt-5-mini'
 
 const GEMINI_MODEL_ID_PATTERN = /\bgemini-(?:4-argon|\d+(?:\.\d+)?-(?:flash-lite|flash|pro)(?:-preview)?)(?![\da-z-])/gi
 const DEPRECATED_GEMINI_MODEL_IDS = new Set(['gemini-3.7-flash', 'gemini-3.5-flash'])
+// Google availability alone is insufficient: selectable desktop models must also
+// resolve through the pinned OpenClaw/pi-ai runtime used by ordinary chats.
+const UNSUPPORTED_DESKTOP_GEMINI_MODEL_IDS = new Set(['gemini-4-argon'])
 
 function geminiVersionParts(modelId) {
   const match = modelId.match(/^gemini-(\d+(?:\.\d+)?)-/)
@@ -408,7 +411,7 @@ function geminiDescription(modelId, rankWithinFamily) {
 
 export function buildGeminiSource(ids) {
   const familyRanks = new Map()
-  const models = ids.map((id) => {
+  const models = ids.filter((id) => !UNSUPPORTED_DESKTOP_GEMINI_MODEL_IDS.has(id)).map((id) => {
     const family = geminiFamily(id)
     const rank = familyRanks.get(family) ?? 0
     familyRanks.set(family, rank + 1)

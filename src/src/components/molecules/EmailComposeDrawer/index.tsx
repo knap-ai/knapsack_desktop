@@ -23,6 +23,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
   const ccInputRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const senderListHasLoadedRef = useRef(senders.length > 0)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
@@ -31,10 +32,13 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
   const sender = senders.find(item => item.id === senderId)
 
   useEffect(() => {
+    const senderListHadLoaded = senderListHasLoadedRef.current
     setSenderId(current => {
       if (senders.some(item => item.id === current)) return current
+      if (senderListHadLoaded) return ''
       return initialMailSender(senders, draft.senderEmail || draft.userEmail || userEmail)
     })
+    if (senders.length > 0) senderListHasLoadedRef.current = true
   }, [draft.senderEmail, draft.userEmail, senders, userEmail])
 
   useEffect(() => {

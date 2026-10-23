@@ -47,6 +47,26 @@ describe('reviewed meeting follow-up drafts', () => {
     await waitFor(() => expect((screen.getByRole('combobox', { name: 'Sender mailbox' }) as HTMLSelectElement).value).toBe(outlook.id))
     expect((screen.getByText('Send Email') as HTMLButtonElement).disabled).toBe(false)
   })
+  it('clears a selected mailbox that disappears instead of switching identities', async () => {
+    const workGmail = { id: 'gmail|owner@example.invalid', provider: 'gmail' as const, accountEmail: 'owner@example.invalid', ownerEmail: 'owner@example.invalid' }
+    const personalOutlook = { ...outlook, id: 'outlook|personal@example.invalid', accountEmail: 'personal@example.invalid' }
+    const view = render(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[workGmail, personalOutlook]} onDismiss={() => {}} />)
+    expect((screen.getByRole('combobox', { name: 'Sender mailbox' }) as HTMLSelectElement).value).toBe(workGmail.id)
+
+    view.rerender(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[personalOutlook]} onDismiss={() => {}} />)
+
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Sender mailbox' }) as HTMLSelectElement).value).toBe(''))
+    expect((screen.getByText('Send Email') as HTMLButtonElement).disabled).toBe(true)
+    expect(sendComposedEmail).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sender mailbox' }), { target: { value: personalOutlook.id } })
+    fireEvent.click(screen.getByText('Send Email'))
+    await waitFor(() => expect(sendComposedEmail).toHaveBeenCalledWith(expect.objectContaining({
+      provider: 'outlook',
+      accountEmail: 'personal@example.invalid',
+      userEmail: 'owner@example.invalid',
+    })))
+  })
   it('stacks above meeting chat and moves focus into the draft dialog', async () => {
     render(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[outlook]} onDismiss={() => {}} />)
     const dialog = screen.getByRole('dialog', { name: 'Email draft' })
