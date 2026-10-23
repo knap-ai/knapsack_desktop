@@ -47,3 +47,39 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+.copyButton,
+.closeButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #777372;
+  cursor: pointer;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+.copyButton:hover,
+.closeButton:hover {
+  background: #f3f2f1;
+  color: #333333;
+}
+
+.copyButton:focus-visible,
+.closeButton:focus-visible {
+  outline: 2px solid #6474ac;
+  outline-offset: 1px;
+}
+
+.copyStatus {
+  color: #686464;
+  font-family: Inter, sans-serif;
+  font-size: 11px;
+  min-height: 16px;
+  padding: 2px 12px 0 4px;
+  text-align: right;
+}

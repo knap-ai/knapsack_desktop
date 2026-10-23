@@ -38,4 +38,19 @@ describe('reviewed meeting follow-up drafts', () => {
     expect((screen.getByText('Send Email') as HTMLButtonElement).disabled).toBe(false)
     expect(sendComposedEmail).not.toHaveBeenCalled()
   })
+  it('loads and selects a single mailbox that arrives after the draft opens', async () => {
+    const view = render(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[]} onDismiss={() => {}} />)
+    expect((screen.getByRole('combobox', { name: 'Sender mailbox' }) as HTMLSelectElement).value).toBe('')
+
+    view.rerender(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[outlook]} onDismiss={() => {}} />)
+
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Sender mailbox' }) as HTMLSelectElement).value).toBe(outlook.id))
+    expect((screen.getByText('Send Email') as HTMLButtonElement).disabled).toBe(false)
+  })
+  it('stacks above meeting chat and moves focus into the draft dialog', async () => {
+    render(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[outlook]} onDismiss={() => {}} />)
+    const dialog = screen.getByRole('dialog', { name: 'Email draft' })
+    await waitFor(() => expect(document.activeElement).toBe(dialog))
+    expect((dialog as HTMLElement).style.zIndex).toBe('200')
+  })
 })

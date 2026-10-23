@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import dayjs from 'dayjs'
 
 import { mergeAttributes } from '@tiptap/core'
@@ -33,6 +33,11 @@ import { logError } from 'src/utils/errorHandling'
 import { KNFileType } from 'src/utils/KNSearchFilters'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { enterMeetingWindowLayout } from 'src/utils/meetingWindowLayout'
+import {
+  initialMeetingChatLifecycle,
+  meetingChatLauncherLabel,
+  meetingChatLifecycleReducer,
+} from 'src/utils/meetingChatLifecycle'
 import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { shouldSaveTranscript } from 'src/utils/settings'
@@ -278,7 +283,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [isEndingMeeting, setIsEndingMeeting] = useState(false)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
-  const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+  const [meetingChatLifecycle, dispatchMeetingChatLifecycle] = useReducer(
+    meetingChatLifecycleReducer,
+    initialMeetingChatLifecycle,
+  )
+  const isMeetingChatMounted = meetingChatLifecycle.mounted
+  const isMeetingChatOpen = isMeetingChatMounted && !meetingChatLifecycle.minimized
 
   const isAnyRecordingRef = useRef(recordingHandlers.isAnyRecording)
   isAnyRecordingRef.current = recordingHandlers.isAnyRecording
@@ -327,7 +337,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   useEffect(() => {
     if (meetingChatRequest?.threadId === thread.id) {
       expandMeetingChat()
-      setIsMeetingChatOpen(true)
+      dispatchMeetingChatLifecycle({ type: 'open' })
     }
   }, [expandMeetingChat, meetingChatRequest?.nonce, meetingChatRequest?.threadId, thread.id])
 
@@ -428,11 +438,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }, [recordingHandlers, thread.id, thread.savedTranscript])
 
   const openMeetingChat = async () => {
+    if (isMeetingChatMounted) {
+      dispatchMeetingChatLifecycle({ type: 'open' })
+      return
+    }
     await refreshMeetingTranscriptContext()
     setMeetingChatInitialInput('What should I pay attention to in this meeting?')
     setMeetingChatInputNonce(value => value + 1)
     setBriefPrepExpanded(true)
-    setIsMeetingChatOpen(true)
+    dispatchMeetingChatLifecycle({ type: 'open' })
   }
 
   const isMyActionItem = useCallback(
@@ -458,7 +472,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setMeetingChatInputNonce(value => value + 1)
     expandMeetingChat()
     setBriefPrepExpanded(true)
-    setIsMeetingChatOpen(true)
+    dispatchMeetingChatLifecycle({ type: 'open' })
   }, [actionItemPrompt, expandMeetingChat, refreshMeetingTranscriptContext])
 
   const toggleMeetingChatExpanded = useCallback(() => {
@@ -522,7 +536,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }, [updateMeetingChatHeight])
 
   useEffect(() => {
-    if (!isMeetingChatOpen) return
+    if (!isMeetingChatMounted) return
     const refresh = () => refreshMeetingTranscriptContext().catch(() => '')
     refresh()
     const interval = recordingHandlers.isRecording(thread.id)
@@ -531,7 +545,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [isMeetingChatOpen, recordingHandlers, refreshMeetingTranscriptContext, thread.id])
+  }, [isMeetingChatMounted, recordingHandlers, refreshMeetingTranscriptContext, thread.id])
 
   const meetingChatContext = useMemo(() => {
     const participantList = meeting?.participants
@@ -1869,7 +1883,7 @@ Be direct, specific, and concise. No filler text.`
                     className="notetaker-note__meta-item notetaker-note__meeting-chat-chip"
                     onClick={() => {
                       expandMeetingChat()
-                      setIsMeetingChatOpen(true)
+                      dispatchMeetingChatLifecycle({ type: 'open' })
                     }}
                   >
                     Meeting chat
@@ -2178,7 +2192,7 @@ Be direct, specific, and concise. No filler text.`
                       : 'What did I miss? First state that no transcript text is available yet. Do not substitute email, Slack, web, or unrelated background as if it happened in this meeting.' })
                     setMeetingChatInputNonce(value => value + 1)
                     expandMeetingChat()
-                    setIsMeetingChatOpen(true)
+                    dispatchMeetingChatLifecycle({ type: 'open' })
                     setBriefPrepExpanded(true)
                   }}
                 >
@@ -2483,11 +2497,12 @@ Be direct, specific, and concise. No filler text.`
 
       </div>
 
-      {isMeetingChatOpen && (
+      {isMeetingChatMounted && (
         <section
           className={`notetaker-note__chat-overlay ${isMeetingChatResizing ? 'notetaker-note__chat-overlay--resizing' : ''}`}
           aria-label="Meeting chat"
           style={{ height: `${meetingChatHeight}px` }}
+          hidden={meetingChatLifecycle.minimized}
         >
           <button
             type="button"
@@ -2505,11 +2520,11 @@ Be direct, specific, and concise. No filler text.`
           <button
             type="button"
             className="notetaker-note__chat-overlay-close"
-            onClick={() => setIsMeetingChatOpen(false)}
-            title="Close meeting chat"
-            aria-label="Close meeting chat"
+            onClick={() => dispatchMeetingChatLifecycle({ type: 'minimize' })}
+            title="Minimize meeting chat"
+            aria-label="Minimize meeting chat"
           >
-            ×
+            <span aria-hidden="true">—</span>
           </button>
           <ClawdChat
             userName={userName}
@@ -2524,6 +2539,7 @@ Be direct, specific, and concise. No filler text.`
             onSubmitRequestAccepted={() => setMeetingChatSubmitRequest(undefined)}
             chatId={`meeting:${thread.id}`}
             sessionId={`meeting:${thread.id}`}
+            onBusyChange={busy => dispatchMeetingChatLifecycle({ type: 'set-busy', busy })}
           />
         </section>
       )}
@@ -2536,19 +2552,15 @@ Be direct, specific, and concise. No filler text.`
         {recordingHandlers.isRecording(thread.id) ? (
           <>
             {!isMeetingChatOpen && (
-              <div
+              <button
+                type="button"
                 className="notetaker-note__bottom-chat"
                 onClick={openMeetingChat}
-                style={{ cursor: 'pointer' }}
+                aria-label={meetingChatLauncherLabel(meetingChatLifecycle)}
               >
-                <input
-                  type="text"
-                  placeholder="Ask about this meeting"
-                  className="notetaker-note__bottom-chat-input"
-                  readOnly
-                  style={{ cursor: 'pointer' }}
-                />
-              </div>
+                {isMeetingChatMounted && <span className={`notetaker-note__bottom-chat-status ${meetingChatLifecycle.busy ? 'notetaker-note__bottom-chat-status--busy' : ''}`} aria-hidden="true" />}
+                <span className="notetaker-note__bottom-chat-label">{meetingChatLauncherLabel(meetingChatLifecycle)}</span>
+              </button>
             )}
             <button
               className="notetaker-note__bottom-stop"
@@ -2569,19 +2581,17 @@ Be direct, specific, and concise. No filler text.`
                 <line x1="20" y1="8" x2="20" y2="16" />
               </svg>
               </button>}
-            {!isMeetingChatOpen && <div
+            {!isMeetingChatOpen && <button
+              type="button"
               className="notetaker-note__bottom-chat"
               onClick={openMeetingChat}
-              style={{ cursor: 'pointer' }}
+              aria-label={meetingChatLauncherLabel(meetingChatLifecycle)}
             >
-              <input
-                type="text"
-                placeholder={hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
-                className="notetaker-note__bottom-chat-input"
-                readOnly
-                style={{ cursor: 'pointer' }}
-              />
-            </div>}
+              {isMeetingChatMounted && <span className={`notetaker-note__bottom-chat-status ${meetingChatLifecycle.busy ? 'notetaker-note__bottom-chat-status--busy' : ''}`} aria-hidden="true" />}
+              <span className="notetaker-note__bottom-chat-label">
+                {isMeetingChatMounted ? meetingChatLauncherLabel(meetingChatLifecycle) : hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
+              </span>
+            </button>}
             {onEmailClick && (thread.recorded || notesMarkdown.trim()) && (
               <button
                 className="notetaker-note__bottom-action"

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 
 import { IThread, ThreadType } from 'src/api/threads'
+import { getSavedTranscript } from 'src/api/transcripts'
 import {
   Connection,
   getConnectedIdentityEmails,
@@ -25,6 +26,7 @@ import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode
 import { KN_API_NOTES } from 'src/utils/constants'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import { copyTranscriptText, transcriptBodyForClipboard } from 'src/utils/transcriptClipboard'
 import { TaskItem } from 'src/components/organisms/CenterWorkspace'
 
 import CalendarIcon from '/assets/images/dataSources/gcal.svg'
@@ -163,6 +165,20 @@ const MeetingsTabView = ({
     } catch (error) { handleErrorContact(error instanceof Error ? error.message : 'Unable to share notes.') }
   }
 
+  const shareTranscript = async () => {
+    if (!notesThread) return
+    setCopyStatus('')
+    try {
+      const transcript = await getSavedTranscript(notesThread.id.toString())
+      await copyTranscriptText(transcriptBodyForClipboard(transcript?.content ?? ''))
+      setCopyStatus('Transcript copied')
+      setShareOpen(false)
+    } catch (error) {
+      setCopyStatus('Copy failed')
+      handleErrorContact(error instanceof Error ? error.message : 'Unable to copy transcript.')
+    }
+  }
+
 
   // Close templates panel when selected meeting changes
   useEffect(() => {
@@ -286,6 +302,7 @@ const MeetingsTabView = ({
             {copyStatus && <span role="status">{copyStatus}</span>}
             {shareOpen && <div className="MeetingsTabView__share-menu">
               <button onClick={() => void shareNotes(false)}>Copy notes for sharing</button>
+              <button onClick={() => void shareTranscript()}>Copy transcript</button>
               {onEmailClick && <button onClick={() => void shareNotes(true)}>Draft email with notes</button>}
               <button onClick={() => setShareOpen(false)}>Close</button>
             </div>}

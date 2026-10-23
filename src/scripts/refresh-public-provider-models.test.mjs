@@ -18,33 +18,33 @@ test('Gemini refresh selects recent text models and excludes specialized variant
     gemini-3.1-flash-lite gemini-3.1-flash-live-preview
     gemini-3.5-flash gemini-3.5-flash-lite gemini-3.5-transcribe
     gemini-3.6-flash gemini-3.7-flash gemini-3.8-flash gemini-3.7-flash-image
+    gemini-4-argon gemini-4-pro gemini-4-flash
     gemini-38-flash
     gemini-2.15-flash gemini-2.15-flash-lite
   `
 
   assert.deepEqual(canonicalGeminiModelIdsFromHtml(html), [
+    'gemini-4-argon',
     'gemini-3.8-flash',
-    'gemini-3.7-flash',
     'gemini-3.6-flash',
-    'gemini-3.1-pro-preview',
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
-    'gemini-2.5-pro',
-    'gemini-2.5-flash',
   ])
 })
 
-test('generated Gemini catalog exposes 3.8 Flash and provider summary', () => {
+test('generated Gemini catalog exposes the exact paid-tier Argon id without changing the Flash default', () => {
   const source = buildGeminiSource([
+    'gemini-4-argon',
     'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.1-pro-preview',
-    'gemini-2.5-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite',
   ])
 
+  assert.match(source, /id: 'gemini-4-argon'/)
+  assert.match(source, /paid Gemini API tier/)
   assert.match(source, /id: 'gemini-3\.8-flash'/)
   assert.match(source, /name: 'Gemini 3\.8 Flash'/)
-  assert.match(source, /GEMINI_PROVIDER_DESCRIPTION = 'Gemini 3\.8 Flash, 3\.7 Flash, 3\.1 Pro, 2\.5 Flash'/)
+  assert.match(source, /GEMINI_PROVIDER_DESCRIPTION = 'Gemini 4 Argon, 3\.8 Flash, 3\.6 Flash, 3\.5 Flash Lite'/)
 })
 
 test('OpenAI refresh excludes GPT-6.1 until the desktop route supports it', () => {
@@ -116,7 +116,7 @@ test('specialized Gemini ids cannot create nonexistent text-model entries', () =
     gemini-3.7-flash
   `)
 
-  assert.deepEqual(ids, ['gemini-3.7-flash'])
+  assert.deepEqual(ids, [])
 })
 
 test('new public catalog choices do not change hosted Knapsack tiers', () => {

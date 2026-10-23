@@ -892,10 +892,57 @@ html, body {
 }
 
 .notetaker-note__bottom-chat {
+  align-items: center;
+  background: white;
+  border: 1px solid #E3E2E2;
+  border-radius: 8px;
+  color: #333333;
+  cursor: pointer;
+  display: flex;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  gap: 8px;
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
+  padding: 8px 12px;
+  text-align: left;
   width: 100%;
+}
+
+.notetaker-note__bottom-chat:hover,
+.notetaker-note__bottom-chat:focus-visible {
+  border-color: #6474AC;
+}
+
+.notetaker-note__bottom-chat:focus-visible {
+  outline: 2px solid rgba(100, 116, 172, 0.24);
+  outline-offset: 1px;
+}
+
+.notetaker-note__bottom-chat-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notetaker-note__bottom-chat-status {
+  background: #5E9B74;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.notetaker-note__bottom-chat-status--busy {
+  background: #C8A951;
+  box-shadow: 0 0 0 3px rgba(200, 169, 81, 0.18);
+  animation: notetaker-chat-status-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes notetaker-chat-status-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 .notetaker-note__bottom-bar--chat-launcher .notetaker-note__bottom-chat {
