@@ -13,7 +13,7 @@ interface MeetingChatPanelProps {
   onResizePointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void
   onResizeKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void
   onBusyChange: (busy: boolean) => void
-  chatProps: Omit<ComponentProps<typeof ClawdChat>, 'onBusyChange'>
+  chatProps: Omit<ComponentProps<typeof ClawdChat>, 'foregroundActive' | 'onBusyChange'>
 }
 
 const MeetingChatPanel = ({
@@ -57,7 +57,7 @@ const MeetingChatPanel = ({
     >
       <span aria-hidden="true">—</span>
     </button>
-    <ClawdChat {...chatProps} onBusyChange={onBusyChange} />
+    <ClawdChat {...chatProps} foregroundActive={!minimized} onBusyChange={onBusyChange} />
   </section>
 )
 

@@ -10,9 +10,9 @@ import {
 } from 'src/utils/meetingChatLifecycle'
 
 vi.mock('src/components/organisms/ClawdChat', () => ({
-  default: ({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) => {
+  default: ({ foregroundActive, onBusyChange }: { foregroundActive: boolean; onBusyChange: (busy: boolean) => void }) => {
     const [result, setResult] = useState('No result yet')
-    return <div data-testid="mounted-clawd-chat">
+    return <div data-testid="mounted-clawd-chat" data-foreground-active={String(foregroundActive)}>
       <span>{result}</span>
       <button onClick={() => onBusyChange(true)}>Ask delayed question</button>
       <button onClick={() => { setResult('Completed while minimized'); onBusyChange(false) }}>Complete question</button>
@@ -59,12 +59,14 @@ describe('mounted meeting chat behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Minimize meeting chat' }))
     expect(screen.getByRole('button', { name: 'Meeting chat is still working — reopen' })).toBeTruthy()
     expect(screen.getByTestId('mounted-clawd-chat')).toBe(mountedChat)
+    expect(screen.getByTestId('mounted-clawd-chat').dataset.foregroundActive).toBe('false')
 
     fireEvent.click(screen.getByText('Complete question'))
     expect(screen.getByRole('button', { name: 'Meeting chat minimized — reopen' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Meeting chat minimized — reopen' }))
     expect(screen.getByText('Completed while minimized')).toBeTruthy()
     expect(screen.getByTestId('mounted-clawd-chat')).toBe(mountedChat)
+    expect(screen.getByTestId('mounted-clawd-chat').dataset.foregroundActive).toBe('true')
   })
 
   it('preserves cancellation and tolerates repeated minimize actions', () => {

@@ -22,6 +22,8 @@ import { getGoogleDriveFileText } from 'src/api/data_source'
 import { getConnections, getGoogleDriveConnections } from 'src/api/connections'
 
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
+import { useClawdChatKeyboardShortcuts } from './useClawdChatKeyboardShortcuts'
+import { useSubmittedChatRequest } from './useSubmittedChatRequest'
 import ReactMarkdown, { Components } from 'react-markdown'
 import { MicrophoneIcon, PencilSquareIcon, SpeakerWaveIcon, SpeakerXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import remarkGfm from 'remark-gfm'
@@ -1997,8 +1999,10 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 }
 
 interface ClawdChatProps {
-  /** Whether this mounted chat currently owns global shortcuts and app events. */
+  /** Whether this mounted chat may process requests and app events. */
   active?: boolean
+  /** Whether this mounted chat currently owns foreground keyboard shortcuts. */
+  foregroundActive?: boolean
   showActivityPanel?: boolean
   onToggleActivity?: () => void
   onCloseActivity?: () => void
@@ -2045,7 +2049,8 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, foregroundActive, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+  const ownsForeground = active && (foregroundActive ?? true)
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -4918,14 +4923,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel,
     selectedTrustedRouterModel])
 
-  const submittedRequest = useRef<number | null>(null)
-  useEffect(() => {
-    if (!submitRequest || submittedRequest.current === submitRequest.id || !active || busy || !hasCompletedOnboarding || !health?.gateway_ok) return
-    if (!handleSendWithTextRef.current) return
-    submittedRequest.current = submitRequest.id
-    onSubmitRequestAccepted?.(submitRequest.id)
-    void handleSendWithTextRef.current(submitRequest.text)
-  }, [submitRequest, active, busy, hasCompletedOnboarding, health?.gateway_ok, onSubmitRequestAccepted])
+  useSubmittedChatRequest({
+    submitRequest,
+    active,
+    busy,
+    ready: hasCompletedOnboarding && !!health?.gateway_ok,
+    sendRef: handleSendWithTextRef,
+    onAccepted: onSubmitRequestAccepted,
+  })
 
   const setupTaskSent = useRef(false)
   useEffect(() => {
@@ -6280,48 +6285,26 @@ ${actualText}`
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
   useEffect(() => {
-    if (!active) return
+    if (!ownsForeground) return
     const frame = requestAnimationFrame(() => chatInputElementRef.current?.focus())
     return () => cancelAnimationFrame(frame)
-  }, [active])
+  }, [ownsForeground])
 
-  useEffect(() => {
-    if (!active) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey
-      if (voiceSessionOpen) return
-      if (e.key === 'Escape') {
-        const activeEl = document.activeElement
-        if (chatFindOpen && activeEl === chatFindInputRef.current) {
-          e.preventDefault()
-          closeChatFindRef.current()
-          return
-        }
-        stopGenerationRef.current()
-      }
-      // Cmd/Ctrl+Shift+Backspace — clear chat history
-      if (mod && e.shiftKey && e.key === 'Backspace') {
-        e.preventDefault()
-        clearHistoryRef.current()
-      }
-      // Cmd/Ctrl+F — search chat history
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'f') {
-        e.preventDefault()
-        openChatFindRef.current()
-      }
-      // Cmd/Ctrl+L — focus chat input
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault()
-        chatInputElementRef.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [active, chatFindOpen, voiceSessionOpen])
+  useClawdChatKeyboardShortcuts({
+    active: ownsForeground,
+    voiceSessionOpen,
+    chatFindOpen,
+    chatFindInputRef,
+    chatInputElementRef,
+    stopGenerationRef,
+    clearHistoryRef,
+    openChatFindRef,
+    closeChatFindRef,
+  })
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
-    if (!active) return
+    if (!ownsForeground) return
     const handleBannerKey = (e: KeyboardEvent) => {
       if (voiceSessionOpen) return
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
@@ -6349,7 +6332,7 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleBannerKey)
     return () => window.removeEventListener('keydown', handleBannerKey)
-  }, [active, health, channelStatus.gatewayStarting, voiceSessionOpen])
+  }, [ownsForeground, health, channelStatus.gatewayStarting, voiceSessionOpen])
 
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
