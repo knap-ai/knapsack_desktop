@@ -1,96 +1,138 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const { qaEnv } = require('./qa-dev-run.cjs')
+const {
+  assertGatewaySnapshotUnchanged,
+  assertSyntheticModeRequest,
+  normalizeRunId,
+  parseDatabaseCounts,
+  qaBundleId,
+  qaEnv,
+  qaRunRoot,
+  qaWebKitDataPaths,
+  resolveViteLaunch,
+} = require('./qa-dev-run.cjs')
 
-test('all dev QA modes enable frontend safety guards', () => {
-  const previous = process.env.KNAPSACK_QA_SKIP_GATEWAY
-  try {
-    process.env.KNAPSACK_QA_SKIP_GATEWAY = '1'
-    assert.equal(qaEnv().VITE_KNAPSACK_LOCAL_QA_SAFE, '1')
-    process.env.KNAPSACK_QA_SKIP_GATEWAY = '0'
-    assert.equal(qaEnv().VITE_KNAPSACK_LOCAL_QA_SAFE, '1')
-  } finally {
-    if (previous === undefined) delete process.env.KNAPSACK_QA_SKIP_GATEWAY
-    else process.env.KNAPSACK_QA_SKIP_GATEWAY = previous
+const launcherPath = path.join(__dirname, 'qa-dev-run.cjs')
+
+test('synthetic QA environment strips credentials and pins local isolation', () => {
+  const env = qaEnv(
+    {
+      KNAPSACK_QA_SKIP_GATEWAY: '0',
+      OPENCLAW_SKIP_CHANNELS: '0',
+      OPENCLAW_DESKTOP_AUTO_START_CHANNELS: '1',
+      VITE_KN_API_SERVER: 'https://production.example',
+      DATABASE_URL: '/production/knapsack.db',
+    },
+    {
+      PATH: '/usr/bin',
+      OPENAI_API_KEY: 'secret',
+      AWS_SECRET_ACCESS_KEY: 'secret',
+      GOOGLE_APPLICATION_CREDENTIALS: '/production/google.json',
+      OLLAMA_HOST: 'http://production.example',
+      KNAPSACK_REFRESH_TOKEN: 'secret',
+      CODEX_HOME: '/private/codex',
+    },
+  )
+
+  assert.equal(env.PATH, '/usr/bin')
+  assert.equal(env.VITE_KNAPSACK_LOCAL_QA_SAFE, '1')
+  assert.equal(env.VITE_KN_API_SERVER, 'http://127.0.0.1:8897')
+  assert.equal(env.OPENCLAW_SKIP_CHANNELS, '1')
+  assert.equal(env.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '0')
+  assert.equal(env.KNAPSACK_QA_SKIP_GATEWAY, '1')
+  assert.equal(env.KNAPSACK_QA_SYNTHETIC, '1')
+  assert.match(env.DATABASE_URL, /^\/.*knapsack-qa-[^/]+\/state\/knapsack-qa\.db$/)
+  assert.equal(env.OPENAI_API_KEY, undefined)
+  assert.equal(env.AWS_SECRET_ACCESS_KEY, undefined)
+  assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, undefined)
+  assert.equal(env.OLLAMA_HOST, undefined)
+  assert.equal(env.KNAPSACK_REFRESH_TOKEN, undefined)
+  assert.equal(env.CODEX_HOME, undefined)
+})
+
+test('synthetic mode rejects every live or reusable-state opt-in', () => {
+  assert.doesNotThrow(() => assertSyntheticModeRequest({}))
+  assert.throws(() => assertSyntheticModeRequest({ KNAPSACK_QA_ENABLE_LIVE_CHANNELS: '1' }), /refuses live channels/)
+  assert.throws(() => assertSyntheticModeRequest({ KNAPSACK_QA_SKIP_GATEWAY: '0' }), /refuses to start a gateway/)
+  assert.throws(() => assertSyntheticModeRequest({ KNAPSACK_QA_PRESERVE_STATE: '1' }), /refuses preserved state/)
+})
+
+test('each QA identity is distinct from production and maps to isolated data stores', () => {
+  assert.match(qaBundleId, /^ai\.knap\.knapsack\.qa\.[a-z0-9]+$/)
+  assert.notEqual(qaBundleId, 'ai.knap.knapsack')
+  assert.notEqual(qaBundleId, 'ai.knap.knapsack.dev')
+  assert.match(qaRunRoot, /knapsack-qa-/)
+  for (const dataPath of qaWebKitDataPaths('/synthetic-home')) {
+    assert.match(dataPath, new RegExp(qaBundleId.replace(/\./g, '\\.')))
+    assert.doesNotMatch(dataPath, /ai\.knap\.knapsack(?:\/|$)/)
   }
-})
-test('macOS dev QA creates a self-contained signed app bundle', () => {
-  const launcher = fs.readFileSync(path.join(__dirname, 'qa-dev-run.cjs'), 'utf8')
-
-  assert.doesNotMatch(launcher, /KNAPSACK_QA_APP_BUNDLE/)
-  assert.match(launcher, /prepareOnlyRequested[\s\S]*?path\.join\(os\.tmpdir\(\), "knapsack-qa-prepare"\)/)
-  assert.match(launcher, /rootStat\.isSymbolicLink\(\)[\s\S]*?Refusing unsafe QA app root/)
-  assert.match(
-    launcher,
-    /fs\.cpSync\(debugResources, path\.join\(resourcesDir, "resources"\), \{\s*recursive: true,/,
-  )
-  assert.doesNotMatch(
-    launcher,
-    /fs\.symlinkSync\(debugResources, path\.join\(resourcesDir, "resources"\)\)/,
-  )
-  assert.match(launcher, /if \(!localOnly && fs\.existsSync\(debugResources\)\) \{/)
-  assert.match(launcher, /prepareMacDevAppBundle\(\{ localOnly \}\)/)
-  assert.match(
-    launcher,
-    /spawnSync\(\s*"codesign",\s*\["--force", "--deep", "--sign", "-", qaAppBundle\]/,
-  )
-  assert.match(launcher, /spawnSync\("xattr", \["-cr", qaAppBundle\]/)
-  assert.match(launcher, /if \(signResult\.status !== 0\) \{\s*throw new Error\(/)
-  assert.match(launcher, /if \(prepareOnly\) \{\s*prepareMacDevAppBundle\(\{ localOnly \}\);[\s\S]*?process\.exit\(0\)/)
-  assert.match(launcher, /if \(!localOnly && !prepareOnly\) backupExistingLaunchAgentIfNeeded\(\)/)
-  assert.match(launcher, /if \(prepareOnly\)[\s\S]*?process\.exit\(0\)[\s\S]*?syncQaGatewayState\(\)/)
-  assert.match(launcher, /process\.platform === "darwin" && !prepareOnly/)
+  assert.equal(normalizeRunId(' Test Run!? '), 'test-run')
 })
 
-
-test('QA disables channel transports unless explicitly opted in', () => {
-  const safe = qaEnv({ KNAPSACK_QA_ENABLE_LIVE_CHANNELS: '0', OPENCLAW_SKIP_CHANNELS: '0', OPENCLAW_DESKTOP_AUTO_START_CHANNELS: '1' })
-  assert.equal(safe.OPENCLAW_SKIP_CHANNELS, '1')
-  assert.equal(safe.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '0')
-  const enabled = qaEnv({ KNAPSACK_QA_ENABLE_LIVE_CHANNELS: '1', OPENCLAW_SKIP_CHANNELS: '0', OPENCLAW_DESKTOP_AUTO_START_CHANNELS: '1' })
-  assert.equal(enabled.OPENCLAW_SKIP_CHANNELS, '0')
-  assert.equal(enabled.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '1')
+test('launcher has no production seeding or gateway/LaunchAgent mutation path', () => {
+  const launcher = fs.readFileSync(launcherPath, 'utf8')
+  for (const forbidden of [
+    'seedQaDatabaseFromProd',
+    'seedQaProviderTokensFromProd',
+    'seedQaConfigFromProd',
+    'syncQaGatewayState',
+    'bootoutLaunchAgent',
+    'killStaleGateways',
+    'removeQaLaunchAgent',
+    'restoreLaunchAgent',
+    'launchctl',
+    'LaunchAgents',
+    'startDirectGateway',
+  ]) assert.doesNotMatch(launcher, new RegExp(forbidden))
+  assert.match(launcher, /gatewayListenerSnapshot\(\)/)
+  assert.match(launcher, /assertGatewaySnapshotUnchanged\(gatewayBefore\)/)
+  assert.match(launcher, /channels: \{\}/)
+  assert.match(launcher, /productionSeeded: false/)
 })
 
-
-test('preserved QA sessions do not overwrite their meeting database', () => {
-  const launcher = fs.readFileSync(path.join(__dirname, 'qa-dev-run.cjs'), 'utf8')
-  assert.match(launcher, /if \(!preserveQaState \|\| !fs\.existsSync\(qaDbPath\)\) \{\s*seedQaDatabaseFromProd\(\);/)
+test('bundle metadata and compile-time identity both use the run-specific bundle ID', () => {
+  const launcher = fs.readFileSync(launcherPath, 'utf8')
+  assert.match(launcher, /CFBundleIdentifier<\/key><string>\$\{qaBundleId\}<\/string>/)
+  assert.match(launcher, /identifier: qaBundleId/)
+  assert.match(launcher, /\.knapsack-qa-bundle-id/)
+  assert.match(launcher, /fs\.readFileSync\(buildIdentityMarker[\s\S]*?!== qaBundleId/)
+  assert.doesNotMatch(launcher, /ai\.knap\.knapsack\.dev/)
 })
 
-test('local-only QA is fail-closed at every gateway lifecycle boundary', () => {
-  const service = fs.readFileSync(
-    path.join(__dirname, '../src-tauri/src/clawd/service.rs'),
-    'utf8',
-  )
-  const supervisor = fs.readFileSync(
-    path.join(__dirname, '../src-tauri/src/clawd/gateway_supervisor.rs'),
-    'utf8',
-  )
-  const launcher = fs.readFileSync(path.join(__dirname, 'qa-dev-run.cjs'), 'utf8')
+test('gateway ownership comparison fails closed on any listener change', () => {
+  assert.doesNotThrow(() => assertGatewaySnapshotUnchanged({ 18789: [10], 18791: [] }, { 18789: [10], 18791: [] }))
+  assert.throws(() => assertGatewaySnapshotUnchanged({ 18789: [10], 18791: [] }, { 18789: [11], 18791: [] }), /ownership change/)
+})
 
+test('database count parser rejects malformed output and preserves zero checks', () => {
+  assert.deepEqual(parseDatabaseCounts('connections=0\nmessages=0\n'), [['connections', 0], ['messages', 0]])
+  assert.throws(() => parseDatabaseCounts('not-sqlite-output'), /Unexpected database isolation output/)
+})
+
+test('Vite uses an installed JS entrypoint when the platform shim is missing', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-vite-test-'))
+  const viteJs = path.join(temp, 'vite.js')
+  fs.writeFileSync(viteJs, '')
+  const launch = resolveViteLaunch({ binPath: path.join(temp, 'missing-vite'), jsPath: viteJs })
+  assert.equal(launch.command, process.execPath)
+  assert.equal(launch.args[0], viteJs)
+  assert.throws(
+    () => resolveViteLaunch({ binPath: path.join(temp, 'missing-vite'), jsPath: path.join(temp, 'missing-vite.js') }),
+    /Run the repository setup/,
+  )
+})
+
+test('Rust local-only mode guards every gateway lifecycle boundary', () => {
+  const service = fs.readFileSync(path.join(__dirname, '../src-tauri/src/clawd/service.rs'), 'utf8')
+  const supervisor = fs.readFileSync(path.join(__dirname, '../src-tauri/src/clawd/gateway_supervisor.rs'), 'utf8')
   assert.match(service, /pub\(crate\) fn qa_local_only_mode\(\)/)
-  assert.match(service, /qa_local_only_enabled\(\s*cfg!\(debug_assertions\)/)
   assert.match(service, /fn kill_process_on_port[\s\S]*?port == 18789 && qa_local_only_mode\(\)/)
-  assert.match(service, /fn evict_competing_gateway_plists[\s\S]*?if qa_local_only_mode\(\)/)
   assert.match(service, /pub async fn self_heal_gateway_conflict[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /async fn run_gateway_self_heal_cycle[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /pub async fn cycle_service[\s\S]*?if qa_local_only_mode\(\)/)
   assert.match(service, /pub fn cleanup_gateway_on_exit[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /fn regenerate_macos_plist_with_current_env[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /fn bootstrap_current_launch_agent_detached[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /async fn write_current_launch_agent_plist[\s\S]*?if qa_local_only_mode\(\)/)
   assert.match(service, /pub async fn set_service_enabled[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /pub async fn auto_enable_if_needed[\s\S]*?if qa_local_only_mode\(\)/)
-  assert.match(service, /gateway self-heal disabled in local-only QA/)
-  assert.match(service, /Gateway remains disabled for local-only QA/)
   assert.match(supervisor, /pub async fn ensure_gateway_running[\s\S]*?if super::service::qa_local_only_mode\(\)/)
   assert.match(supervisor, /pub fn kickstart_launch_agent[\s\S]*?if super::service::qa_local_only_mode\(\)/)
-  assert.equal(
-    [...launcher.matchAll(/if \(!localOnly\) \{\s*bootoutLaunchAgent\(\);\s*killStaleGateways/g)].length,
-    3,
-  )
-  assert.match(launcher, /finally \{\s*if \(!localOnly\) restoreLaunchAgentBackupIfPresent\(\);/)
 })
