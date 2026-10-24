@@ -221,6 +221,7 @@ interface MeetingNotesModeProps {
   userEmail?: string
   userEmails?: string[]
   userName?: string
+  onMeetingChatMinimizedChange?: (threadId: number, minimized: boolean) => void
 }
 
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
@@ -252,6 +253,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   userEmail,
   userEmails = [],
   userName,
+  onMeetingChatMinimizedChange,
 }) => {
   const isMeetingRecording = recordingHandlers.isRecording(thread.id)
   useEffect(() => {
@@ -289,6 +291,14 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   )
   const isMeetingChatMounted = meetingChatLifecycle.mounted
   const isMeetingChatOpen = isMeetingChatMounted && !meetingChatLifecycle.minimized
+
+  useEffect(() => {
+    onMeetingChatMinimizedChange?.(
+      thread.id,
+      isMeetingChatMounted && meetingChatLifecycle.minimized,
+    )
+    return () => onMeetingChatMinimizedChange?.(thread.id, false)
+  }, [isMeetingChatMounted, meetingChatLifecycle.minimized, onMeetingChatMinimizedChange, thread.id])
 
   const isAnyRecordingRef = useRef(recordingHandlers.isAnyRecording)
   isAnyRecordingRef.current = recordingHandlers.isAnyRecording

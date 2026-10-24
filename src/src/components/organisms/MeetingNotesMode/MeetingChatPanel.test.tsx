@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useReducer, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +8,7 @@ import {
   meetingChatLauncherLabel,
   meetingChatLifecycleReducer,
 } from 'src/utils/meetingChatLifecycle'
+import { handleHomeEscape } from 'src/components/templates/Home/homeEscape'
 
 vi.mock('src/components/organisms/ClawdChat', () => ({
   default: ({ foregroundActive, onBusyChange }: { foregroundActive: boolean; onBusyChange: (busy: boolean) => void }) => {
@@ -49,6 +50,44 @@ const Harness = () => {
   </>
 }
 
+const EscapeProtectedHarness = () => {
+  const [selected, setSelected] = useState(true)
+  const [lifecycle, dispatch] = useReducer(meetingChatLifecycleReducer, {
+    ...initialMeetingChatLifecycle,
+    mounted: true,
+  })
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => handleHomeEscape(event, {
+      preserveMeetingSelection: lifecycle.minimized,
+      errorCallback: noop,
+      stopLLMExecution: noop,
+      unselectFeedItem: () => setSelected(false),
+      showWelcome: noop,
+    })
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [lifecycle.minimized])
+
+  if (!selected) return <span>Meeting selection cleared</span>
+  return <>
+    <MeetingChatPanel
+      height={460}
+      minimized={lifecycle.minimized}
+      resizing={false}
+      onMinimize={() => dispatch({ type: 'minimize' })}
+      onResizeClick={noop}
+      onResizePointerDown={noop}
+      onResizePointerMove={noop}
+      onResizePointerUp={noop}
+      onResizeKeyDown={noop}
+      onBusyChange={busy => dispatch({ type: 'set-busy', busy })}
+      chatProps={{} as never}
+    />
+    {lifecycle.minimized && <button onClick={() => dispatch({ type: 'open' })}>{meetingChatLauncherLabel(lifecycle)}</button>}
+  </>
+}
+
 afterEach(cleanup)
 
 describe('mounted meeting chat behavior', () => {
@@ -78,5 +117,26 @@ describe('mounted meeting chat behavior', () => {
     expect(screen.getByRole('button', { name: 'Meeting chat minimized — reopen' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Meeting chat minimized — reopen' }))
     expect(screen.getByText('Cancelled while minimized')).toBeTruthy()
+  })
+
+  it('keeps the selected meeting mounted when Escape is pressed elsewhere while minimized', () => {
+    render(<EscapeProtectedHarness />)
+    const mountedChat = screen.getByTestId('mounted-clawd-chat')
+    fireEvent.click(screen.getByText('Ask delayed question'))
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize meeting chat' }))
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByText('Meeting selection cleared')).toBeNull()
+    expect(screen.getByTestId('mounted-clawd-chat')).toBe(mountedChat)
+    fireEvent.click(screen.getByText('Complete question'))
+    fireEvent.click(screen.getByRole('button', { name: 'Meeting chat minimized — reopen' }))
+    expect(screen.getByText('Completed while minimized')).toBeTruthy()
+  })
+
+  it('keeps the existing Escape navigation behavior when no chat is minimized', () => {
+    render(<EscapeProtectedHarness />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.getByText('Meeting selection cleared')).toBeTruthy()
   })
 })

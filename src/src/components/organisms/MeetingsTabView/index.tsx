@@ -70,6 +70,7 @@ interface MeetingsTabViewProps {
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
   userEmail?: string
   userName?: string
+  onMeetingChatMinimizedChange?: (threadId: number, minimized: boolean) => void
 }
 
 const MeetingsTabView = ({
@@ -87,6 +88,7 @@ const MeetingsTabView = ({
   onLibraryWorkspaceOpen,
   userEmail,
   userName,
+  onMeetingChatMinimizedChange,
 }: MeetingsTabViewProps) => {
   const userEmails = useMemo(
     () => getConnectedIdentityEmails(connections, userEmail),
@@ -448,6 +450,7 @@ const MeetingsTabView = ({
                       userEmail={userEmail}
                       userEmails={userEmails}
                       userName={userName}
+                      onMeetingChatMinimizedChange={onMeetingChatMinimizedChange}
                     />
                   ) : null
                 })()}
