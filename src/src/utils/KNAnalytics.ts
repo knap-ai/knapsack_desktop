@@ -6,6 +6,7 @@ import { ampli, ApiKey, DefaultConfiguration } from '../ampli'
 import { extractDomain } from '../utils/emails'
 
 export default class KNAnalytics {
+  static QA_SAFE = import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1'
   static TRACK_EVENT_SEARCH_EVERY_X_SECONDS = 20
 
   static HAS_LOADED = false
@@ -40,7 +41,7 @@ export default class KNAnalytics {
   }
 
   private static async sendAndFlush(event: string, properties: any): Promise<boolean> {
-    if (!this.HAS_LOADED || !ampli?.amplitude) return false
+    if (this.QA_SAFE || !this.HAS_LOADED || !ampli?.amplitude) return false
 
     try {
       const trackPromise = ampli.amplitude.logEvent(event, this.eventProperties(properties)).promise
@@ -55,7 +56,7 @@ export default class KNAnalytics {
   }
 
   static async initAnalytics(email: string, uuid: string, userUuid: string) {
-    if (this.PRIVACY_MODE) return
+    if (this.QA_SAFE || this.PRIVACY_MODE) return
     const version = await getAppVersion()
     // TODO: disable for dev instances
     if (!this.HAS_LOADED) {
@@ -115,7 +116,7 @@ export default class KNAnalytics {
   }
 
   static trackEvent(event: string, properties: any): boolean {
-    if (this.PRIVACY_MODE) return false
+    if (this.QA_SAFE || this.PRIVACY_MODE) return false
     // TODO: currently, we need to manually set this property to
     // private in order to access the amplitude var for
     // generic logEvent like this.
@@ -150,7 +151,7 @@ export default class KNAnalytics {
    * when this returns true.
    */
   static trackEventAndFlush(event: string, properties: any): Promise<boolean> {
-    if (this.PRIVACY_MODE) return Promise.resolve(false)
+    if (this.QA_SAFE || this.PRIVACY_MODE) return Promise.resolve(false)
     if (!this.HAS_LOADED) {
       return new Promise(resolveDelivery => {
         let settled = false

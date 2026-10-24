@@ -44,7 +44,9 @@ jobs:
 
       - name: Test isolated QA harness
         working-directory: src
-        run: npm run test:qa-harness
+        run: |
+          npm run test:qa-harness
+          cargo test --manifest-path src-tauri/Cargo.toml --no-default-features synthetic_qa_ -- --nocapture
 
       - name: Create .env from example
         working-directory: src

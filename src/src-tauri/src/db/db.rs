@@ -497,3 +497,70 @@ pub async fn start_database() {
     log::error!("Failed to create connection {:?} ", error)
   }
 }
+
+#[cfg(test)]
+mod synthetic_bootstrap_tests {
+  use super::*;
+  use std::collections::BTreeSet;
+
+  #[tokio::test]
+  async fn synthetic_qa_fresh_bootstrap_contains_only_static_connection_catalog() {
+    let root =
+      std::env::temp_dir().join(format!("knapsack-qa-db-bootstrap-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let database = root.join("knapsack-qa.db");
+    std::env::set_var("DATABASE_URL", &database);
+
+    start_database().await;
+    let connection = get_db_conn();
+    let mut statement = connection
+      .prepare("SELECT scope || '|' || provider FROM connections ORDER BY scope, provider")
+      .unwrap();
+    let catalog = statement
+      .query_map([], |row| row.get::<_, String>(0))
+      .unwrap()
+      .collect::<Result<BTreeSet<_>, _>>()
+      .unwrap();
+    let expected = BTreeSet::from([
+      "google_calendar_read|google".to_string(),
+      "google_drive_read|google".to_string(),
+      "google_gmail_modify|google".to_string(),
+      "google_profile_read|google".to_string(),
+      "knapsack_access_key|knapsack".to_string(),
+      "microsoft_calendar_read|microsoft".to_string(),
+      "microsoft_onedrive_read|microsoft".to_string(),
+      "microsoft_outlook_read|microsoft".to_string(),
+      "microsoft_profile_read|microsoft".to_string(),
+    ]);
+    assert_eq!(catalog, expected);
+
+    for table in [
+      "automation_runs",
+      "browser_workflow_runs",
+      "browser_workflows",
+      "heartbeat_logs",
+      "meeting_insights",
+      "message_feedbacks",
+      "user_connections",
+      "users",
+      "messages",
+      "feed_items",
+      "threads",
+      "emails",
+      "calendar_events",
+      "transcripts",
+      "documents",
+      "drive_documents",
+      "local_files",
+      "workspace_documents",
+      "workspaces",
+    ] {
+      let count: i64 = connection
+        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+          row.get(0)
+        })
+        .unwrap();
+      assert_eq!(count, 0, "fresh synthetic bootstrap seeded {table}");
+    }
+  }
+}
