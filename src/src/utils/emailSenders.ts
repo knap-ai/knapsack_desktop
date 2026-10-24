@@ -1,11 +1,18 @@
 import type { Connection } from 'src/api/connections'
+
+const GOOGLE_GMAIL_CONNECTION_KEY = 'google_gmail_modify'
+const MICROSOFT_OUTLOOK_CONNECTION_KEY = 'microsoft_outlook_read'
 export type MailProvider = 'gmail' | 'outlook'
 export type MailSender = { id: string; provider: MailProvider; accountEmail: string; ownerEmail: string }
 export function connectedMailSenders(connections: Record<string, Connection>, ownerEmail?: string): MailSender[] {
   if (!ownerEmail?.trim()) return []
   const result: MailSender[] = []
   for (const connection of Object.values(connections)) {
-    const provider = connection.key === 'google_gmail_read' ? 'gmail' : connection.key === 'microsoft_outlook_read' ? 'outlook' : null
+    const provider = connection.key === GOOGLE_GMAIL_CONNECTION_KEY
+      ? 'gmail'
+      : connection.key === MICROSOFT_OUTLOOK_CONNECTION_KEY
+        ? 'outlook'
+        : null
     if (!provider || (connection.ownerEmail && connection.ownerEmail.toLowerCase() !== ownerEmail.toLowerCase())) continue
     const accountEmail = (connection.calendarAccountEmail || ownerEmail).trim()
     const id = `${provider}|${accountEmail.toLowerCase()}`

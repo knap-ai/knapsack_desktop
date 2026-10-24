@@ -22,12 +22,28 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
   const [showCcInput, setShowCcInput] = useState(!!draft.cc && draft.cc.trim().length > 0)
   const ccInputRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const senderListHasLoadedRef = useRef(senders.length > 0)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const attachments = draft.attachments ?? []
   const [senderId, setSenderId] = useState(() => initialMailSender(senders, draft.senderEmail || draft.userEmail || userEmail))
   const sender = senders.find(item => item.id === senderId)
+
+  useEffect(() => {
+    const senderListHadLoaded = senderListHasLoadedRef.current
+    setSenderId(current => {
+      if (senders.some(item => item.id === current)) return current
+      if (senderListHadLoaded) return ''
+      return initialMailSender(senders, draft.senderEmail || draft.userEmail || userEmail)
+    })
+    if (senders.length > 0) senderListHasLoadedRef.current = true
+  }, [draft.senderEmail, draft.userEmail, senders, userEmail])
+
+  useEffect(() => {
+    drawerRef.current?.focus()
+  }, [])
 
   // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
   useEffect(() => {
@@ -106,10 +122,15 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
 
   return (
     <div
+      ref={drawerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Email draft"
+      tabIndex={-1}
       style={{
         position: 'absolute',
         bottom: 0, left: 0, right: 0,
-        zIndex: 30,
+        zIndex: 200,
         background: 'white',
         borderTop: '1px solid #e2e8f0',
         boxShadow: '0 -4px 16px rgba(0,0,0,0.10)',

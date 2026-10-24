@@ -1542,7 +1542,7 @@ pub async fn gemini_chat(
   gemini_chat_with_retries(api_key, model, messages, tools, 6).await
 }
 
-/// Returns a valid Gemini 3 thinking level for a user preference.
+/// Returns a valid Gemini 3 or Gemini 4 Argon thinking level for a user preference.
 ///
 /// Gemini 3.8 and 3.7 do not accept `minimal`; Gemini 2.5 still uses the
 /// legacy thinking-budget contract. Omitting this setting keeps the provider's
@@ -1554,7 +1554,7 @@ fn gemini_thinking_level(model: &str, requested: &str) -> Option<&'static str> {
   if requested.is_empty()
     || matches!(requested.as_str(), "auto" | "none" | "off")
     || model.contains("-live")
-    || !model.contains("gemini-3")
+    || !(model.contains("gemini-3") || model == "gemini-4-argon")
   {
     return None;
   }
@@ -1566,7 +1566,8 @@ fn gemini_thinking_level(model: &str, requested: &str) -> Option<&'static str> {
     "minimal"
       if model.contains("gemini-3.8")
         || model.contains("gemini-3.7")
-        || model.contains("gemini-3.1-pro") =>
+        || model.contains("gemini-3.1-pro")
+        || model == "gemini-4-argon" =>
     {
       Some("low")
     }
@@ -1583,8 +1584,9 @@ pub async fn gemini_chat_with_retries(
   tools: Vec<OaiToolSpec>,
   max_retries: usize,
 ) -> anyhow::Result<OaiChatResp> {
+  let request_timeout = if model.eq_ignore_ascii_case("gemini-4-argon") { 900 } else { 90 };
   let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
-    .timeout(Duration::from_secs(90))
+    .timeout(Duration::from_secs(request_timeout))
     .build()?;
 
   // Convert OAI messages → Gemini format
@@ -1631,7 +1633,7 @@ pub async fn gemini_chat_with_retries(
           // See: https://ai.google.dev/gemini-api/docs/thought-signatures
           let needs_thought_sig = {
             let m = model.to_lowercase();
-            m.contains("gemini-2.5") || m.contains("gemini-3")
+            m.contains("gemini-2.5") || m.contains("gemini-3") || m == "gemini-4-argon"
           };
           for tc in tcs {
             let args: JsonValue = serde_json::from_str(&tc.function.arguments).unwrap_or(json!({}));
@@ -1928,6 +1930,10 @@ mod tests {
       Some("low")
     );
     assert_eq!(gemini_thinking_level("gemini-2.5-flash", "high"), None);
+    assert_eq!(gemini_thinking_level("gemini-4-argon", "minimal"), Some("low"));
+    assert_eq!(gemini_thinking_level("gemini-4-argon", "low"), Some("low"));
+    assert_eq!(gemini_thinking_level("gemini-4-argon", "medium"), Some("medium"));
+    assert_eq!(gemini_thinking_level("gemini-4-argon", "high"), Some("high"));
     assert_eq!(gemini_thinking_level("gemini-3.8-live", "high"), None);
     assert_eq!(gemini_thinking_level("gemini-3.8-flash", "none"), None);
   }

@@ -73,6 +73,7 @@ import NewAutomation from '../NewAutomation'
 import { ConnectionsDropdown } from './../../ConnectionsDropdown'
 import { SigninButton } from './../../SigninButton'
 import { TabChoices } from './../../TabBar'
+import { handleHomeEscape } from './homeEscape'
 
 export interface ToastrState {
   message?: ReactElement
@@ -118,6 +119,14 @@ function Home({
   >(undefined)
   const [openProviderPanelTrigger, setOpenProviderPanelTrigger] = useState(0)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
+  const minimizedMeetingChatThreadIdRef = useRef<number | undefined>()
+  const handleMeetingChatMinimizedChange = useCallback((threadId: number, minimized: boolean) => {
+    if (minimized) {
+      minimizedMeetingChatThreadIdRef.current = threadId
+    } else if (minimizedMeetingChatThreadIdRef.current === threadId) {
+      minimizedMeetingChatThreadIdRef.current = undefined
+    }
+  }, [])
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
@@ -219,14 +228,18 @@ function Home({
   )
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    // Escape key always hides everything
-    // console.log("handleKeyDown", event.key, searchResults.length, selectedSearchIndex);
     if (event.key === 'Escape') {
-      feed.errorCallback()
-      event.preventDefault()
-      stopLLMExecution()
-      feed.unselectFeedItem()
-      feed.setSubTab(SubTabChoices.Welcome)
+      handleHomeEscape(event, {
+        // The callback is owned by the mounted MeetingNotesMode and clears the
+        // ref when that view unmounts. Avoid reading currentFeedItem here: this
+        // window listener intentionally has a stable identity, so that callback
+        // would otherwise be the stale one captured on Home's first render.
+        preserveMeetingSelection: minimizedMeetingChatThreadIdRef.current !== undefined,
+        errorCallback: feed.errorCallback,
+        stopLLMExecution,
+        unselectFeedItem: feed.unselectFeedItem,
+        showWelcome: () => feed.setSubTab(SubTabChoices.Welcome),
+      })
     } else {
       if (event.key === 'r' && event.metaKey && event.ctrlKey) {
         setHasOnboarded(false)
@@ -1139,6 +1152,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                   }}
                   userEmail={userEmail}
                   userName={userName}
+                  onMeetingChatMinimizedChange={handleMeetingChatMinimizedChange}
                   onBack={() => {
                     // Back from note view returns to sidebar
                   }}
