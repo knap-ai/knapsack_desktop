@@ -19,7 +19,7 @@ import { initializePrivacyMode, telemetryAllowed } from './utils/privacyMode'
 installDesktopApiAuth()
 
 void initializePrivacyMode().then(() => {
-  if (!telemetryAllowed()) return
+  if (import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1' || !telemetryAllowed()) return
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],

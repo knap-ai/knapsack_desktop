@@ -403,6 +403,7 @@ function App() {
   } | null>(null)
 
   useEffect(() => {
+    if (LOCAL_QA_SAFE) return
     const email = auth.profile?.email ?? ''
     const userUuid = auth.profile?.uuid ?? ''
     if (uuid !== '') {
@@ -1679,9 +1680,11 @@ function App() {
   useEffect(() => {
     fetchUUID()
 
-    invoke('plugin:autostart|enable')
-      .then(() => console.log('Autostart enabled'))
-      .catch(error => console.error('Failed to enable autostart:', error))
+    if (!LOCAL_QA_SAFE) {
+      invoke('plugin:autostart|enable')
+        .then(() => console.log('Autostart enabled'))
+        .catch(error => console.error('Failed to enable autostart:', error))
+    }
   }, [])
 
   const fetchUUID = async () => {

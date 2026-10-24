@@ -42,6 +42,7 @@ type AppUpdateContextValue = {
 const AUTO_INSTALL_COUNTDOWN_SEC = 60
 const AUTO_INSTALL_RETRY_COOLDOWN_MS = 30 * 60 * 1000
 const AUTO_INSTALL_SNOOZE_KEY = 'kn_auto_install_update_snooze'
+const LOCAL_QA_SAFE = import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1'
 
 const AppUpdateContext = createContext<AppUpdateContextValue | null>(null)
 
@@ -136,6 +137,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
 
   // Listen to updater events
   useEffect(() => {
+    if (LOCAL_QA_SAFE) return
     let unlisten: (() => void) | undefined
 
     onUpdaterEvent(({ error, status }) => {
@@ -160,12 +162,17 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (LOCAL_QA_SAFE) {
+      setAutoInstallEnabledState(false)
+      return
+    }
     getAutoInstallAppUpdatesEnabled()
       .then(setAutoInstallEnabledState)
       .catch(() => {})
   }, [])
 
   const checkForUpdates = useCallback(async (source: 'automatic' | 'user' = 'user') => {
+    if (LOCAL_QA_SAFE) return
     if (checkInFlightRef.current) {
       // A tray/settings click during the startup check must still surface the
       // in-flight check and its final up-to-date result to the user.
@@ -215,6 +222,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   }, [checkForUpdates])
 
   const runInstall = useCallback(async (targetVersion?: string) => {
+    if (LOCAL_QA_SAFE) throw new Error('App updates are disabled in synthetic QA')
     if (installInFlightRef.current) {
       return
     }
@@ -272,6 +280,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   }, [runInstall, state])
 
   const setAutoInstallEnabled = useCallback(async (enabled: boolean) => {
+    if (LOCAL_QA_SAFE) return
     setAutoInstallEnabledState(enabled)
     await setAutoInstallAppUpdatesEnabled(enabled)
   }, [])
@@ -325,6 +334,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   // Auto-check on mount — only checks, does NOT install.
   // Installing and relaunching must happen together (see restartApp).
   useEffect(() => {
+    if (LOCAL_QA_SAFE) return
     void checkForUpdates('automatic')
   }, [])
 

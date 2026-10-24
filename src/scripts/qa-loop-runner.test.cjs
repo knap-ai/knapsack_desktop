@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
 const {
@@ -20,6 +21,14 @@ const {
   setApiAuthStateDirForTest,
   shouldPreserveExistingQaState,
 } = require("./qa-loop-runner.cjs");
+
+test("legacy qa:loop exits before inspecting or cleaning shared ports", () => {
+  const result = spawnSync(process.execPath, [path.join(__dirname, "qa-loop-runner.cjs"), "--mode", "dev"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 1);
+  assert.match(`${result.stdout}\n${result.stderr}`, /disabled until it uses the nondestructive synthetic launcher contract/);
+});
 
 test("QA port cleanup parses unique listener pids", () => {
   assert.deepEqual(parseListenerPids("123\n456\n123\ninvalid\n"), [123, 456]);

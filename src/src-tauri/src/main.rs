@@ -1771,6 +1771,9 @@ fn update_tray_title(app: AppHandle, title: String) {
 }
 
 fn main() {
+  // A compiled synthetic-QA binary must prove its immutable launcher contract
+  // before initializing runtimes, services, or app state.
+  qa_launch::reject_unmanaged_launch();
   utils::runtime::prepare_file_limit();
   utils::runtime::background_runtime().expect("desktop runtime").block_on(run_app());
 }
@@ -1790,17 +1793,19 @@ async fn run_app() {
     std::process::exit(0);
   }
 
-  qa_launch::reject_unmanaged_launch();
-
   // Must run before any other setup so the knapsack:// scheme is claimed by
   // this process. Carries the role a visitor picked on the website into
   // onboarding; see www ThankYou page.
-  tauri_plugin_deep_link::prepare("ai.knap.knapsack");
+  if !qa_launch::is_synthetic_build() {
+    tauri_plugin_deep_link::prepare("ai.knap.knapsack");
+  }
 
   create_data_dir();
   create_db_env_variable();
 
-  let maybe_sentry_dsn: Option<&'static str> = if privacy_mode::is_enabled() {
+  let maybe_sentry_dsn: Option<&'static str> = if qa_launch::is_synthetic_build()
+    || privacy_mode::is_enabled()
+  {
     None
   } else {
     option_env!("SENTRY_DSN")
@@ -1846,12 +1851,14 @@ async fn run_app() {
 
   let mut builder = tauri::Builder::default();
 
-  builder = builder
-    .plugin(tauri_plugin_store::Builder::default().build())
-    .plugin(tauri_plugin_autostart::init(
+  builder = builder.plugin(tauri_plugin_store::Builder::default().build());
+  if !qa_launch::is_synthetic_build() {
+    builder = builder.plugin(tauri_plugin_autostart::init(
       MacosLauncher::LaunchAgent,
       None,
-    ))
+    ));
+  }
+  builder = builder
     .on_window_event(|event| match event.event() {
       WindowEvent::FileDrop(FileDropEvent::Dropped(paths)) => {
         for path in paths {
@@ -1864,7 +1871,7 @@ async fn run_app() {
     .manage(semantic_service.clone())
     .manage(recording_state)
     .setup(move |app| {
-      {
+      if !qa_launch::is_synthetic_build() {
         let deep_link_handle = app.handle();
         if let Err(err) = tauri_plugin_deep_link::register("knapsack", move |request| {
           // Forwarded to the webview, which parses role/attr_id and preselects
