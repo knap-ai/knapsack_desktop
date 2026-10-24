@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -56,10 +56,14 @@ const EscapeProtectedHarness = () => {
     ...initialMeetingChatLifecycle,
     mounted: true,
   })
+  const minimizedRef = useRef(lifecycle.minimized)
+  minimizedRef.current = lifecycle.minimized
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => handleHomeEscape(event, {
-      preserveMeetingSelection: lifecycle.minimized,
+      // Home registers one stable window listener. Read the latest minimized
+      // state through a ref so this test covers the same lifetime behavior.
+      preserveMeetingSelection: minimizedRef.current,
       errorCallback: noop,
       stopLLMExecution: noop,
       unselectFeedItem: () => setSelected(false),
@@ -67,7 +71,7 @@ const EscapeProtectedHarness = () => {
     })
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [lifecycle.minimized])
+  }, [])
 
   if (!selected) return <span>Meeting selection cleared</span>
   return <>

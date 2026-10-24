@@ -229,11 +229,12 @@ function Home({
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (event.key === 'Escape') {
-      const minimizedThreadId = minimizedMeetingChatThreadIdRef.current
-      const selectedMeetingContainsMinimizedChat = minimizedThreadId !== undefined &&
-        !!feed.currentFeedItem()?.threads?.some((thread: { id: number }) => thread.id === minimizedThreadId)
       handleHomeEscape(event, {
-        preserveMeetingSelection: selectedMeetingContainsMinimizedChat,
+        // The callback is owned by the mounted MeetingNotesMode and clears the
+        // ref when that view unmounts. Avoid reading currentFeedItem here: this
+        // window listener intentionally has a stable identity, so that callback
+        // would otherwise be the stale one captured on Home's first render.
+        preserveMeetingSelection: minimizedMeetingChatThreadIdRef.current !== undefined,
         errorCallback: feed.errorCallback,
         stopLLMExecution,
         unselectFeedItem: feed.unselectFeedItem,
