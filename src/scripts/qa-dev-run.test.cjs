@@ -8,15 +8,19 @@ const {
   assertGatewaySnapshotUnchanged,
   assertAllowedConnectionCatalog,
   assertPortOwnedBy,
+  assertSupportedQaPlatform,
   assertSyntheticModeRequest,
   assertZeroContentCounts,
   normalizeRunId,
   interpretListenerInspection,
   parseDatabaseCounts,
   qaBundleId,
+  qaCargoBuildEnv,
+  qaCargoTargetDir,
   qaEnv,
   qaRunRoot,
   qaWebKitDataPaths,
+  readinessStatusAccepted,
   resolveViteLaunch,
   waitForUrl,
 } = require('./qa-dev-run.cjs')
@@ -52,8 +56,8 @@ test('synthetic QA environment strips credentials and pins local isolation', () 
   assert.equal(env.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '0')
   assert.equal(env.KNAPSACK_QA_SKIP_GATEWAY, '1')
   assert.equal(env.KNAPSACK_QA_SYNTHETIC, '1')
-  assert.match(env.DATABASE_URL, /^\/.*knapsack-qa-[^/]+\/state\/knapsack-qa\.db$/)
-  assert.match(env.HOME, /^\/.*knapsack-qa-[^/]+\/home$/)
+  assert.equal(env.DATABASE_URL, path.join(qaRunRoot, 'state', 'knapsack-qa.db'))
+  assert.equal(env.HOME, path.join(qaRunRoot, 'home'))
   assert.equal(env.USERPROFILE, env.HOME)
   assert.equal(env.XDG_CONFIG_HOME, path.join(env.HOME, '.config'))
   assert.equal(env.APPDATA, path.join(env.HOME, 'AppData', 'Roaming'))
@@ -143,6 +147,23 @@ test('bundle metadata and compile-time identity both use the run-specific bundle
   assert.doesNotMatch(launcher, /ai\.knap\.knapsack\.dev/)
 })
 
+test('Cargo overrides cannot redirect QA compilation to a stale ordinary binary', () => {
+  const env = qaCargoBuildEnv({}, {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    CARGO_TARGET_DIR: path.join(os.tmpdir(), 'attacker-target'),
+    CARGO_BUILD_TARGET: 'aarch64-unknown-linux-gnu',
+    RUSTFLAGS: '-C debug-assertions=no',
+    RUSTDOCFLAGS: '--cfg attacker',
+  })
+  assert.equal(env.CARGO_TARGET_DIR, qaCargoTargetDir)
+  assert.equal(env.CARGO_BUILD_TARGET, undefined)
+  assert.equal(env.RUSTFLAGS, undefined)
+  assert.equal(env.RUSTDOCFLAGS, undefined)
+  assert.equal(qaCargoTargetDir, path.join(qaRunRoot, 'cargo-target'))
+  assert.notEqual(qaCargoTargetDir, path.join(process.cwd(), 'src-tauri', 'target'))
+})
+
 test('native and frontend startup fail closed around synthetic identity and user state', () => {
   const nativeGuard = fs.readFileSync(path.join(__dirname, '../src-tauri/src/qa_launch.rs'), 'utf8')
   const storage = fs.readFileSync(path.join(__dirname, '../src/utils/KNLocalStorage.ts'), 'utf8')
@@ -179,6 +200,8 @@ test('gateway ownership comparison fails closed on any listener change', () => {
 })
 
 test('listener inspection fails closed when tooling or platform cannot verify ownership', () => {
+  assert.doesNotThrow(() => assertSupportedQaPlatform('darwin'))
+  assert.throws(() => assertSupportedQaPlatform('win32'), /no process or service was changed/)
   assert.deepEqual(interpretListenerInspection({ status: 1, stdout: '', stderr: '' }, 'darwin'), [])
   assert.deepEqual(interpretListenerInspection({ status: 0, stdout: '22\n11\n', stderr: '' }, 'darwin'), [11, 22])
   assert.throws(() => interpretListenerInspection({ status: null, stdout: '', stderr: '', error: new Error('ENOENT') }, 'darwin'), /could not verify/)
@@ -191,6 +214,15 @@ test('readiness ownership rejects absent, wrong, and late foreign listeners', ()
   assert.doesNotThrow(() => assertPortOwnedBy(1420, 10, [10, 11], descendant))
   assert.throws(() => assertPortOwnedBy(1420, 10, [], descendant), /not owned/)
   assert.throws(() => assertPortOwnedBy(1420, 10, [10, 99], descendant), /not owned/)
+})
+
+test('readiness rejects partial initialization and arbitrary HTTP errors', () => {
+  assert.equal(readinessStatusAccepted(200), true)
+  assert.equal(readinessStatusAccepted(204), true)
+  for (const status of [0, 301, 401, 404, 503]) assert.equal(readinessStatusAccepted(status), false)
+  const launcher = fs.readFileSync(launcherPath, 'utf8')
+  assert.match(launcher, /\/api\/knapsack\/qa\/ready/)
+  assert.doesNotMatch(launcher, /waitForUrl\(`http:\/\/127\.0\.0\.1:\$\{QA_API_PORT\}\/api\/clawd\/service\/status/)
 })
 
 test('readiness wait rejects an early child exit', async () => {

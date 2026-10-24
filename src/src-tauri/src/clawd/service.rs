@@ -615,8 +615,12 @@ fn qa_local_only_value(value: Option<&str>) -> bool {
   value == Some("1")
 }
 
-fn qa_local_only_enabled(debug_build: bool, value: Option<&str>) -> bool {
-  debug_build && qa_local_only_value(value)
+fn qa_local_only_enabled(
+  synthetic_build: bool,
+  debug_build: bool,
+  value: Option<&str>,
+) -> bool {
+  synthetic_build || (debug_build && qa_local_only_value(value))
 }
 
 /// Local-only QA must not write, start, stop, or repair any gateway service.
@@ -624,6 +628,7 @@ fn qa_local_only_enabled(debug_build: bool, value: Option<&str>) -> bool {
 /// fail closed even when invoked indirectly by a frontend refresh.
 pub(crate) fn qa_local_only_mode() -> bool {
   qa_local_only_enabled(
+    crate::qa_launch::is_synthetic_build(),
     cfg!(debug_assertions),
     std::env::var("KNAPSACK_QA_SKIP_GATEWAY")
       .ok()
@@ -19948,13 +19953,14 @@ mod service_status_message_tests {
   }
 
   #[test]
-  fn local_only_qa_flag_is_fail_closed() {
+  fn synthetic_qa_gateway_guard_survives_disabled_debug_assertions() {
     assert!(qa_local_only_value(Some("1")));
     assert!(!qa_local_only_value(Some("true")));
     assert!(!qa_local_only_value(Some("0")));
     assert!(!qa_local_only_value(None));
-    assert!(qa_local_only_enabled(true, Some("1")));
-    assert!(!qa_local_only_enabled(false, Some("1")));
+    assert!(qa_local_only_enabled(false, true, Some("1")));
+    assert!(!qa_local_only_enabled(false, false, Some("1")));
+    assert!(qa_local_only_enabled(true, false, None));
   }
 
   #[test]

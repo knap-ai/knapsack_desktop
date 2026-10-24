@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::connections::google::constants::{
@@ -61,6 +62,11 @@ fn create_pool() -> SqlitePool {
 }
 
 static DB_CONNECTION_POOL: Lazy<SqlitePool> = Lazy::new(|| create_pool());
+static DATABASE_READY: AtomicBool = AtomicBool::new(false);
+
+pub fn database_ready() -> bool {
+  DATABASE_READY.load(Ordering::Acquire)
+}
 
 pub fn get_db_conn() -> PooledConnection<SqliteConnectionManager> {
   let conn: PooledConnection<SqliteConnectionManager> = DB_CONNECTION_POOL.get().unwrap();
@@ -496,6 +502,7 @@ pub async fn start_database() {
   if let Err(error) = result {
     log::error!("Failed to create connection {:?} ", error)
   }
+  DATABASE_READY.store(true, Ordering::Release);
 }
 
 #[cfg(test)]

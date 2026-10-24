@@ -18,13 +18,19 @@ const { isQaDescendant } = require("./qa-process-safety.cjs");
 const projectDir = path.resolve(__dirname, "..");
 const tauriDir = path.join(projectDir, "src-tauri");
 const packageVersion = require(path.join(projectDir, "package.json")).version;
-const binary = path.join(tauriDir, "target", "debug", process.platform === "win32" ? "knapsack.exe" : "knapsack");
 const viteBin = path.join(projectDir, "node_modules", ".bin", process.platform === "win32" ? "vite.cmd" : "vite");
 const viteJs = path.join(projectDir, "node_modules", "vite", "bin", "vite.js");
 const QA_VITE_PORT = 1420;
 const QA_API_PORT = 8897;
 const PROTECTED_GATEWAY_PORTS = [18789, 18791];
 const SENSITIVE_ENV_PATTERN = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|DSN)/i;
+const SUPPORTED_QA_PLATFORMS = new Set(["darwin"]);
+
+function assertSupportedQaPlatform(platform = process.platform) {
+  if (!SUPPORTED_QA_PLATFORMS.has(platform)) {
+    throw new Error(`Synthetic QA does not support verified process/listener ownership on ${platform}; no process or service was changed.`);
+  }
+}
 
 function normalizeRunId(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
@@ -35,6 +41,8 @@ if (!qaRunId) throw new Error("KNAPSACK_QA_RUN_ID must contain letters or number
 const qaBundleId = `ai.knap.knapsack.qa.${qaRunId.replace(/-/g, "").slice(0, 32)}`;
 const qaProductName = `Knapsack QA ${qaRunId.slice(0, 8)}`;
 const qaRunRoot = path.join(os.tmpdir(), `knapsack-qa-${qaRunId}`);
+const qaCargoTargetDir = path.join(qaRunRoot, "cargo-target");
+const binary = path.join(qaCargoTargetDir, "debug", process.platform === "win32" ? "knapsack.exe" : "knapsack");
 const qaHomeDir = path.join(qaRunRoot, "home");
 const qaStateDir = path.join(qaRunRoot, "state");
 const qaConfigPath = path.join(qaStateDir, "openclaw.json");
@@ -43,7 +51,7 @@ const qaDbPath = path.join(qaStateDir, "knapsack-qa.db");
 const qaAppRoot = path.join(qaRunRoot, "app");
 const qaAppBundle = path.join(qaAppRoot, `${qaProductName}.app`);
 const qaAppExecutable = path.join(qaAppBundle, "Contents", "MacOS", qaProductName);
-const buildIdentityMarker = path.join(tauriDir, "target", "debug", ".knapsack-qa-bundle-id");
+const buildIdentityMarker = path.join(qaCargoTargetDir, "debug", ".knapsack-qa-bundle-id");
 
 function qaEnv(extra = {}, inherited = process.env) {
   const env = { ...inherited, ...extra };
@@ -82,16 +90,25 @@ function qaEnv(extra = {}, inherited = process.env) {
   return env;
 }
 
-function repositoryToolEnv(extra = {}) {
-  const env = qaEnv(extra);
+function repositoryToolEnv(extra = {}, inherited = process.env) {
+  const env = qaEnv(extra, inherited);
   for (const key of ["HOME", "USERPROFILE", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "APPDATA", "LOCALAPPDATA"]) {
-    if (process.env[key] === undefined) delete env[key];
-    else env[key] = process.env[key];
+    if (inherited[key] === undefined) delete env[key];
+    else env[key] = inherited[key];
   }
   delete env.DATABASE_URL;
   delete env.OPENCLAW_HOME;
   delete env.OPENCLAW_STATE_DIR;
   delete env.OPENCLAW_CONFIG_PATH;
+  return env;
+}
+
+function qaCargoBuildEnv(extra = {}, inherited = process.env) {
+  const env = repositoryToolEnv(extra, inherited);
+  delete env.CARGO_BUILD_TARGET;
+  delete env.RUSTFLAGS;
+  delete env.RUSTDOCFLAGS;
+  env.CARGO_TARGET_DIR = qaCargoTargetDir;
   return env;
 }
 
@@ -136,7 +153,7 @@ function initializeSyntheticState() {
 }
 
 function interpretListenerInspection(result, platform = process.platform) {
-  if (platform !== "darwin") throw new Error(`Synthetic QA does not support verified listener inspection on ${platform}.`);
+  assertSupportedQaPlatform(platform);
   if (result.error || result.status === null || ![0, 1].includes(result.status) || String(result.stderr || "").trim()) {
     throw new Error(`Synthetic QA could not verify listener ownership: ${result.error?.message || result.stderr || `lsof status ${result.status}`}`);
   }
@@ -238,7 +255,7 @@ function buildQaBinary() {
   });
   runChecked("cargo", ["build", "--no-default-features"], {
     cwd: tauriDir,
-    env: repositoryToolEnv({
+    env: qaCargoBuildEnv({
       TAURI_CONFIG: tauriConfig,
       KNAPSACK_QA_BUILD_RUN_ID: qaRunId,
       KNAPSACK_QA_BUILD_BUNDLE_ID: qaBundleId,
@@ -338,6 +355,10 @@ function assertSyntheticDatabaseClean() {
   assertZeroContentCounts(counts.stdout);
 }
 
+function readinessStatusAccepted(statusCode) {
+  return statusCode >= 200 && statusCode < 300;
+}
+
 function waitForUrl(url, timeoutMs, child = null) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
@@ -348,7 +369,12 @@ function waitForUrl(url, timeoutMs, child = null) {
         reject(new Error(`QA child exited before readiness${childError ? `: ${childError.message}` : ""}`));
         return;
       }
-      const req = http.get(url, (response) => { response.resume(); resolve(); });
+      const req = http.get(url, (response) => {
+        response.resume();
+        if (readinessStatusAccepted(response.statusCode || 0)) resolve();
+        else if (Date.now() - started > timeoutMs) reject(new Error(`Timed out waiting for ready response from ${url}`));
+        else setTimeout(attempt, 500);
+      });
       req.on("error", () => {
         if (Date.now() - started > timeoutMs) reject(new Error(`Timed out waiting for ${url}`));
         else setTimeout(attempt, 500);
@@ -360,6 +386,7 @@ function waitForUrl(url, timeoutMs, child = null) {
 }
 
 async function main() {
+  assertSupportedQaPlatform();
   assertSyntheticModeRequest();
   const gatewayBefore = gatewayListenerSnapshot();
   assertQaAppPortsFree();
@@ -408,7 +435,7 @@ async function main() {
     }),
     windowsHide: true,
   });
-  await waitForUrl(`http://127.0.0.1:${QA_API_PORT}/api/clawd/service/status`, 45_000, app);
+  await waitForUrl(`http://127.0.0.1:${QA_API_PORT}/api/knapsack/qa/ready`, 45_000, app);
   assertPortOwnedBy(QA_API_PORT, app.pid);
   assertSyntheticDatabaseClean();
   assertGatewaySnapshotUnchanged(gatewayBefore);
@@ -439,6 +466,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertSupportedQaPlatform,
   assertGatewaySnapshotUnchanged,
   assertAllowedConnectionCatalog,
   assertPortOwnedBy,
@@ -448,9 +476,12 @@ module.exports = {
   interpretListenerInspection,
   parseDatabaseCounts,
   qaBundleId,
+  qaCargoBuildEnv,
+  qaCargoTargetDir,
   qaEnv,
   qaRunRoot,
   qaWebKitDataPaths,
+  readinessStatusAccepted,
   resolveViteLaunch,
   waitForUrl,
 };

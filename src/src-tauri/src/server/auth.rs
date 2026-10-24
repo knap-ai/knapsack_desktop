@@ -46,6 +46,7 @@ fn is_public_desktop_path(path: &str) -> bool {
       | "/api/auth/knapsack-callback"
       | "/api/knapsack/google/signin"
       | "/api/knapsack/microsoft/signin"
+      | "/api/knapsack/qa/ready"
       | "/api/knapsack/focus"
   )
 }

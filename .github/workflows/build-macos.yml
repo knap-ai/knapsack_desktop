@@ -44,9 +44,13 @@ jobs:
 
       - name: Test isolated QA harness
         working-directory: src
+        env:
+          VITE_KN_API_SERVER: http://127.0.0.1:8897
+          VITE_GOOGLE_CLIENT_ID: unused
         run: |
           npm run test:qa-harness
           cargo test --manifest-path src-tauri/Cargo.toml --no-default-features synthetic_qa_ -- --nocapture
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false cargo test --manifest-path src-tauri/Cargo.toml --no-default-features synthetic_qa_gateway_guard_survives_disabled_debug_assertions -- --nocapture
 
       - name: Create .env from example
         working-directory: src

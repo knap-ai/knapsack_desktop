@@ -19,7 +19,11 @@ pub fn start_mobile_discovery_service(
   port: u16,
   service_name: &str,
   pairing_token: &str,
+  synthetic_build: bool,
 ) -> Option<MobileDiscoveryGuard> {
+  if synthetic_build {
+    return None;
+  }
   let child = Command::new("dns-sd")
     .args([
       "-R",
@@ -55,6 +59,15 @@ pub fn start_mobile_discovery_service(
   _port: u16,
   _service_name: &str,
   _pairing_token: &str,
+  _synthetic_build: bool,
 ) -> Option<MobileDiscoveryGuard> {
   None
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+  #[test]
+  fn synthetic_qa_never_starts_mobile_dns_sd_discovery() {
+    assert!(super::start_mobile_discovery_service(18_898, "Synthetic", "token", true).is_none());
+  }
 }
