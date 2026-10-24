@@ -23,6 +23,7 @@ import { getConnections, getGoogleDriveConnections } from 'src/api/connections'
 
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import { useClawdChatKeyboardShortcuts } from './useClawdChatKeyboardShortcuts'
+import { useForegroundNativeFileDropEvents, useVoiceDialogFocusTrap } from './useForegroundInputHandlers'
 import { useSubmittedChatRequest } from './useSubmittedChatRequest'
 import ReactMarkdown, { Components } from 'react-markdown'
 import { MicrophoneIcon, PencilSquareIcon, SpeakerWaveIcon, SpeakerXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -2089,7 +2090,7 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
   useEffect(() => {
-    if (!compact || !showCompactControls) return
+    if (!ownsForeground || !compact || !showCompactControls) return
     const closeCompactControls = (event: MouseEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent && event.key !== 'Escape') return
       if (
@@ -2106,7 +2107,7 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
       document.removeEventListener('mousedown', closeCompactControls)
       document.removeEventListener('keydown', closeCompactControls)
     }
-  }, [compact, showCompactControls])
+  }, [compact, ownsForeground, showCompactControls])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
   const queuedMessagesRef = useRef<QueuedDraft[]>([])
@@ -3268,42 +3269,11 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
     return () => window.removeEventListener('knapsack-meeting-quiet-mode', onMeetingQuietMode)
   }, [closeVoiceSession, isRecording, isSpeaking, isStartingRecording, isTranscribing, stopCurrentAudio, voiceEnabled, voiceSessionOpen])
 
-  useEffect(() => {
-    if (!voiceSessionOpen || !active) return
-    requestAnimationFrame(() => {
-      const dialog = voiceSessionRef.current
-      const primary = dialog?.querySelector<HTMLElement>('[data-voice-primary]:not(:disabled)')
-      const firstEnabled = dialog?.querySelector<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])')
-      ;(primary || firstEnabled)?.focus()
-    })
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        closeVoiceSession()
-        return
-      }
-      if (event.key === 'Tab' && voiceSessionRef.current) {
-        const focusable = Array.from(
-          voiceSessionRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])'),
-        )
-        if (focusable.length === 0) return
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (!voiceSessionRef.current.contains(document.activeElement)) {
-          event.preventDefault()
-          ;(event.shiftKey ? last : first).focus()
-        } else if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault()
-          last.focus()
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', onEscape)
-    return () => window.removeEventListener('keydown', onEscape)
-  }, [active, closeVoiceSession, voiceSessionOpen])
+  useVoiceDialogFocusTrap({
+    active: ownsForeground && voiceSessionOpen,
+    dialogRef: voiceSessionRef,
+    onClose: closeVoiceSession,
+  })
 
   useEffect(() => {
     const stopCloudTranscription = () => {
@@ -3600,102 +3570,72 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
     }
   }, [currentModelSupportsVision])
 
-  // Listen for Tauri native file-drop events — the webview in Tauri does not
-  // forward file data through the browser's drop event, so we handle drops
-  // via Tauri's event system to actually attach the files.
+  // The hidden meeting chat remains mounted for background text completion,
+  // but only the foreground chat may consume native file-drop input.
   useEffect(() => {
-    if (!active) return
-    setVoiceEnabled(localStorage.getItem(VOICE_MODE_STORAGE) === 'true')
-    let cancelled = false
-    const cleanups: Array<() => void> = []
-    const registerCleanup = (unlisten: () => void) => {
-      if (cancelled) {
-        unlisten()
-      } else {
-        cleanups.push(unlisten)
+    if (ownsForeground) setVoiceEnabled(localStorage.getItem(VOICE_MODE_STORAGE) === 'true')
+  }, [ownsForeground])
+
+  const handleNativeFileDrop = useCallback(async (paths: string[]) => {
+    setIsDragOver(false)
+    dragCounter.current = 0
+    if (!paths || paths.length === 0) return
+
+    const newFiles: Array<{ name: string; type: string; content: string; preview?: string }> = []
+    for (const filePath of paths) {
+      try {
+        const fileName = filePath.split(/[/\\]/).pop() || 'file'
+        const ext = fileName.split('.').pop()?.toLowerCase() || ''
+        const mimeType = getMimeTypeFromExt(ext)
+        const assetUrl = convertFileSrc(filePath)
+        const response = await fetch(assetUrl)
+        const blob = await response.blob()
+
+        if (mimeType.startsWith('text/') || ['txt', 'md', 'json', 'csv'].includes(ext)) {
+          const text = await blob.text()
+          newFiles.push({ name: fileName, type: mimeType, content: text })
+        } else {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = () => reject(reader.error)
+            reader.readAsDataURL(blob)
+          })
+          if (mimeType.startsWith('image/')) {
+            const compressed = await compressImage(dataUrl)
+            newFiles.push({ name: fileName, type: compressed.startsWith('data:image/jpeg') ? 'image/jpeg' : mimeType, content: compressed, preview: compressed })
+          } else {
+            newFiles.push({ name: fileName, type: mimeType, content: dataUrl })
+          }
+        }
+      } catch (err) {
+        console.error('Error reading dropped file:', err)
       }
     }
 
-    ;(async () => {
-      const unlistenDrop = await tauriListen<string[]>('tauri://file-drop', async (event) => {
-        if (cancelled) return
-        setIsDragOver(false)
-        dragCounter.current = 0
-
-        const paths = event.payload
-        if (!paths || paths.length === 0) return
-
-        const newFiles: Array<{ name: string; type: string; content: string; preview?: string }> = []
-
-        for (const filePath of paths) {
-          try {
-            const fileName = filePath.split(/[/\\]/).pop() || 'file'
-            const ext = fileName.split('.').pop()?.toLowerCase() || ''
-            const mimeType = getMimeTypeFromExt(ext)
-
-            const assetUrl = convertFileSrc(filePath)
-            const response = await fetch(assetUrl)
-            const blob = await response.blob()
-
-            if (mimeType.startsWith('text/') || ['txt', 'md', 'json', 'csv'].includes(ext)) {
-              const text = await blob.text()
-              newFiles.push({ name: fileName, type: mimeType, content: text })
-            } else {
-              const dataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader()
-                reader.onload = () => resolve(reader.result as string)
-                reader.onerror = () => reject(reader.error)
-                reader.readAsDataURL(blob)
-              })
-              if (mimeType.startsWith('image/')) {
-                const compressed = await compressImage(dataUrl)
-                newFiles.push({ name: fileName, type: compressed.startsWith('data:image/jpeg') ? 'image/jpeg' : mimeType, content: compressed, preview: compressed })
-              } else {
-                newFiles.push({ name: fileName, type: mimeType, content: dataUrl })
-              }
-            }
-          } catch (err) {
-            console.error(`Error reading dropped file:`, err)
-          }
-        }
-
-        if (newFiles.length > 0) {
-          setAttachedFiles(prev => [...prev, ...newFiles])
-
-          // Warn if dropping images with a model that doesn't support vision
-          const hasImages = newFiles.some(f => f.type.startsWith('image/'))
-          if (hasImages) {
-            const { supported, modelName, visionModels } = currentModelSupportsVision()
-            if (!supported) {
-              const visionList = visionModels.length > 0
-                ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
-                : ''
-              pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
-            }
-          }
-        }
-      })
-      registerCleanup(unlistenDrop)
-
-      const unlistenHover = await tauriListen<string[]>('tauri://file-drop-hover', () => {
-        if (cancelled) return
-        setIsDragOver(true)
-      })
-      registerCleanup(unlistenHover)
-
-      const unlistenCancel = await tauriListen('tauri://file-drop-cancelled', () => {
-        if (cancelled) return
-        setIsDragOver(false)
-        dragCounter.current = 0
-      })
-      registerCleanup(unlistenCancel)
-    })()
-
-    return () => {
-      cancelled = true
-      cleanups.forEach(fn => fn())
+    if (newFiles.length === 0) return
+    setAttachedFiles(prev => [...prev, ...newFiles])
+    const hasImages = newFiles.some(file => file.type.startsWith('image/'))
+    if (hasImages) {
+      const { supported, modelName, visionModels } = currentModelSupportsVision()
+      if (!supported) {
+        const visionList = visionModels.length > 0
+          ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
+          : ''
+        pushAssistantRef.current?.(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
+      }
     }
-  }, [active])
+  }, [currentModelSupportsVision])
+
+  useForegroundNativeFileDropEvents({
+    active: ownsForeground,
+    onDrop: handleNativeFileDrop,
+    onHover: () => setIsDragOver(true),
+    onCancel: () => {
+      setIsDragOver(false)
+      dragCounter.current = 0
+    },
+  })
 
   // Listen for Claude Code started/exited events to auto-open Activity Panel
   // and show an indicator in the chat while it's running.
@@ -4803,9 +4743,9 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
   }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId, surfaceMissingStudioConnector])
 
   useEffect(() => {
-    if (active) return
+    if (ownsForeground) return
     endVoiceCapture()
-  }, [active, endVoiceCapture])
+  }, [ownsForeground, endVoiceCapture])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
@@ -4814,14 +4754,14 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
   // Uses pushAssistantRef (not pushAssistant) to avoid re-subscribing on every
   // render, which causes typing latency in the input box.
   useEffect(() => {
-    if (!active) return
+    if (!ownsForeground) return
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
       if (text) pushAssistantRef.current?.(text)
     }
     window.addEventListener('clawd-push-assistant', handler)
     return () => window.removeEventListener('clawd-push-assistant', handler)
-  }, [active])
+  }, [ownsForeground])
 
   // Listen for suggested action triggers from notification handlers.
   // When the user clicks the primary action button on a notification,
@@ -4832,24 +4772,24 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
   busyRef.current = busy
   const queueMessageRef = useRef<(text: string, attachments?: Attachment[]) => void>(() => {})
   useEffect(() => {
-    if (!active) return
+    if (!ownsForeground) return
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
       if (text) handleSendWithTextRef.current?.(text)
     }
     window.addEventListener('clawd-send-user', handler)
     return () => window.removeEventListener('clawd-send-user', handler)
-  }, [active])
+  }, [ownsForeground])
 
   // Listen for requests to open the developer panel from chat intent detection
   useEffect(() => {
-    if (!active) return
+    if (!ownsForeground) return
     const handler = () => {
       if (developerMode) setShowDevPanel(true)
     }
     window.addEventListener('clawd-open-dev-panel', handler)
     return () => window.removeEventListener('clawd-open-dev-panel', handler)
-  }, [active, developerMode])
+  }, [developerMode, ownsForeground])
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])

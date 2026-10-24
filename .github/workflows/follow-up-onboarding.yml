@@ -40,6 +40,7 @@ jobs:
         run: |
           ./node_modules/.bin/vitest run \
             src/components/molecules/EmailComposeDrawer/index.test.tsx \
+            src/components/organisms/ClawdChat/useForegroundInputHandlers.test.tsx \
             src/components/organisms/ClawdChat/useClawdChatKeyboardShortcuts.test.tsx \
             src/components/organisms/ClawdChat/useSubmittedChatRequest.test.tsx \
             src/components/organisms/MeetingNotesMode/MeetingChatPanel.test.tsx \
