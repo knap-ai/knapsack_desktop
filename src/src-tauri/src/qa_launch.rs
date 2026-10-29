@@ -43,6 +43,18 @@ pub(crate) fn is_synthetic_build() -> bool {
   compiled_identity().is_some()
 }
 
+/// Production background work must not even be scheduled in synthetic QA.
+/// The decision comes from compiled identity, never a mutable runtime flag.
+pub(crate) fn start_background_work(start: impl FnOnce()) -> bool {
+  start_background_work_for_build(is_synthetic_build(), start)
+}
+
+fn start_background_work_for_build(synthetic: bool, start: impl FnOnce()) -> bool {
+  if synthetic { return false; }
+  start();
+  true
+}
+
 fn runtime_matches(identity: QaBuildIdentity<'_>, runtime: QaRuntime<'_>) -> bool {
   runtime.synthetic == Some("1")
     && runtime.skip_gateway == Some("1")
@@ -214,5 +226,27 @@ mod tests {
         ..QaRuntime::default()
       },
     ));
+  }
+}
+
+#[cfg(test)]
+mod background_work_tests {
+  use super::*;
+  use std::cell::Cell;
+  #[test]
+  fn synthetic_qa_background_startup_schedules_nothing() {
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() { assert!(is_synthetic_build()); }
+    let scheduled=Cell::new(0);
+    let started=start_background_work(||scheduled.set(scheduled.get()+1));
+    assert_eq!(started,!is_synthetic_build());
+    assert_eq!(scheduled.get(),if is_synthetic_build(){0}else{1});
+  }
+  #[test]
+  fn synthetic_qa_background_policy_preserves_production_startup_once() {
+    let scheduled=Cell::new(0);
+    assert!(!start_background_work_for_build(true,||scheduled.set(scheduled.get()+1)));
+    assert_eq!(scheduled.get(),0);
+    assert!(start_background_work_for_build(false,||scheduled.set(scheduled.get()+1)));
+    assert_eq!(scheduled.get(),1);
   }
 }

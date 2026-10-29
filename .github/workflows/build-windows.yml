@@ -51,7 +51,7 @@ jobs:
 
       - name: Test isolated QA harness
         working-directory: src
-        run: npm run test:qa-harness
+        run: npm run test:qa-harness && npm run test:qa-provider-ui
 
       - name: Create .env from example
         working-directory: src

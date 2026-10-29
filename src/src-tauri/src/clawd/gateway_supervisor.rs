@@ -43,6 +43,7 @@ pub fn gateway_health_url() -> &'static str {
 }
 
 pub async fn is_gateway_healthy(token: &str) -> bool {
+  if super::service::qa_local_only_mode() { return false; }
   let client = match reqwest::Client::builder()
     .timeout(LOCAL_GATEWAY_HEALTH_TIMEOUT)
     .build()
@@ -488,6 +489,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
 /// Returns `true` if the gateway is ready, `false` if it didn't come up in time.
 /// Used by the frontend health-check endpoint to block until the gateway is ready.
 pub async fn wait_for_gateway_ready(token: &str, max_wait_ms: u64) -> bool {
+  if super::service::qa_local_only_mode() { return false; }
   let start = std::time::Instant::now();
   let mut interval_ms: u64 = 500;
   let max_interval_ms: u64 = 3000;

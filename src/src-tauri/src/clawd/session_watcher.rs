@@ -700,6 +700,7 @@ pub(crate) async fn ensure_sandbox_session_headless(scope_key: &str) -> Result<(
 }
 
 async fn poll_once(app_handle: &tauri::AppHandle) {
+  if super::service::qa_local_only_mode() { return; }
   // Piggy-backs on this loop rather than adding another timer: an npm install
   // can delete the gateway runtime's `node_modules/openclaw` self-link at any
   // time, which silently kills every inbound Slack message until it is put
@@ -785,6 +786,7 @@ async fn poll_once(app_handle: &tauri::AppHandle) {
 /// (gateway down, unsupported RPC, malformed response) is logged and
 /// retried on the next tick.
 pub fn spawn(app_handle: tauri::AppHandle) {
+  if super::service::qa_local_only_mode() { return; }
   tokio::spawn(async move {
     loop {
       poll_once(&app_handle).await;

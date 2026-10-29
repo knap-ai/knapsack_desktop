@@ -35,6 +35,7 @@ mod state_backup;
 mod privileged_worker;
 mod pty;
 mod qa_launch;
+mod qa_api;
 mod search;
 mod server;
 mod spotlight;
@@ -431,23 +432,27 @@ fn setup_handler(
   // app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
   let app_handle = app.handle();
-  state_backup::spawn(app_handle.clone());
+  qa_launch::start_background_work(|| {
+    state_backup::spawn(app_handle.clone());
+  });
 
   // Start the gateway as early as possible so it warms in parallel with
   // app-local config and key propagation.
   let auto_enable_handle = app.handle();
-  std::thread::spawn(move || {
-    let rt = crate::utils::runtime::background_runtime().unwrap();
-    rt.block_on(async {
-      clawd::service::auto_enable_if_needed(&auto_enable_handle).await;
-      // Keeps Rust aware of live Slack sessions so the Snowflake MCP tool
-      // can bind queries to a verified sender and per-sender sandbox
-      // containers get torn down promptly (see clawd/session_watcher.rs).
-      clawd::session_watcher::spawn(auto_enable_handle.clone());
-      // `spawn()` only schedules the poll loop on this runtime; keep this
-      // dedicated thread/runtime alive for the app's lifetime so the task
-      // keeps running instead of being dropped once this block finishes.
-      std::future::pending::<()>().await;
+  qa_launch::start_background_work(|| {
+    std::thread::spawn(move || {
+      let rt = crate::utils::runtime::background_runtime().unwrap();
+      rt.block_on(async {
+        clawd::service::auto_enable_if_needed(&auto_enable_handle).await;
+        // Keeps Rust aware of live Slack sessions so the Snowflake MCP tool
+        // can bind queries to a verified sender and per-sender sandbox
+        // containers get torn down promptly (see clawd/session_watcher.rs).
+        clawd::session_watcher::spawn(auto_enable_handle.clone());
+        // `spawn()` only schedules the poll loop on this runtime; keep this
+        // dedicated thread/runtime alive for the app's lifetime so the task
+        // keeps running instead of being dropped once this block finishes.
+        std::future::pending::<()>().await;
+      });
     });
   });
 
@@ -512,34 +517,40 @@ fn setup_handler(
   });
 
   // Start the heartbeat background loop
-  std::thread::spawn(move || match crate::utils::runtime::background_runtime() {
-    Ok(runtime) => {
-      runtime.block_on(heartbeat::engine::start_heartbeat_loop(
-        heartbeat_app_handle,
-        heartbeat_is_chatting,
-      ));
-    }
-    Err(e) => {
-      eprintln!("Failed to create tokio runtime for heartbeat: {}", e);
-    }
+  qa_launch::start_background_work(|| {
+    std::thread::spawn(move || match crate::utils::runtime::background_runtime() {
+      Ok(runtime) => {
+        runtime.block_on(heartbeat::engine::start_heartbeat_loop(
+          heartbeat_app_handle,
+          heartbeat_is_chatting,
+        ));
+      }
+      Err(e) => {
+        eprintln!("Failed to create tokio runtime for heartbeat: {}", e);
+      }
+    });
   });
 
   // Start the library curator background loop. Auto-populates the user's
   // Library with People + Project collections from synced data sources.
-  std::thread::spawn(|| {
-    crate::utils::runtime::background_runtime()
-      .unwrap()
-      .block_on(library_curator::run_curator_forever());
+  qa_launch::start_background_work(|| {
+    std::thread::spawn(|| {
+      crate::utils::runtime::background_runtime()
+        .unwrap()
+        .block_on(library_curator::run_curator_forever());
+    });
   });
 
   // Memory monitor: samples our process tree's RSS and reports outliers
   // to Sentry. Required after a Windows tester reported the app sitting
   // at ~590 MB with no per-user telemetry to identify whether the
   // condition is widespread.
-  std::thread::spawn(|| {
-    crate::utils::runtime::background_runtime()
-      .unwrap()
-      .block_on(utils::memory_monitor::start_memory_monitor_loop());
+  qa_launch::start_background_work(|| {
+    std::thread::spawn(|| {
+      crate::utils::runtime::background_runtime()
+        .unwrap()
+        .block_on(utils::memory_monitor::start_memory_monitor_loop());
+    });
   });
 
   info!(

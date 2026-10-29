@@ -336,6 +336,7 @@ static CONNECT_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
   once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
 
 async fn ensure_gateway_best_effort(token: &str) {
+  if super::service::qa_local_only_mode() { return; }
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
 }
 
@@ -348,6 +349,7 @@ async fn ensure_gateway_best_effort(token: &str) {
 /// of how the gateway was started.
 /// Returns `true` when the on-disk config was changed (browser settings patched).
 fn ensure_browser_config() -> bool {
+  if super::service::qa_local_only_mode() { return false; }
   // On Windows, HOME is typically not set — fall back to USERPROFILE.
   let home = match std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
     Ok(h) => h,
@@ -1868,6 +1870,7 @@ pub fn build_model_config() -> serde_json::Value {
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
 /// we use a throwaway connection and wait for the gateway to come back.
 async fn apply_runtime_browser_config(token: &str) -> bool {
+  if super::service::qa_local_only_mode() { return false; }
   if BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed) {
     eprintln!(
       "[gateway_client] Skipping runtime config.patch because this gateway build does not expose config.get"
@@ -2364,6 +2367,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
 }
 
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   // Check whether the gateway process is already running BEFORE touching the
   // config file.  Writing to the config while the gateway watches it triggers
   // "Config overwrite / missing-meta-before-write" anomalies and unnecessary
@@ -2618,6 +2622,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 }
 
 async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   // Fast path: return existing connection.
   {
     let guard = CLIENT.read().unwrap();
@@ -2696,6 +2701,7 @@ const GATEWAY_HEALTH_PATHS: [&str; 2] = ["/healthz", "/health"];
 /// 3. Gives up after 20 attempts and lets health-check polling drive any
 ///    further recovery.
 fn spawn_reconnect_task(token: String) {
+  if super::service::qa_local_only_mode() { return; }
   // Only one reconnect task at a time.
   if RECONNECT_IN_PROGRESS.swap(true, Ordering::Relaxed) {
     return;
@@ -2824,6 +2830,7 @@ pub fn invalidate() {
 /// pooled WS client is None — i.e. spawn_reconnect_task previously exhausted
 /// its 20 attempts while the gateway stayed up.
 pub fn ensure_reconnect_if_needed() {
+  if super::service::qa_local_only_mode() { return; }
   // Fast path: connection is alive.
   {
     let guard = CLIENT.read().unwrap();
@@ -2847,6 +2854,7 @@ pub fn ensure_reconnect_if_needed() {
 /// errors that a raw TCP connect-then-drop generates.  Any HTTP response
 /// (including 401/404) confirms the port is up.
 pub async fn is_gateway_port_open() -> bool {
+  if super::service::qa_local_only_mode() { return false; }
   let is_gateway_http_open = |timeout: Duration| async move {
     let client = match reqwest::Client::builder().timeout(timeout).build() {
       Ok(c) => c,
@@ -2882,6 +2890,7 @@ pub async fn is_gateway_port_open() -> bool {
 }
 
 async fn gateway_ws_handshake_open(token: &str, timeout: Duration) -> bool {
+  if super::service::qa_local_only_mode() { return false; }
   async fn probe(token: &str) -> Result<(), String> {
     let mut ws_req = GATEWAY_WS_URL
       .into_client_request()
@@ -2982,6 +2991,7 @@ async fn gateway_ws_handshake_open(token: &str, timeout: Duration) -> bool {
 /// Used by `gateway_or_bail()` in channels.rs to try restarting the
 /// gateway before returning an error to the frontend.
 pub async fn ensure_gateway_and_wait() {
+  if super::service::qa_local_only_mode() { return; }
   if let Ok(token) = resolve_token(None) {
     ensure_gateway_best_effort(&token).await;
   }
@@ -3005,6 +3015,7 @@ async fn gateway_request_pooled_inner(
   allow_unknown_method_retry: bool,
   allow_connection_retry: bool,
 ) -> Result<Value, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   let _setup_configuration = crate::state_backup::imessage::config_write_guard(method, &params).await?;
   let client = get_or_connect(token).await?;
 
@@ -3214,6 +3225,7 @@ async fn gateway_request_agent_inner(
   deadline: Instant,
   allow_connection_retry: bool,
 ) -> Result<Value, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   if Instant::now() >= deadline {
     return Err("Agent request timed out".to_string());
   }
@@ -3344,6 +3356,7 @@ async fn gateway_request_agent_inner(
 
 /// Get the gateway token from environment or config file.
 fn get_gateway_token() -> Option<String> {
+  if super::service::qa_local_only_mode() { return None; }
   if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
     let t = token.trim().to_string();
     if !t.is_empty() {
@@ -3385,6 +3398,7 @@ fn get_gateway_token() -> Option<String> {
 /// Read the gateway token directly from config files, bypassing env vars.
 /// Used as a fallback when the env var token doesn't match the running gateway.
 fn read_token_from_config() -> Option<String> {
+  if super::service::qa_local_only_mode() { return None; }
   // On Windows, HOME is typically not set — fall back to USERPROFILE.
   let home = std::env::var("HOME")
     .or_else(|_| std::env::var("USERPROFILE"))
@@ -3435,6 +3449,7 @@ fn read_token_from_config() -> Option<String> {
 }
 
 pub(crate) fn resolve_token(token: Option<&str>) -> Result<String, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   if let Some(t) = token {
     return Ok(t.to_string());
   }
@@ -4435,5 +4450,38 @@ mod tests {
       "request failed: object {\"message\":\"Unknown Method: skills.status\"}",
       "skills.status"
     ));
+  }
+}
+
+#[cfg(test)]
+mod synthetic_gateway_isolation_tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn synthetic_gateway_blocks_clients_probes_and_token_fallback() {
+    // Exercised with the compile-time QA identity, never by mutating process env.
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() {
+      assert!(crate::qa_launch::is_synthetic_build(), "Use test:qa-gateway-rust to compile the QA identity");
+    }
+    if !crate::qa_launch::is_synthetic_build() { return; }
+    assert!(super::super::service::qa_local_only_mode());
+    assert!(resolve_token(Some("fictional-qa-token")).is_err());
+    assert!(get_gateway_token().is_none());
+    assert!(read_token_from_config().is_none());
+    assert!(get_or_connect("fictional-qa-token").await.is_err());
+    assert!(connect_and_handshake("fictional-qa-token").await.is_err());
+    for result in [
+      gateway_request_pooled("sessions.list", None, "fictional-qa-token").await,
+      gateway_request_pooled_optional("sessions.list", None, "fictional-qa-token").await,
+      gateway_request_agent("agent", None, "fictional-qa-token", 1).await,
+    ] {
+      assert!(result.unwrap_err().contains("disabled for synthetic/local-only QA"));
+    }
+    assert!(!is_gateway_port_open().await);
+    assert!(!gateway_ws_handshake_open("fictional-qa-token", Duration::from_millis(1)).await);
+    assert!(!apply_runtime_browser_config("fictional-qa-token").await);
+    assert!(!ensure_browser_config());
+    assert!(!super::super::gateway_supervisor::is_gateway_healthy("fictional-qa-token").await);
+    assert!(!super::super::gateway_supervisor::wait_for_gateway_ready("fictional-qa-token", 1).await);
   }
 }

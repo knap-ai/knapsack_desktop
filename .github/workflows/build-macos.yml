@@ -48,7 +48,9 @@ jobs:
           VITE_KN_API_SERVER: http://127.0.0.1:8897
           VITE_GOOGLE_CLIENT_ID: unused
         run: |
-          npm run test:qa-harness
+          npm run test:qa-harness && npm run test:qa-provider-ui
+          npm run test:qa-gateway-rust
+          npm run test:qa-background-rust
           cargo test --manifest-path src-tauri/Cargo.toml --no-default-features synthetic_qa_ -- --nocapture
           CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false cargo test --manifest-path src-tauri/Cargo.toml --no-default-features synthetic_qa_gateway_guard_survives_disabled_debug_assertions -- --nocapture
 

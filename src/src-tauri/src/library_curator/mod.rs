@@ -29,6 +29,7 @@ const CURATOR_STARTUP_DELAY_SECS: u64 = 120;
 /// Drive the curator forever from a dedicated tokio runtime. Call this from
 /// inside `Runtime::block_on(...)` on a worker thread spawned at startup.
 pub async fn run_curator_forever() {
+  if crate::qa_launch::is_synthetic_build() { return; }
   static STARTED: AtomicBool = AtomicBool::new(false);
   if STARTED.swap(true, Ordering::SeqCst) {
     log::warn!("[library_curator] already started; skipping");
@@ -52,6 +53,7 @@ pub async fn run_curator_forever() {
 /// Run a single end-to-end curation pass. Exposed so the API endpoint
 /// `POST /api/knapsack/library/curate-now` can trigger it on demand.
 pub async fn run_curation_pass() -> Result<(), Error> {
+  if crate::qa_launch::is_synthetic_build() { return Err(Error::KSError("Library curator is disabled in isolated QA.".into())); }
   let mut cfg = settings::CuratorSettings::load();
   if !cfg.enabled {
     log::info!("[library_curator] disabled by user; skipping pass");
@@ -86,4 +88,16 @@ pub async fn run_curation_pass() -> Result<(), Error> {
   cfg.mark_run_now();
   log::info!("[library_curator] pass complete");
   Ok(())
+}
+
+#[cfg(test)]
+mod synthetic_qa_tests {
+  #[tokio::test]
+  async fn synthetic_qa_curator_has_no_timer_or_manual_context_access() {
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() { assert!(crate::qa_launch::is_synthetic_build()); }
+    if !crate::qa_launch::is_synthetic_build() { return; }
+    assert!(tokio::time::timeout(std::time::Duration::from_millis(50),super::run_curator_forever()).await.is_ok());
+    let error=super::run_curation_pass().await.unwrap_err();
+    assert!(format!("{:?}",error).contains("Library curator is disabled in isolated QA."));
+  }
 }
