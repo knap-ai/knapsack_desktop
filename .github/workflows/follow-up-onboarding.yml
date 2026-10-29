@@ -26,6 +26,8 @@ jobs:
           cache-dependency-path: src/package-lock.json
       - run: npm ci --ignore-scripts
       - run: ./node_modules/.bin/tsc --noEmit
+      - name: Test release preparation safety
+        run: node --test scripts/release-preparation.test.cjs
       - name: Repeat synthetic onboarding, owner-thread, reminder and continuity QA
         shell: bash
         run: |

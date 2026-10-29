@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Reviewed main commit to prepare; publication remains a separate gate
+        required: true
+        type: string
 
 concurrency:
   group: release-main
@@ -19,11 +24,26 @@ jobs:
     outputs:
       tag: ${{ steps.bump.outputs.tag }}
       version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ inputs.expected_sha }}
           fetch-depth: 0
+
+      - name: Verify reviewed main source
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_REF" = refs/heads/main
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git fetch origin main --tags
+          test "$(git rev-parse origin/main)" = "$EXPECTED_SHA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -36,18 +56,22 @@ jobs:
         run: node scripts/bump-version.cjs
 
       - name: Commit and tag
+        id: commit
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
         run: |
+          set -euo pipefail
           TAG="${{ steps.bump.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main --tags
-          git add -A
+          test "$(git rev-parse origin/main)" = "$EXPECTED_SHA"
+          git add src/package.json src/package-lock.json src/src-tauri/tauri.conf.json
           if git diff --cached --quiet; then
             echo "No version changes to commit."
           else
             git commit -m "release: $TAG"
           fi
-          git rebase origin/main
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
             echo "ERROR: tag $TAG already exists on origin; refusing to reuse it for a new release commit."
             exit 1
@@ -55,6 +79,7 @@ jobs:
           git push origin HEAD:main
           git tag "$TAG"
           git push origin "refs/tags/$TAG"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # macOS — Universal binary (arm64 + x86_64), signed & notarized
@@ -65,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.bump-version.outputs.tag }}
+          ref: ${{ needs.bump-version.outputs.sha }}
 
       - name: Install Rust stable with targets
         uses: dtolnay/rust-toolchain@stable
@@ -339,7 +364,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.bump-version.outputs.tag }}
+          ref: ${{ needs.bump-version.outputs.sha }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -657,13 +682,16 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Create GitHub Release with all artifacts + latest.json for auto-updater
+  # Stage a draft; publication/updater rollout follows separate artifact acceptance
   # ---------------------------------------------------------------------------
-  publish-release:
+  stage-release:
     needs: [bump-version, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.bump-version.outputs.sha }}
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v6
@@ -762,7 +790,37 @@ jobs:
           echo "[release] Files to upload:"
           ls -lh release-files/
 
-      - name: Stage and publish GitHub Release
+      - name: Record release provenance and checksums
+        env:
+          REVIEWED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_SHA: ${{ needs.bump-version.outputs.sha }}
+          TAG: ${{ needs.bump-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(git rev-parse "$TAG^{commit}")" = "$RELEASE_SHA"
+          python3 - <<'PYTHON'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path("release-files")
+          (root / "provenance.json").write_text(json.dumps({
+              "reviewed_sha": os.environ["REVIEWED_SHA"],
+              "release_sha": os.environ["RELEASE_SHA"],
+              "tag": os.environ["TAG"],
+              "workflow_run": os.environ["GITHUB_RUN_ID"],
+              "workflow_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+          }, indent=2) + "\n")
+          files = sorted(p for p in root.iterdir() if p.is_file() and p.name != "SHA256SUMS")
+          with (root / "SHA256SUMS").open("w") as output:
+              for path in files:
+                  digest = hashlib.sha256()
+                  with path.open("rb") as source:
+                      for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                          digest.update(chunk)
+                  output.write(f"{digest.hexdigest()}  {path.name}\n")
+          PYTHON
+
+      - name: Stage draft GitHub Release for artifact acceptance
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.bump-version.outputs.tag }}
@@ -772,21 +830,13 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft)
             if [ "$IS_DRAFT" != "true" ]; then
-              echo "[release] $TAG is already published; verifying immutable assets."
-              PUBLISHED_ASSETS=$(gh release view "$TAG" --json assets --jq '.assets[].name')
-              for file in release-files/*; do
-                name=$(basename "$file")
-                if ! grep -Fxq "$name" <<<"$PUBLISHED_ASSETS"; then
-                  echo "Published immutable release is missing asset: $name" >&2
-                  exit 1
-                fi
-              done
-              exit 0
+              echo "Refusing to modify an already published release: $TAG" >&2
+              exit 1
             fi
             echo "[release] Reusing existing draft for $TAG."
           else
             # Immutable releases cannot accept assets after publication. Create
-            # a draft first, upload everything, then publish in one final step.
+            # a draft first. Publish only after separate artifact acceptance.
             gh release create "$TAG" \
               --title "$TAG" \
               --generate-notes \
@@ -794,4 +844,4 @@ jobs:
           fi
 
           gh release upload "$TAG" release-files/* --clobber
-          gh release edit "$TAG" --draft=false
+          echo "[release] Draft staged; publication and updater rollout remain held for artifact acceptance."
