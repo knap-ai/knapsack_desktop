@@ -104,6 +104,7 @@ struct AuthInfo {
 }
 
 async fn ensure_gateway_best_effort(token: Option<&str>) {
+  if super::service::qa_local_only_mode() { return; }
   let Some(token) = token else {
     return;
   };
@@ -111,6 +112,7 @@ async fn ensure_gateway_best_effort(token: Option<&str>) {
 }
 
 fn read_token_from_json(path: &Path) -> Option<String> {
+  if super::service::qa_local_only_mode() { return None; }
   let content = std::fs::read_to_string(path).ok()?;
   let config = serde_json::from_str::<serde_json::Value>(&content).ok()?;
 
@@ -168,6 +170,7 @@ async fn gateway_request_once(
   params: Option<Value>,
   token: Option<&str>,
 ) -> Result<Value, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   // Best-effort: ensure gateway is up before connecting.
   ensure_gateway_best_effort(token).await;
 
@@ -347,6 +350,7 @@ pub async fn gateway_request(
   params: Option<Value>,
   token: Option<&str>,
 ) -> Result<Value, String> {
+  if super::service::qa_local_only_mode() { return Err("Gateway access is disabled for synthetic/local-only QA".to_string()); }
   let _setup_configuration = crate::state_backup::imessage::config_write_guard(method, &params).await?;
   let mut current_token = token.map(ToString::to_string);
   let mut self_heal_attempted = false;
@@ -394,6 +398,7 @@ pub async fn gateway_request(
 
 /// Get the gateway token from environment or config file
 fn get_gateway_token() -> Option<String> {
+  if super::service::qa_local_only_mode() { return None; }
   if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
     let t = token.trim().to_string();
     if !t.is_empty() {
@@ -587,6 +592,27 @@ mod scheduled_owner_tests {
     assert_eq!(params["payload"]["text"], "Review my tasks");
     for session in [None, Some("ui"), Some("ui-agent-")] {
       assert!(cron_add_params("Shared", Value::Null, Value::Null, session).get("sessionKey").is_none());
+    }
+  }
+}
+
+#[cfg(test)]
+mod synthetic_gateway_isolation_tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn synthetic_gateway_blocks_one_shot_and_credential_reads() {
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() {
+      assert!(crate::qa_launch::is_synthetic_build(), "Use test:qa-gateway-rust to compile the QA identity");
+    }
+    if !crate::qa_launch::is_synthetic_build() { return; }
+    assert!(get_gateway_token().is_none());
+    assert!(read_token_from_json(Path::new("/never-read-qa-sentinel")).is_none());
+    for result in [
+      gateway_request_once("status", None, Some("fictional-qa-token")).await,
+      gateway_request("status", None, Some("fictional-qa-token")).await,
+    ] {
+      assert!(result.unwrap_err().contains("disabled for synthetic/local-only QA"));
     }
   }
 }

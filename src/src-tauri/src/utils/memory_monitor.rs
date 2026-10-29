@@ -56,6 +56,7 @@ struct Snapshot {
 }
 
 pub async fn start_memory_monitor_loop() {
+  if crate::qa_launch::is_synthetic_build() { return; }
   info!("[memory_monitor] background loop started");
   let started_at = Instant::now();
 
@@ -301,5 +302,15 @@ mod tests {
     // The tree must include this process, and our own RSS must be > 0.
     assert!(snap.main_rss_mb > 0);
     assert!(snap.tree_rss_mb >= snap.main_rss_mb);
+  }
+}
+
+#[cfg(test)]
+mod synthetic_qa_tests {
+  #[tokio::test]
+  async fn synthetic_qa_memory_monitor_does_not_start_sampling() {
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() { assert!(crate::qa_launch::is_synthetic_build()); }
+    if !crate::qa_launch::is_synthetic_build() { return; }
+    assert!(tokio::time::timeout(std::time::Duration::from_millis(50),super::start_memory_monitor_loop()).await.is_ok());
   }
 }

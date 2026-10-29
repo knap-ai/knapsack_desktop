@@ -22,6 +22,9 @@
     "qa:dev": "node scripts/qa-dev-run.cjs",
     "preqa:dev": "node scripts/fix-rollup-native.cjs",
     "qa:loop": "node scripts/qa-loop-runner.cjs",
+    "test:qa-harness": "node --test scripts/qa-dev-run.test.cjs scripts/qa-process-safety.test.cjs scripts/qa-loop-runner.test.cjs scripts/qa-gateway-isolation.test.cjs scripts/qa-gateway-rust-tests.test.cjs scripts/qa-provider-isolation.test.cjs scripts/qa-background-isolation.test.cjs",
+    "test:qa-provider-ui": "vitest run src/utils/privacyProviderSelection.qa.test.ts",
+    "test:qa-gateway-rust": "node scripts/qa-gateway-rust-tests.cjs",
     "test:qa-loop": "node --test scripts/qa-loop-runner.test.cjs",
     "test:app-update": "node --test scripts/app-update.test.cjs",
     "test:onboarding-intent": "node --test scripts/onboarding-intent.test.cjs",
@@ -45,7 +48,8 @@
     "pretauri": "node scripts/fix-rollup-native.cjs",
     "tauri": "node scripts/load-env-and-run.cjs tauri",
     "postinstall": "node scripts/fix-rollup-native.cjs",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "test:qa-background-rust": "node scripts/qa-background-rust-tests.cjs"
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^1.3.0",

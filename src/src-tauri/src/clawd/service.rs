@@ -615,8 +615,12 @@ fn qa_local_only_value(value: Option<&str>) -> bool {
   value == Some("1")
 }
 
-fn qa_local_only_enabled(debug_build: bool, value: Option<&str>) -> bool {
-  debug_build && qa_local_only_value(value)
+fn qa_local_only_enabled(
+  synthetic_build: bool,
+  debug_build: bool,
+  value: Option<&str>,
+) -> bool {
+  synthetic_build || (debug_build && qa_local_only_value(value))
 }
 
 /// Local-only QA must not write, start, stop, or repair any gateway service.
@@ -624,6 +628,7 @@ fn qa_local_only_enabled(debug_build: bool, value: Option<&str>) -> bool {
 /// fail closed even when invoked indirectly by a frontend refresh.
 pub(crate) fn qa_local_only_mode() -> bool {
   qa_local_only_enabled(
+    crate::qa_launch::is_synthetic_build(),
     cfg!(debug_assertions),
     std::env::var("KNAPSACK_QA_SKIP_GATEWAY")
       .ok()
@@ -6332,6 +6337,7 @@ pub(crate) fn groq_privacy_fingerprint(app_handle: &tauri::AppHandle) -> Result<
 /// The renderer never needs API keys to select a qualified provider.
 #[tauri::command]
 pub fn privacy_provider_candidates(app_handle: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+  if crate::qa_launch::is_synthetic_build() { return Ok(vec![]); }
   let tokens = load_or_create_tokens(&app_handle)?;
   if tokens.active_provider.as_deref() == Some("openai")
     && tokens
@@ -6365,6 +6371,7 @@ pub fn privacy_provider_candidates(app_handle: tauri::AppHandle) -> Result<Vec<s
 }
 
 pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
+  if crate::qa_launch::is_synthetic_build() { return; }
   let mut tokens = match load_or_create_tokens(app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -6563,6 +6570,7 @@ fn sync_portable_api_key_auth_profiles(
   app_handle: &tauri::AppHandle,
   tokens: &StoredTokens,
 ) -> Result<(), String> {
+  if crate::qa_launch::is_synthetic_build() { return Err(crate::qa_api::ISOLATED_MESSAGE.to_string()); }
   let agent_dir = app_clawdbot_home(app_handle)
     .join("agents")
     .join("main")
@@ -6744,6 +6752,7 @@ fn sync_portable_api_key_auth_config(
   app_handle: &tauri::AppHandle,
   tokens: &StoredTokens,
 ) -> Result<(), String> {
+  if crate::qa_launch::is_synthetic_build() { return Err(crate::qa_api::ISOLATED_MESSAGE.to_string()); }
   let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
   if !config_path.exists() {
     return Ok(());
@@ -6927,6 +6936,7 @@ fn sync_portable_api_key_auth_config(
 }
 
 fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(), String> {
+  if crate::qa_launch::is_synthetic_build() { return Err(crate::qa_api::ISOLATED_MESSAGE.to_string()); }
   let home = app_clawdbot_home(app_handle);
   ensure_dir(&home)?;
   harden_dir_permissions(&home);
@@ -8385,6 +8395,7 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
 
 #[get("/api/clawd/service/health")]
 pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
     // On unsupported platforms, still check if the gateway happens to be running.
@@ -9058,6 +9069,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 /// warming after the local gateway is safe for the desktop to use.
 #[get("/api/clawd/service/startup-ready")]
 pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   use crate::clawd::{gateway_supervisor, gateway_ws};
 
   let tokens = match load_or_create_tokens(&app_handle) {
@@ -9396,6 +9408,7 @@ fn mac_service_status_summary(
 
 #[get("/api/clawd/service/status")]
 pub async fn service_status() -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
     return HttpResponse::NotImplemented().json(ServiceStatusResponse {
@@ -9620,6 +9633,7 @@ fn knapsack_auth_is_expired(tokens: &StoredTokens) -> bool {
 
 #[get("/api/clawd/service/api-key-status")]
 pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -9857,6 +9871,7 @@ pub struct ValidateApiKeyResponse {
 
 #[post("/api/clawd/service/validate-api-key")]
 pub async fn validate_api_key(payload: web::Json<ValidateApiKeyRequest>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let key = payload.key.trim().to_string();
   if key.is_empty() {
     return HttpResponse::BadRequest().json(ValidateApiKeyResponse {
@@ -10068,6 +10083,7 @@ pub async fn set_api_key(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<SetApiKeyRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -10814,6 +10830,7 @@ pub async fn set_session_capability_secret(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<SetSessionCapabilitySecretRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -10860,6 +10877,7 @@ pub struct SessionCapabilitySecretStatusResponse {
 pub async fn session_capability_secret_status(
   app_handle: web::Data<tauri::AppHandle>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(_) => {
@@ -10889,6 +10907,7 @@ pub async fn delete_extra_provider_key(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<DeleteExtraProviderKeyRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -10957,6 +10976,7 @@ pub async fn ollama_status(
   app_handle: web::Data<tauri::AppHandle>,
   query: web::Query<OllamaRuntimeQuery>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   let tokens = load_or_create_tokens(&app_handle).ok();
   let base_url = if query.cloud {
     OLLAMA_CLOUD_BASE_URL.to_string()
@@ -11008,6 +11028,7 @@ pub async fn ollama_models(
   app_handle: web::Data<tauri::AppHandle>,
   query: web::Query<OllamaRuntimeQuery>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   let tokens = load_or_create_tokens(&app_handle).ok();
   let base_url = if query.cloud {
     OLLAMA_CLOUD_BASE_URL.to_string()
@@ -11145,6 +11166,7 @@ async fn fetch_ollama_model_runtime_details(
   model: &str,
   api_key: Option<&str>,
 ) -> Option<(Option<u64>, bool)> {
+  if crate::qa_launch::is_synthetic_build() { return None; }
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(5))
     .build()
@@ -11430,6 +11452,7 @@ pub struct DockerModeConfigureRequest {
 /// startup" invariant.
 #[get("/api/clawd/service/docker-mode-status")]
 pub async fn docker_mode_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -11460,6 +11483,7 @@ pub async fn docker_mode_configure(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<DockerModeConfigureRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -11515,6 +11539,7 @@ pub async fn ollama_configure(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<OllamaConfigRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -11778,6 +11803,7 @@ pub async fn ollama_delete(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<OllamaDeleteRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let tokens = load_or_create_tokens(&app_handle).ok();
   let base_url = local_ollama_base_url(tokens.as_ref());
 
@@ -11825,6 +11851,7 @@ pub async fn ollama_pull(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<OllamaPullRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let tokens = load_or_create_tokens(&app_handle).ok();
   let base_url = local_ollama_base_url(tokens.as_ref());
 
@@ -11892,6 +11919,7 @@ pub struct GetApiKeyResponse {
 
 #[get("/api/clawd/service/get-api-key")]
 pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::isolated_status(); }
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(_) => {
@@ -11970,6 +11998,7 @@ pub async fn set_llm_keys(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<SetLlmKeysRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -13927,6 +13956,7 @@ pub async fn set_service_enabled(
   cfg: web::Data<SharedClawdbotConfig>,
   payload: web::Json<EnableServiceRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
     return HttpResponse::NotImplemented().json(EnableServiceResponse {
@@ -16416,6 +16446,7 @@ pub async fn gemini_connect(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<GeminiConnectRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   match do_gemini_connect(&app_handle, &payload.code).await {
     Ok(email) => HttpResponse::Ok().json(GeminiConnectResponse {
       success: true,
@@ -16561,6 +16592,7 @@ pub async fn start_oauth_login(
   _app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<StartOAuthLoginRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   match payload.provider.as_str() {
     "openrouter" => {
       let verifier = generate_oauth_random(64);
@@ -16714,12 +16746,12 @@ fn apply_knapsack_account_sign_in(tokens: &mut StoredTokens, sign_in: &DesktopSi
   tokens.knapsack_model = Some(normalized_knapsack_model);
 }
 
-async fn exchange_and_store_knapsack_code(
-  app_handle: &tauri::AppHandle,
+async fn exchange_knapsack_code(
+  client: &reqwest::Client,
+  api_base: &str,
   code: &str,
-) -> Result<String, String> {
-  let api_base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
-  let client = reqwest::Client::new();
+) -> Result<DesktopSignInApiResponse, String> {
+  if crate::qa_launch::is_synthetic_build() { return Err(crate::qa_api::ISOLATED_MESSAGE.to_string()); }
   let resp = client
     .post(format!("{}/api/authentication/desktop-sign-in", api_base))
     .json(&serde_json::json!({ "code": code }))
@@ -16741,10 +16773,20 @@ async fn exchange_and_store_knapsack_code(
     return Err(format!("Sign-in failed ({})", status));
   }
 
-  let sign_in: DesktopSignInApiResponse = serde_json::from_str(&body_text).map_err(|e| {
+  serde_json::from_str(&body_text).map_err(|e| {
     log::error!("[knapsack_auth] failed to parse exchange response: {}", e);
     "Invalid server response".to_string()
-  })?;
+  })
+}
+
+async fn exchange_and_store_knapsack_code(
+  app_handle: &tauri::AppHandle,
+  code: &str,
+) -> Result<String, String> {
+  if crate::qa_launch::is_synthetic_build() { return Err(crate::qa_api::ISOLATED_MESSAGE.to_string()); }
+  let api_base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+  let client = reqwest::Client::new();
+  let sign_in = exchange_knapsack_code(&client, api_base, code).await?;
 
   let mut tokens = load_or_create_tokens(app_handle).map_err(|e| {
     log::error!("[knapsack_auth] failed to load tokens for storage: {}", e);
@@ -16784,6 +16826,7 @@ pub async fn knapsack_auth_callback(
   app_handle: web::Data<tauri::AppHandle>,
   query: web::Query<KnapsackCallbackQuery>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let code = match query.code.as_deref().filter(|c| !c.is_empty()) {
     Some(c) => c.to_string(),
     None => return oauth_html_page(false, "Missing authorization code."),
@@ -16800,6 +16843,7 @@ pub async fn knapsack_auth_callback(
 
 #[post("/api/clawd/service/knapsack-disconnect")]
 pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -16892,6 +16936,7 @@ pub struct MeetingBriefSlackSearchRequest {
 pub async fn meeting_brief_slack_search(
   body: web::Json<MeetingBriefSlackSearchRequest>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let queries = body
     .queries
     .iter()
@@ -16954,6 +16999,7 @@ pub async fn start_studio_connector_oauth(
   app_handle: web::Data<tauri::AppHandle>,
   connector: web::Path<String>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let connector = connector.into_inner().trim().to_ascii_lowercase();
   if connector != "slack" {
     return HttpResponse::BadRequest().json(StudioConnectorOauthResponse {
@@ -17043,6 +17089,7 @@ pub async fn remove_studio_connector_account(
   app_handle: web::Data<tauri::AppHandle>,
   connection_id: web::Path<i64>,
 ) -> impl Responder {
+  if crate::qa_launch::is_synthetic_build() { return crate::qa_api::denied(); }
   let token = match studio_access_token(app_handle.get_ref()).await {
     Ok(token) => token,
     Err(message) => {
@@ -19948,13 +19995,14 @@ mod service_status_message_tests {
   }
 
   #[test]
-  fn local_only_qa_flag_is_fail_closed() {
+  fn synthetic_qa_gateway_guard_survives_disabled_debug_assertions() {
     assert!(qa_local_only_value(Some("1")));
     assert!(!qa_local_only_value(Some("true")));
     assert!(!qa_local_only_value(Some("0")));
     assert!(!qa_local_only_value(None));
-    assert!(qa_local_only_enabled(true, Some("1")));
-    assert!(!qa_local_only_enabled(false, Some("1")));
+    assert!(qa_local_only_enabled(false, true, Some("1")));
+    assert!(!qa_local_only_enabled(false, false, Some("1")));
+    assert!(qa_local_only_enabled(true, false, None));
   }
 
   #[test]
@@ -20030,5 +20078,39 @@ mod service_status_message_tests {
     ));
     assert!(is_noisy_browser_probe_error("deadline has elapsed"));
     assert!(!is_noisy_browser_probe_error("connection refused"));
+  }
+}
+
+#[cfg(test)]
+mod synthetic_knapsack_callback_tests {
+  use super::*;
+  use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+  use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+  #[tokio::test]
+  async fn synthetic_gateway_knapsack_exchange_sends_no_http() {
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() {
+      assert!(crate::qa_launch::is_synthetic_build(), "Use test:qa-gateway-rust");
+    }
+    if !crate::qa_launch::is_synthetic_build() { return; }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let requests = Arc::new(AtomicUsize::new(0));
+    let observed = requests.clone();
+    let server = tokio::spawn(async move {
+      let (mut stream, _) = listener.accept().await.unwrap();
+      observed.fetch_add(1, Ordering::SeqCst);
+      let mut buffer = [0; 4096];
+      let _ = stream.read(&mut buffer).await;
+      let body = r#"{"access_token":"fictional-access","refresh_token":"fictional-refresh","email":"fixture@example.test"}"#;
+      let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+      let _ = stream.write_all(response.as_bytes()).await;
+    });
+    let client = reqwest::Client::builder().no_proxy()
+      .timeout(std::time::Duration::from_secs(2)).build().unwrap();
+    let result = exchange_knapsack_code(&client, &endpoint, "fictional-code").await;
+    server.abort();
+    assert_eq!(requests.load(Ordering::SeqCst), 0, "QA contacted the mock exchange endpoint");
+    assert!(matches!(result, Err(ref message) if message == crate::qa_api::ISOLATED_MESSAGE));
   }
 }

@@ -9,6 +9,7 @@ async function api(path: string, body?: object) {
   return result
 }
 export async function selectPrivacyProvider(inference: string): Promise<string | null> {
+  if (import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1') return null
   const candidates = await invoke<Array<{ provider: string; model: string }>>('privacy_provider_candidates')
   // Selecting a stricter policy takes effect first. Failure to find a route
   // leaves inference blocked; it must never roll back the privacy choice.

@@ -2650,6 +2650,9 @@ async function runMode(mode, opts = {}) {
 }
 
 async function runLoop() {
+  throw new Error(
+    "qa:loop is disabled until it uses the nondestructive synthetic launcher contract; no ports or services were changed",
+  );
   const opts = parseArgs();
   const modes =
     opts.mode === "prod"
