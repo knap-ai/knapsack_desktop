@@ -34,6 +34,8 @@ mod privacy_mode;
 mod state_backup;
 mod privileged_worker;
 mod pty;
+#[cfg(knapsack_synthetic_qa)]
+mod qa_dom_probes;
 mod qa_launch;
 mod qa_api;
 mod search;
@@ -1916,11 +1918,15 @@ async fn run_app() {
         }
       }
 
+      let main_url: tauri::WindowUrl = Default::default();
+      #[cfg(knapsack_synthetic_qa)]
+      let main_url = if qa_dom_probes::enabled() { tauri::WindowUrl::App("qa-dom.html".into()) } else { main_url };
+
       // Create window with specified logical size
       let mut window_builder = WindowBuilder::new(
         app,
         "main".to_string(),
-        Default::default(),
+        main_url,
       )
       .title("")
       .fullscreen(false)
@@ -2172,6 +2178,9 @@ async fn run_app() {
       setup_logger(app).expect("Failed to setup logger");
 
       audio::mic_monitor::start_mic_monitor(app.handle(), recording_is_active);
+
+      #[cfg(knapsack_synthetic_qa)]
+      qa_dom_probes::start(main_window.clone());
 
       Ok(())
     })

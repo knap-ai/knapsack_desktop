@@ -1,3 +1,7 @@
+#[path = "notes_revision.rs"]
+mod revisions;
+pub use revisions::revise_notes;
+
 use crate::error::Error;
 use actix_web::{
   get, post,
@@ -6,7 +10,7 @@ use actix_web::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::fs::{read_to_string, File};
+use std::fs::{read_to_string, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
@@ -71,11 +75,16 @@ fn legacy_note_path(home_dir: &Path, filename: &str) -> Result<PathBuf, Error> {
 
 fn write_note_content(home_dir: &Path, thread_id: u64, notes_content: &str) -> Result<(), Error> {
   let notes_path = note_path(home_dir, thread_id)?;
-  let mut file = File::create(&notes_path)
-    .map_err(|_| Error::KSError("failed to create notes file".to_string()))?;
-  file
-    .write_all(notes_content.as_bytes())
-    .map_err(|_| Error::KSError("failed to write notes".to_string()))
+  let temporary = notes_path.with_file_name(format!(".notes-{}-{}.tmp", thread_id, uuid::Uuid::new_v4()));
+  let mut file = OpenOptions::new().write(true).create_new(true).open(&temporary)
+    .map_err(|_| Error::KSError("failed to create temporary notes file".into()))?;
+  let written = file.write_all(notes_content.as_bytes()).and_then(|_| file.sync_all());
+  drop(file);
+  if written.is_err() || std::fs::rename(&temporary, &notes_path).is_err() {
+    let _ = std::fs::remove_file(&temporary);
+    return Err(Error::KSError("failed to commit notes file".into()));
+  }
+  Ok(())
 }
 
 fn read_note_content(home_dir: &Path, thread_id: u64) -> Result<Option<String>, Error> {
@@ -122,6 +131,8 @@ async fn save_notes(data: Json<SaveNotesRequest>) -> impl Responder {
 struct GetNotesResponse {
   notes: Option<String>,
   exists: bool,
+  thread_id: u64,
+  revision: String,
 }
 
 fn check_if_legacy_notes_exists(thread_id: u64) -> Result<Option<String>, Error> {
@@ -184,10 +195,11 @@ async fn get_notes(path: web::Path<u64>) -> impl Responder {
   };
 
   let exists = notes.is_some();
+  let revision = revisions::revision(thread_id, notes.as_deref());
 
   HttpResponse::Ok().json(json!({
     "success": true,
-    "data": GetNotesResponse { notes, exists }
+    "data": GetNotesResponse { notes, exists, thread_id, revision }
   }))
 }
 

@@ -22,8 +22,9 @@ test('meeting follow-up drafts exclude calendar resources and show the sender ma
   assert.doesNotMatch(home, /detail\?\.userEmail \|\| gmailSenderEmail/)
   assert.match(workspace, /senderEmail: userEmail/)
   assert.match(drawer, />From<\/span>/)
-  assert.match(drawer, /No connected sender/)
-  assert.match(drawer, /userEmail: senderEmail/)
+  assert.match(drawer, /Connect Gmail or Outlook to send/)
+  assert.match(drawer, /userEmail: sender\.ownerEmail/)
+  assert.match(drawer, /accountEmail: sender\.accountEmail/)
 })
 
 test('follow-up drafts normalize internal ownership language into sender voice', () => {

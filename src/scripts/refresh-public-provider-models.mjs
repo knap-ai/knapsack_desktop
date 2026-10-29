@@ -15,7 +15,9 @@ const ANTHROPIC_SOURCE_URLS = [
 ]
 const GEMINI_SOURCE_URLS = [
   'https://ai.google.dev/gemini-api/docs/models',
+  'https://ai.google.dev/gemini-api/docs/models/gemini-4-argon',
   'https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash',
+  'https://ai.google.dev/gemini-api/docs/deprecations',
 ]
 const OPENAI_SOURCE_URLS = [
   'https://developers.openai.com/api/docs/models',
@@ -316,7 +318,11 @@ export const DEFAULT_OPENAI_MODEL = '${ids.includes('gpt-5-mini') ? 'gpt-5-mini'
 `
 }
 
-const GEMINI_MODEL_ID_PATTERN = /\bgemini-\d+(?:\.\d+)?-(?:flash-lite|flash|pro)(?:-preview)?(?![\da-z-])/gi
+const GEMINI_MODEL_ID_PATTERN = /\bgemini-(?:4-argon|\d+(?:\.\d+)?-(?:flash-lite|flash|pro)(?:-preview)?)(?![\da-z-])/gi
+const DEPRECATED_GEMINI_MODEL_IDS = new Set(['gemini-3.7-flash', 'gemini-3.5-flash'])
+// Google availability alone is insufficient: selectable desktop models must also
+// resolve through the pinned OpenClaw/pi-ai runtime used by ordinary chats.
+const UNSUPPORTED_DESKTOP_GEMINI_MODEL_IDS = new Set(['gemini-4-argon'])
 
 function geminiVersionParts(modelId) {
   const match = modelId.match(/^gemini-(\d+(?:\.\d+)?)-/)
@@ -335,6 +341,7 @@ function compareGeminiVersions(a, b) {
 }
 
 function geminiFamily(modelId) {
+  if (modelId === 'gemini-4-argon') return 'argon'
   if (modelId.includes('-flash-lite')) return 'flash-lite'
   if (modelId.includes('-flash')) return 'flash'
   return 'pro'
@@ -352,11 +359,15 @@ export function canonicalGeminiModelIdsFromHtml(html) {
       .filter((id) => geminiVersionParts(id)[0] <= 9),
   )
 
+  const argon = discovered.has('gemini-4-argon') ? ['gemini-4-argon'] : []
+
   const flash = [...discovered]
     .filter(
       (id) =>
         geminiFamily(id) === 'flash' &&
+        geminiVersionParts(id)[0] <= 3 &&
         !id.endsWith('-preview') &&
+        !DEPRECATED_GEMINI_MODEL_IDS.has(id) &&
         geminiVersionAtLeast(id, 3, 5),
     )
     .sort(compareGeminiVersions)
@@ -365,30 +376,18 @@ export function canonicalGeminiModelIdsFromHtml(html) {
     .filter(
       (id) =>
         geminiFamily(id) === 'flash-lite' &&
+        geminiVersionParts(id)[0] <= 3 &&
         !id.endsWith('-preview') &&
         geminiVersionAtLeast(id, 3, 1),
     )
     .sort(compareGeminiVersions)
     .slice(0, 2)
 
-  const proByVersion = new Map()
-  for (const id of [...discovered]
-    .filter(
-      (candidate) =>
-        geminiFamily(candidate) === 'pro' && geminiVersionAtLeast(candidate, 3, 1),
-    )
-    .sort(compareGeminiVersions)) {
-    const version = geminiVersionParts(id).join('.')
-    const existing = proByVersion.get(version)
-    if (!existing || id.endsWith('-preview')) proByVersion.set(version, id)
-  }
-  const pro = [...proByVersion.values()].sort(compareGeminiVersions).slice(0, 1)
-
-  const fallbacks = ['gemini-2.5-pro', 'gemini-2.5-flash'].filter((id) => discovered.has(id))
-  return [...flash, ...pro, ...flashLite, ...fallbacks]
+  return [...argon, ...flash, ...flashLite]
 }
 
 function geminiDisplayName(modelId) {
+  if (modelId === 'gemini-4-argon') return 'Gemini 4 Argon'
   const version = geminiVersionParts(modelId).join('.')
   const family = geminiFamily(modelId)
   const familyName = family === 'flash-lite' ? 'Flash Lite' : family === 'flash' ? 'Flash' : 'Pro'
@@ -397,6 +396,7 @@ function geminiDisplayName(modelId) {
 
 function geminiDescription(modelId, rankWithinFamily) {
   const family = geminiFamily(modelId)
+  if (family === 'argon') return 'Flagship reasoning model for complex work (paid Gemini API tier)'
   if (family === 'pro') return 'Most capable Gemini reasoning model for complex work'
   if (family === 'flash-lite') return rankWithinFamily === 0
     ? 'Latest cost-efficient Gemini model for high-volume tasks'
@@ -411,7 +411,7 @@ function geminiDescription(modelId, rankWithinFamily) {
 
 export function buildGeminiSource(ids) {
   const familyRanks = new Map()
-  const models = ids.map((id) => {
+  const models = ids.filter((id) => !UNSUPPORTED_DESKTOP_GEMINI_MODEL_IDS.has(id)).map((id) => {
     const family = geminiFamily(id)
     const rank = familyRanks.get(family) ?? 0
     familyRanks.set(family, rank + 1)

@@ -1,3 +1,4 @@
+import { openCalendarMeetingLink } from 'src/utils/calendarMeetingLink'
 import { waitForAbort } from './utils/notesGeneration'
 import { readCompletionStream } from 'src/utils/completionStream'
 import { createDiagnostic, diagnosticNow, emitDiagnostic, type Diagnostic, type DiagnosticKind } from 'src/utils/diagnostics'
@@ -1323,13 +1324,11 @@ function App() {
     const items = feedRef.current.feedContent[dateKey]
     const item = items.find(i => i.calendarEvent?.id === meetingId)
     if (item) {
-      await feedRef.current.selectFeedItem(dateKey, item.id)
-      await new Promise(resolve => setTimeout(resolve, 500))
       if (startRecord) {
-        await invoke('emit_event', {
-          event: 'start_recording',
-          payload: { openUrl },
-        })
+        await feedRef.current.startCalendarMeeting(item, { openMeetingLink: true })
+      } else {
+        if (openUrl) void openCalendarMeetingLink(item.getCalendarEvent())
+        await feedRef.current.selectFeedItem(dateKey, item.id)
       }
     }
   }

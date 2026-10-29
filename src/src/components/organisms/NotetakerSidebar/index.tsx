@@ -1010,7 +1010,7 @@ function NotetakerSidebar({
                                     onClick={async e => {
                                       e.stopPropagation()
                                       try {
-                                        const started = await feed.startCalendarMeeting(item)
+                                        const started = await feed.startCalendarMeeting(item, { openMeetingLink: true })
                                         if (!started) return
                                         const native = await isRecordingStatus()
                                         if (native && native.isRecording && native.threadId === started.threadId) {

@@ -26,6 +26,8 @@ jobs:
           cache-dependency-path: src/package-lock.json
       - run: npm ci --ignore-scripts
       - run: ./node_modules/.bin/tsc --noEmit
+      - name: Test release preparation safety
+        run: node --test scripts/release-preparation.test.cjs
       - name: Repeat synthetic onboarding, owner-thread, reminder and continuity QA
         shell: bash
         run: |
@@ -36,8 +38,15 @@ jobs:
           done
       - name: Provider catalogs retain hosted defaults
         run: node --test scripts/refresh-public-provider-models.test.mjs scripts/anthropic-opus55-compat.test.mjs
-      - name: Sender selection and draft preservation
-        run: ./node_modules/.bin/vitest run src/components/molecules/EmailComposeDrawer/index.test.tsx
+      - name: Sender, meeting chat, and transcript interaction regressions
+        run: |
+          ./node_modules/.bin/vitest run \
+            src/components/molecules/EmailComposeDrawer/index.test.tsx \
+            src/components/organisms/ClawdChat/useForegroundInputHandlers.test.tsx \
+            src/components/organisms/ClawdChat/useClawdChatKeyboardShortcuts.test.tsx \
+            src/components/organisms/ClawdChat/useSubmittedChatRequest.test.tsx \
+            src/components/organisms/MeetingNotesMode/MeetingChatPanel.test.tsx \
+            src/components/organisms/transcriptCopyEntrypoints.test.tsx
   native-fixtures:
     runs-on: macos-latest
     timeout-minutes: 35

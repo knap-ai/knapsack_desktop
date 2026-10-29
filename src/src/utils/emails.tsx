@@ -139,6 +139,16 @@ function extractSummaryParagraph(lines: string[]): string | undefined {
   return summary || undefined
 }
 
+function extractGroundedFallback(lines: string[]): string | undefined {
+  const detail = lines
+    .map(line => line.trim())
+    .filter(line => line && !/^#{1,4}\s+/.test(line))
+    .filter(line => !/^(?:highlights|decisions|key decisions|action items?|summary|overview)$/i.test(line))
+    .map(cleanMeetingLine)
+    .find(Boolean)
+  return detail ? ensureSentence(detail) : undefined
+}
+
 function firstName(nameOrEmail?: string): string | undefined {
   const value = nameOrEmail?.trim()
   if (!value) return
@@ -249,11 +259,12 @@ export function buildFollowUpEmailBody(
   const summary = extractSummaryParagraph(lines)
   const highlights = extractHighlights(lines)
   const actionItems = extractActionItems(lines)
+  const groundedFallback = extractGroundedFallback(lines)
 
   const greetingName = firstName(recipientName)
   const greeting = `<p>Hi${greetingName ? ` ${escHtml(greetingName)}` : ''},</p>`
   const cleanTitle = meetingTitle?.replace(/\(?\s*placeholder\s*\)?/gi, '').replace(/\s+/g, ' ').trim()
-  const intro = `<p>Thanks for the conversation${cleanTitle ? ` about <strong>${escHtml(cleanTitle)}</strong>` : ''}.</p>`
+  const intro = `<p>Thanks again for the conversation${cleanTitle ? ` about <strong>${escHtml(cleanTitle)}</strong>` : ''}.</p>`
 
   let body = greeting + intro
 
@@ -262,7 +273,7 @@ export function buildFollowUpEmailBody(
   }
 
   if (highlights.length > 0) {
-    body += `<p><strong>What we aligned on</strong></p><ul style="margin:4px 0;padding-left:20px">`
+    body += `<p>My main takeaways were:</p><ul style="margin:4px 0;padding-left:20px">`
     highlights.forEach(item => {
       body += `<li>${escHtml(ensureSentence(item))}</li>`
     })
@@ -270,16 +281,16 @@ export function buildFollowUpEmailBody(
   }
 
   if (actionItems.length > 0) {
-    body += `<p><strong>Next steps</strong></p><ul style="margin:4px 0;padding-left:20px">`
+    body += `<p>For next steps:</p><ul style="margin:4px 0;padding-left:20px">`
     actionItems.slice(0, 5).forEach(item => {
       body += `<li>${escHtml(ensureSentence(conversationalActionItem(item)))}</li>`
     })
     body += `</ul>`
-  } else if (highlights.length === 0 && !summary) {
-    body += `<p>I’ll send the agreed next steps separately once they are confirmed.</p>`
+  } else if (highlights.length === 0 && !summary && groundedFallback) {
+    body += `<p>${escHtml(groundedFallback)}</p>`
   }
 
-  body += `<p>Please reply if I missed or misstated anything.</p>`
+  body += `<p>Let me know if I missed anything.</p>`
   body += `<p>Best${userName ? `,<br>${escHtml(userName)}` : ','}</p>`
   return normalizeFollowUpEmailVoice(body)
 }

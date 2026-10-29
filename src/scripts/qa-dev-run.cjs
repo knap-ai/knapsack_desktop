@@ -450,6 +450,14 @@ async function main() {
       process.exit(1);
     }
   }, 1_000);
+  if (process.env.KNAPSACK_QA_DOM_PROBES === "1") {
+    // Only release fixed UI probes after identity, empty DB, ports and gateway
+    // ownership passed the same reviewed preflight as ordinary synthetic QA.
+    const gatePath = path.join(qaStateDir, "qa-dom-go.json");
+    const gateTemporary = path.join(qaStateDir, "qa-dom-go.tmp");
+    writeJsonFile(gateTemporary, { run_id: qaRunId, bundle_id: qaBundleId });
+    fs.renameSync(gateTemporary, gatePath);
+  }
   console.log(`[qa-dev-run] isolated synthetic runtime ready (${qaRunId}); gateway disabled`);
   app.on("exit", (code, signal) => {
     cleanup();

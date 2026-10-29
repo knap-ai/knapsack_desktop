@@ -45,6 +45,24 @@ pub struct FetchCalendarEventPayload {
   pub owner_email: Option<String>,
 }
 
+// Use the calendar provider's actual video entry point; conference IDs can
+// belong to Zoom or other providers and are not necessarily Google Meet codes.
+fn calendar_video_url(
+  conference: Option<&google_calendar3::api::ConferenceData>,
+  hangout_link: Option<&str>,
+) -> Option<String> {
+  conference.into_iter().flat_map(|data| data.entry_points.iter().flatten())
+    .filter(|entry| entry.entry_point_type.as_deref() == Some("video"))
+    .filter_map(|entry| entry.uri.as_deref())
+    .chain(hangout_link)
+    .find_map(|value| {
+      let parsed = url::Url::parse(value).ok()?;
+      (parsed.scheme() == "https" && parsed.host_str().is_some()
+        && parsed.username().is_empty() && parsed.password().is_none())
+        .then(|| parsed.to_string())
+    })
+}
+
 pub async fn fetch_calendar(
   email: String,
   calendar_account_email: String,
@@ -166,14 +184,9 @@ pub async fn fetch_calendar(
 
             let recurrence_id = event.recurring_event_id;
             let attendees_json = Some(serde_json::to_string(&attendees_maps).unwrap());
-            let google_meet_url = event
-              .conference_data
-              .map(|conference_data| {
-                conference_data
-                  .conference_id
-                  .map(|conference_id| format!("https://meet.google.com/{}", conference_id))
-              })
-              .flatten();
+            let google_meet_url = calendar_video_url(
+              event.conference_data.as_ref(), event.hangout_link.as_deref(),
+            );
             let location = event.location;
             let mut start = None;
             if let Some(item_start) = event.start {
@@ -368,4 +381,32 @@ async fn get_event_ids_by_recurrence_ids(req: HttpRequest) -> impl Responder {
   }
 
   HttpResponse::Ok().json(event_ids)
+}
+
+#[cfg(test)]
+mod calendar_video_link_tests {
+  use super::*;
+
+  #[test]
+  fn calendar_video_link_uses_real_video_uri_and_ignores_phone_and_conference_id() {
+    let conference = serde_json::from_value::<google_calendar3::api::ConferenceData>(serde_json::json!({
+      "conferenceId": "not-a-google-meet-code",
+      "entryPoints": [
+        { "entryPointType": "phone", "uri": "tel:+15555550100" },
+        { "entryPointType": "video", "uri": "https://zoom.us/j/00000000000" }
+      ]
+    })).unwrap();
+    assert_eq!(calendar_video_url(Some(&conference), None).as_deref(), Some("https://zoom.us/j/00000000000"));
+    let no_video = google_calendar3::api::ConferenceData { conference_id: Some("opaque-id".into()), ..Default::default() };
+    assert!(calendar_video_url(Some(&no_video), None).is_none());
+  }
+
+  #[test]
+  fn calendar_video_link_validates_scheme_and_uses_provider_hangout_fallback() {
+    let conference = serde_json::from_value::<google_calendar3::api::ConferenceData>(serde_json::json!({
+      "entryPoints": [{ "entryPointType": "video", "uri": "javascript:alert(1)" }]
+    })).unwrap();
+    assert_eq!(calendar_video_url(Some(&conference), Some("https://meet.google.com/aaa-bbbb-ccc")).as_deref(), Some("https://meet.google.com/aaa-bbbb-ccc"));
+    assert!(calendar_video_url(None, Some("https://user:pass@example.test/call")).is_none());
+  }
 }

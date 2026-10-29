@@ -1,8 +1,9 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, transformWithEsbuild, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from 'tailwindcss';
 import prism from 'vite-plugin-prismjs';
 import path from 'path'
+import fs from 'node:fs'
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 // https://vitejs.dev/config/
 
@@ -31,7 +32,19 @@ function webkitRegexCompat(): Plugin {
   };
 }
 
+// Tauri 1 freezes __TAURI_IPC__. Mock the SDK module in QA, never the bridge.
+const qaDomSdkMock = process.env.KNAPSACK_QA_DOM_PROBES === '1' && process.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1'
+const qaSdkFacade = (): Plugin => ({
+  name: 'qa-dom-sdk-facade', apply: 'serve', enforce: 'pre',
+  async load(id) {
+    const file = id.split('?')[0].replace(/\\/g, '/')
+    if (!file.endsWith('/@tauri-apps/api/tauri.js')) return null
+    const facade = path.resolve('src/qa/qaTauriFacade.ts')
+    return transformWithEsbuild(fs.readFileSync(facade, 'utf8'), facade, { loader: 'ts', target: 'es2020' })
+  },
+})
 export default defineConfig(async () => ({
+  optimizeDeps: { exclude: qaDomSdkMock ? ['@tauri-apps/api'] : [] },
   build: {
     sourcemap: true, // Source map generation must be turned on
     rollupOptions: {
@@ -44,6 +57,7 @@ export default defineConfig(async () => ({
     }
   },
   plugins: [
+    ...(qaDomSdkMock ? [qaSdkFacade()] : []),
     webkitRegexCompat(),
     react(),
     prism({

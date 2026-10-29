@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { buildSlackClipboardPayload, copyMeetingNotesForSlack } from './slackMeetingNotes'
+import { buildSlackNotesMessage, buildSlackClipboardPayload, copyMeetingNotesForSlack } from './slackMeetingNotes'
 
 const syntheticNotes = `# Decisions
 
@@ -71,4 +71,17 @@ describe('Slack meeting-note clipboard payload', () => {
     expect(writeText).toHaveBeenCalledOnce()
     expect(writeText.mock.calls[0][0]).not.toContain('**Owner:**')
   })
+})
+
+describe('native Slack tables and readable clipboard constraints',()=>{
+ it('sends actual table blocks with original row/column order and inert cell text',()=>{
+  const message=buildSlackNotesMessage('# Summary\n\n| Owner | Task |\n| --- | --- |\n| Frida | Review <@U123> |','Fictional meeting')
+  const table=message.blocks.find(b=>b.type==='table');expect(table).toMatchObject({type:'table',rows:[[{type:'raw_text',text:'Owner'},{type:'raw_text',text:'Task'}],[{type:'raw_text',text:'Frida'},{type:'raw_text',text:'Review <@U123>'}]]})
+  expect(message.text).toContain('Frida');expect(buildSlackClipboardPayload('| A | B |\n| --- | --- |\n| 1 | 2 |').html).toContain('<pre>')
+ })
+ it('preserves escaped pipes and inline code pipes inside cells',()=>{const m=buildSlackNotesMessage('| A | B |\n| --- | --- |\n| one\\|two | `x|y` |');const t=m.blocks[0];expect(t.type==='table'&&t.rows[1].map(c=>c.text)).toEqual(['one|two','x|y'])})
+ it('does not parse a code example as a real table',()=>{const md='```\n| A | B |\n| --- | --- |\n| 1 | 2 |\n```';expect(buildSlackNotesMessage(md).blocks.some(b=>b.type==='table')).toBe(false);expect(buildSlackClipboardPayload(md).text).toContain('| --- | --- |')})
+ it('fails oversized tables explicitly without truncation or splitting into unexpected posts',()=>{expect(()=>buildSlackNotesMessage('| A |\n| --- |\n'+Array.from({length:100},()=> '| value |').join('\n'))).toThrow(/100 rows/);expect(()=>buildSlackNotesMessage('| A |\n| --- |\n| '+ 'x'.repeat(10001)+' |')).toThrow(/limits/);expect(()=>buildSlackNotesMessage('x'.repeat(40000))).toThrow(/limits/)})
+ it('retains literal underscores and cell values instead of treating every underscore as markup',()=>{const m=buildSlackNotesMessage('| Key | Value |\n| --- | --- |\n| team_id | `a_b` |');const t=m.blocks[0];expect(t.type==='table'&&t.rows[1].map(c=>c.text)).toEqual(['team_id','a_b'])})
+
 })

@@ -4387,3 +4387,22 @@
     }
   }
 }
+
+
+.ClawdSelectableText { display: contents; }
+.ClawdSelectionActions button {
+  padding: 7px 12px;
+  border: 1px solid #d9d4ca;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #302d28;
+  box-shadow: 0 3px 12px #0002;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid #84664a; outline-offset: 2px; }
+}
+.ClawdQuotedContext {
+  width: 100%;
+  margin: 0;
+  blockquote { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 6em; overflow: auto; }
+  .ClawdReplyPreview__content > button { border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
+}

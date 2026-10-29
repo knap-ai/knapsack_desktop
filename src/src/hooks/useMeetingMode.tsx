@@ -1,3 +1,4 @@
+import { meetingSpeakerIdentityPrompt, MeetingSpeakerIdentity } from 'src/utils/meetingSpeakerIdentity'
 import { capturePostMeetingSource } from 'src/utils/postMeetingSource'
 import { useCallback, useRef, useState } from 'react'
 
@@ -55,7 +56,9 @@ export const useMeetingSynthesis = (
   addToLLMQueue: (params: LLMParams) => void,
   onSynthesisFinish: () => void,
   templatePrompt: MeetingTemplatePrompt,
+  speakerIdentity?: MeetingSpeakerIdentity,
 ): IMeetingSynthesis => {
+  const speakerIdentityRules = meetingSpeakerIdentityPrompt(speakerIdentity)
   const [content, setContent] = useState<string>('')
   const [markdown, setMarkdown] = useState<string>('')
   const [isLLMLoading, setIsLLMLoading] = useState<boolean>(false)
@@ -215,9 +218,9 @@ export const useMeetingSynthesis = (
       const meetingInfoPrompt = `Here's the meeting information:
 ${meetingInfo}
 
-Use this meeting information to infer participant names where you can. The title to the notes should use the meeting title.
+Use explicit transcript evidence to identify participants. The roster alone does not identify speakers. The title to the notes should use the meeting title.
 
-It's highly likely that the company names mentioned in the transcript appear in the email domains of the participants. Use the email domain to fix any company names in your notes that might be incorrectly spelled in the transcript.
+Keep company names grounded in explicit evidence. Do not infer participant roles or employers from email domains.
 `
       notesSynthesisPrompt = NOTES_SYNTHESIS_PROMPT.replace(
         '{MEETING_INFO_PROMPT}',
@@ -228,7 +231,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
     }
 
     notesSynthesisPrompt =
-      notesSynthesisPrompt + '\n\n' + (await constructTemplatePrompt(templatePrompt))
+      notesSynthesisPrompt + '\n\n' + (await constructTemplatePrompt(templatePrompt)) + '\n\n' + speakerIdentityRules
 
     return notesSynthesisPrompt
   }
@@ -368,7 +371,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
         generation.finish()
       }
     },
-    [markdown],
+    [markdown, speakerIdentityRules],
   )
 
   return {

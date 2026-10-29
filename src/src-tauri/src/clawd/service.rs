@@ -5070,7 +5070,7 @@ fn knapsack_profile_email_from_disk() -> Option<String> {
     .and_then(normalize_imessage_owner_identifier)
 }
 
-fn knapsack_email_from_tokens() -> Option<String> {
+pub(super) fn knapsack_email_from_tokens() -> Option<String> {
   let home = default_clawdbot_home_from_env()?;
   let raw = fs::read_to_string(home.join("tokens.json")).ok()?;
   let json: serde_json::Value = serde_json::from_str(&raw).ok()?;

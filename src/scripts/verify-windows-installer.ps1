@@ -4,10 +4,38 @@ param(
 
   [string]$InstallDir = (Join-Path $(if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }) "knapsack-install-qa"),
 
-  [int]$TimeoutSeconds = 180
+  [int]$TimeoutSeconds = 180,
+
+  [switch]$RequireSignature,
+
+  [string]$ExpectedVersion
 )
 
 $ErrorActionPreference = "Stop"
+
+# Release-only policy. Ordinary unsigned pull-request packaging checks keep their
+# existing behavior; release artifacts must have valid timestamped signatures.
+function Assert-ReleaseSignature {
+  param([string]$Path, [string]$ExpectedThumbprint = "")
+  $signature = Get-AuthenticodeSignature -LiteralPath $Path
+  if ($signature.Status -ne "Valid" -or -not $signature.SignerCertificate -or -not $signature.TimeStamperCertificate) {
+    throw "Release artifact lacks a valid timestamped Authenticode signature: $Path"
+  }
+  $thumbprint = $signature.SignerCertificate.Thumbprint
+  if ($ExpectedThumbprint -and $thumbprint -ne $ExpectedThumbprint) {
+    throw "Installed application signer differs from installer: $Path"
+  }
+  Write-Host "verified Authenticode signer $thumbprint for $Path"
+  return $thumbprint
+}
+
+function Assert-ReleaseVersion {
+  param([string]$Path, [string]$ExpectedVersion)
+  $productVersion = (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
+  if ($productVersion -notmatch '^(\d+)\.(\d+)\.(\d+)(?:\.0)?(?:\+.*)?$' -or "$($Matches[1]).$($Matches[2]).$($Matches[3])" -ne $ExpectedVersion) {
+    throw "Installed application version does not match release $ExpectedVersion"
+  }
+}
 
 function Resolve-AppRoot {
   param([string]$Root)
@@ -46,6 +74,14 @@ if (-not (Test-Path $InstallerPath)) {
   throw "Installer not found: $InstallerPath"
 }
 
+$releaseSigner = ""
+if ($RequireSignature) {
+  if ($ExpectedVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Release installer verification requires an exact ExpectedVersion"
+  }
+  $releaseSigner = Assert-ReleaseSignature -Path $InstallerPath
+}
+
 if (Test-Path -LiteralPath $InstallDir) {
   Remove-Item -LiteralPath $InstallDir -Recurse -Force
 }
@@ -81,6 +117,13 @@ if ($process.ExitCode -ne 0) {
 
 $appRoot = Resolve-AppRoot -Root $InstallDir
 Write-Host "Resolved installed app root: $appRoot"
+
+if ($RequireSignature) {
+  $installedExe = Join-Path $appRoot "Knapsack.exe"
+  $null = Assert-ReleaseSignature -Path $installedExe -ExpectedThumbprint $releaseSigner
+  $null = Assert-ReleaseSignature -Path (Join-Path $appRoot "resources\node\node.exe")
+  Assert-ReleaseVersion -Path $installedExe -ExpectedVersion $ExpectedVersion
+}
 
 $required = @(
   "Knapsack.exe",

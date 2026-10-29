@@ -105,6 +105,7 @@ function incidentHook(options = {}) {
   const states = []; let cursor = 0, queued; const refs=[]; let refCursor=0
   const effects = { writes: [], deleted: 0, finished: 0 }
   const modules = {
+    'src/utils/meetingSpeakerIdentity': utility('meetingSpeakerIdentity'),
     'src/utils/notesGeneration': notesUtility,
     'src/utils/postMeetingSource': postMeetingUtility,
     react: { useRef: initial => { const i=refCursor++; return refs[i] || (refs[i]={current:initial}) }, useState: initial => { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], v => { states[i] = v }] }, useCallback: cb => cb },

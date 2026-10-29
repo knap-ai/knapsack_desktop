@@ -1,3 +1,4 @@
+import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { insertAutomationRun } from 'src/api/automations'
@@ -192,7 +193,7 @@ export interface IFeed {
       }
     | undefined
   >
-  startCalendarMeeting: (item: FeedItem) => Promise<
+  startCalendarMeeting: (item: FeedItem, options?: { openMeetingLink?: boolean }) => Promise<
     | {
         feedItemId: number | undefined
         threadId: number
@@ -1949,13 +1950,17 @@ export function useFeed(
     }
   }
 
-  const startCalendarMeeting: IFeed['startCalendarMeeting'] = item => {
+  const startCalendarMeeting: IFeed['startCalendarMeeting'] = (item, options) => {
     const key = item.calendarEvent
       ? `${item.calendarEvent.calendar_account_email}|${item.calendarEvent.event_id}`
       : `feed:${item.id}`
     const pending = calendarRecordingRef.current.get(key)
-    if (pending) return pending
-    const recording = startCalendarMeetingOnce(item)
+    if (pending) return options?.openMeetingLink
+      ? startCalendarRecordingAction(item.getCalendarEvent(), () => pending)
+      : pending
+    const recording = options?.openMeetingLink
+      ? startCalendarRecordingAction(item.getCalendarEvent(), () => startCalendarMeetingOnce(item))
+      : startCalendarMeetingOnce(item)
     calendarRecordingRef.current.set(key, recording)
     const clear = () => calendarRecordingRef.current.delete(key)
     recording.then(clear, clear)

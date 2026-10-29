@@ -1,6 +1,7 @@
 import cn from 'classnames'
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSavedTranscript } from "src/api/transcripts";
+import { copyTranscriptText, transcriptBodyForClipboard } from "src/utils/transcriptClipboard";
 import { detectLanguage, translateToEnglish, type DetectedLanguage } from "src/utils/translate";
 
 import styles from './styles.module.scss'
@@ -11,7 +12,12 @@ interface TranscriptViewProps {
   participantNames?: string[]
 }
 
-const TranscriptView: React.FC<TranscriptViewProps> = ({
+// A thread owns all transcript, translation, and clipboard state from its first render.
+const TranscriptView: React.FC<TranscriptViewProps> = props => (
+  <ThreadTranscriptView key={props.threadId} {...props} />
+);
+
+const ThreadTranscriptView: React.FC<TranscriptViewProps> = ({
   threadId,
   onClose,
   participantNames = [],
@@ -23,28 +29,43 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+
+  const currentRequest = useRef(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const generation = ++currentRequest.current;
+    const isCurrent = () => currentRequest.current === generation;
     if (threadId) {
       getSavedTranscript(threadId.toString()).then(data => {
+        if (!isCurrent()) return;
+        setIsLoading(false);
         if (!data) {
           setError("Transcript not found")
           return
         }
-        const text = extractTranscriptBody(data.content);
+        const text = transcriptBodyForClipboard(data.content);
         setContent(text);
         setDetectedLang(detectLanguage(text ?? ''));
         setIsTranslated(false);
         setTranslatedContent(null);
         setTranslateError(null);
       }).catch(() => {
+        if (!isCurrent()) return;
+        setIsLoading(false);
         setError("Failed to fetch transcript")
       })
+    } else {
+      setIsLoading(false);
+      setError("Transcript not found");
     }
+    return () => { currentRequest.current++; };
   }, [threadId])
 
   const handleTranslate = async () => {
-    if (!content || !detectedLang) return;
+    if (isLoading || error || !content || !detectedLang || isTranslating) return;
+    const generation = currentRequest.current;
     if (translatedContent) {
       setIsTranslated(true);
       return;
@@ -53,12 +74,14 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     setTranslateError(null);
     try {
       const result = await translateToEnglish(content, detectedLang.code);
+      if (currentRequest.current !== generation) return;
       setTranslatedContent(result);
       setIsTranslated(true);
     } catch {
+      if (currentRequest.current !== generation) return;
       setTranslateError("Translation failed. Please try again.");
     } finally {
-      setIsTranslating(false);
+      if (currentRequest.current === generation) setIsTranslating(false);
     }
   };
 
@@ -68,14 +91,45 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     [displayedContent, participantNames],
   );
 
+  const handleCopy = async () => {
+    if (isLoading || error || !displayedContent?.trim()) return
+    const generation = currentRequest.current
+    setCopyStatus(null)
+    try {
+      await copyTranscriptText(displayedContent ?? '')
+      if (currentRequest.current === generation) setCopyStatus('Transcript copied')
+    } catch {
+      if (currentRequest.current === generation) setCopyStatus('Could not copy transcript')
+    }
+  }
+
   return (
     <div className="text-ks-warm-grey-900 h-screen flex flex-col overflow-hidden mt-3 mr-0 w-[22em] ml-1">
       <div className="flex flex-row w-full mt-6 justify-between pl-1 pr-3">
         <div className="uppercase text-ks-warm-grey-800 font-Lora font-bold text-xs leading-4 tracking-[1.44px] ml-1">
           Transcript
         </div>
-        <img className="h-2.5 my-auto cursor-pointer" src="assets/images/icons/x_close.svg" onClick={() => onClose()} />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={styles.copyButton}
+            onClick={() => void handleCopy()}
+            disabled={isLoading || !!error || !displayedContent?.trim()}
+            aria-label="Copy transcript"
+            title="Copy transcript"
+          >
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+          <button type="button" className={styles.closeButton} onClick={onClose} aria-label="Close transcript" title="Close transcript">
+            <img className="h-2.5" src="assets/images/icons/x_close.svg" alt="" />
+          </button>
+        </div>
       </div>
+
+      <div className={styles.copyStatus} role="status" aria-live="polite">{copyStatus}</div>
 
       {detectedLang && (
         <div className="flex flex-row items-center gap-2 mt-3 pl-1 pr-3">
@@ -140,11 +194,6 @@ interface TranscriptTurn {
   speaker: string
   text: string
   inferred: boolean
-}
-
-const extractTranscriptBody = (raw: string) => {
-  const parts = raw.split(/\n{3,}/).map(part => part.trim()).filter(Boolean)
-  return parts.length > 1 ? parts.slice(1).join('\n\n') : raw.trim()
 }
 
 const formatTranscriptTurns = (raw: string, participantNames: string[]): TranscriptTurn[] => {
