@@ -24,13 +24,26 @@ test('token persistence, propagation, candidate discovery and model metadata hav
     assert.match(body, /^\s*if crate::qa_launch::is_synthetic_build\(\) \{ return/, name)
   }
 })
-test('HTTP isolation intercepts authorized requests before route execution', () => {
-  const auth = source('server/auth.rs')
+function assertHttpIsolationOrder(auth) {
+  auth = auth.replace(/\r\n/g, '\n')
   const call = auth.slice(auth.indexOf('  fn call(&self, req: ServiceRequest)'))
   const policy = call.indexOf('crate::qa_api::response_for(')
-  assert.ok(policy > call.indexOf('if !request_is_authorized('))
-  assert.ok(policy < call.indexOf('service\n        .call(req)'))
+  const authorization = call.indexOf('if !request_is_authorized(')
+  const dispatch = call.indexOf('service\n        .call(req)')
+  assert.ok(authorization >= 0 && dispatch >= 0)
+  assert.ok(policy > authorization && policy < dispatch)
   assert.match(call, /req\.path\(\), req\.method\(\)\.as_str\(\), crate::qa_launch::is_synthetic_build\(\)/)
+}
+test('HTTP isolation intercepts authorized requests before route execution', () => {
+  assertHttpIsolationOrder(source('server/auth.rs'))
+})
+test('HTTP isolation order remains enforced with Windows checkout line endings', () => {
+  assertHttpIsolationOrder(source('server/auth.rs').replace(/\r?\n/g, '\r\n'))
+})
+test('HTTP isolation order check still rejects a missing policy or dispatch', () => {
+  const auth = source('server/auth.rs')
+  assert.throws(() => assertHttpIsolationOrder(auth.replace('crate::qa_api::response_for(', 'missing_policy(')))
+  assert.throws(() => assertHttpIsolationOrder(auth.replace(/service\s*\.call\(req\)/, 'missing_dispatch(req)')))
 })
 
 test('public sign-in callback and exchange reject compiled QA before HTTP or storage', () => {
