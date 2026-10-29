@@ -53,6 +53,11 @@ jobs:
         working-directory: src
         run: npm run test:qa-harness && npm run test:qa-provider-ui
 
+      - name: Test Windows release signature and version policy
+        working-directory: src
+        shell: pwsh
+        run: ./scripts/windows-release-policy.test.ps1
+
       - name: Create .env from example
         working-directory: src
         run: Copy-Item .env.example .env

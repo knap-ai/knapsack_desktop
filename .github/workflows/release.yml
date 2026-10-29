@@ -608,6 +608,8 @@ jobs:
 
       - name: Verify Windows installer artifacts
         shell: pwsh
+        env:
+          EXPECTED_RELEASE_VERSION: ${{ needs.bump-version.outputs.version }}
         run: |
           $verifyLog = "$env:RUNNER_TEMP\windows-installer-verify.log"
           $installers = @()
@@ -619,7 +621,7 @@ jobs:
           }
           foreach ($installer in $installers) {
             try {
-              & 'src\scripts\verify-windows-installer.ps1' -InstallerPath $installer.FullName -InstallDir "$env:RUNNER_TEMP\ks-install-qa-$($installer.BaseName)" 2>&1 |
+              & 'src\scripts\verify-windows-installer.ps1' -InstallerPath $installer.FullName -InstallDir "$env:RUNNER_TEMP\ks-install-qa-$($installer.BaseName)" -RequireSignature -ExpectedVersion $env:EXPECTED_RELEASE_VERSION 2>&1 |
                 Tee-Object -FilePath $verifyLog -Append
             } catch {
               $_ | Tee-Object -FilePath $verifyLog -Append
