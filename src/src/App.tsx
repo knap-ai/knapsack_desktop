@@ -1,3 +1,4 @@
+import { openCalendarMeetingLink } from 'src/utils/calendarMeetingLink'
 import { waitForAbort } from './utils/notesGeneration'
 import { readCompletionStream } from 'src/utils/completionStream'
 import { createDiagnostic, diagnosticNow, emitDiagnostic, type Diagnostic, type DiagnosticKind } from 'src/utils/diagnostics'
@@ -403,6 +404,7 @@ function App() {
   } | null>(null)
 
   useEffect(() => {
+    if (LOCAL_QA_SAFE) return
     const email = auth.profile?.email ?? ''
     const userUuid = auth.profile?.uuid ?? ''
     if (uuid !== '') {
@@ -1322,13 +1324,11 @@ function App() {
     const items = feedRef.current.feedContent[dateKey]
     const item = items.find(i => i.calendarEvent?.id === meetingId)
     if (item) {
-      await feedRef.current.selectFeedItem(dateKey, item.id)
-      await new Promise(resolve => setTimeout(resolve, 500))
       if (startRecord) {
-        await invoke('emit_event', {
-          event: 'start_recording',
-          payload: { openUrl },
-        })
+        await feedRef.current.startCalendarMeeting(item, { openMeetingLink: true })
+      } else {
+        if (openUrl) void openCalendarMeetingLink(item.getCalendarEvent())
+        await feedRef.current.selectFeedItem(dateKey, item.id)
       }
     }
   }
@@ -1679,9 +1679,11 @@ function App() {
   useEffect(() => {
     fetchUUID()
 
-    invoke('plugin:autostart|enable')
-      .then(() => console.log('Autostart enabled'))
-      .catch(error => console.error('Failed to enable autostart:', error))
+    if (!LOCAL_QA_SAFE) {
+      invoke('plugin:autostart|enable')
+        .then(() => console.log('Autostart enabled'))
+        .catch(error => console.error('Failed to enable autostart:', error))
+    }
   }, [])
 
   const fetchUUID = async () => {

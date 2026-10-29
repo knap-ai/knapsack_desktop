@@ -1,3 +1,6 @@
+#[path = "slack_notes.rs"]
+mod slack_notes;
+pub use slack_notes::{workspaces as slack_notes_workspaces, channels as slack_notes_channels, send_notes as slack_notes_send};
 use actix_web::{get, post, web, HttpResponse, Responder};
 use once_cell::sync::Lazy;
 use regex::Regex;

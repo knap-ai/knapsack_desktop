@@ -4,7 +4,7 @@ const fs = require('node:fs/promises')
 const { transform } = require('esbuild')
 async function run(candidates, inference, request) {
   const source = (await fs.readFile(`${__dirname}/../src/utils/privacyProviderSelection.ts`, 'utf8')).replace(/\r?\n/g, '\r\n').replace(/^import[^\r\n]*(?:\r?\n|$)/gm, '').replace('export async function', 'async function')
-  const {code} = await transform(source, {loader:'ts',format:'cjs'})
+  const {code} = await transform(source, {loader:'ts',format:'cjs',define:{'import.meta.env':'{}'}})
   const saved=[],events=[]
   const select = new Function('invoke','isLocalModelTag','fetch','localStorage','window',code+'\nreturn selectPrivacyProvider;')(
     async name=>{assert.equal(name,'privacy_provider_candidates');return candidates},

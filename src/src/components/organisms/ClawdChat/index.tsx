@@ -1,3 +1,6 @@
+import ChatSelectionActions from './ChatSelectionActions'
+import QuotedChatContext from './QuotedChatContext'
+import { appendChatQuote, chatAttachmentsForSend, scopedChatAttachments, type ChatAttachment, type ChatQuote } from 'src/utils/selectedChatContext'
 import SharedConversationPanel from '../SharedConversationPanel'
 import type { SharingBinding } from 'src/utils/accountConversationState'
 import { logError } from 'src/utils/errorHandling'
@@ -464,7 +467,7 @@ function isBrokenAgentCapabilityReply(reply: string): boolean {
 }
 
 type Role = 'system' | 'user' | 'assistant'
-type Attachment = { name: string; type: string; content: string; preview?: string }
+type Attachment = ChatAttachment
 type QueuedDraft = { text: string; attachments: Attachment[] }
 
 type Msg = {
@@ -1384,6 +1387,7 @@ type ChatInputBarProps = {
   onQueue: (text: string, attachments?: Attachment[]) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
+  onJumpToQuote?: (messageId: string) => void
   onStartRecording: () => void
   onStopRecording: () => void
   onStopGeneration: () => void
@@ -1489,7 +1493,9 @@ const ChatMessage = memo(function ChatMessage({
         ) : m.isClickable ? (
           <p>{m.text}</p>
         ) : (
-          <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
+          <div className="ClawdSelectableText" data-chat-quote-message-id={m.id}>
+            <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
+          </div>
         )}
         {visibleActions.length > 0 && (
           <div className="ClawdPromptActions">
@@ -1595,7 +1601,7 @@ const ChatMessage = memo(function ChatMessage({
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
     busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isStartingRecording, isTranscribing, voiceEnabled, voicePaused = false,
-    attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
+    attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile, onJumpToQuote,
     onStartRecording, onStopRecording, onStopGeneration,
     replyToMsg, onCancelReply, initialValue, initialValueKey,
     inputElementRef,
@@ -1694,7 +1700,9 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
       {/* Attached files preview */}
       {attachedFiles.length > 0 && (
         <div className="ClawdAttachments">
-          {attachedFiles.map((file, index) => (
+          {attachedFiles.map((file, index) => file.chatQuote ? (
+            <QuotedChatContext key={file.chatQuote.id} quote={file.chatQuote} onJump={onJumpToQuote} onRemove={() => onRemoveFile(index)} />
+          ) : (
             <div key={index} className="ClawdAttachment">
               {file.preview ? (
                 <img src={file.preview} alt={file.name} className="ClawdAttachmentPreview" />
@@ -2000,6 +2008,7 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 }
 
 interface ClawdChatProps {
+  onNotesEditRequest?: (text: string) => Promise<boolean>
   /** Whether this mounted chat may process requests and app events. */
   active?: boolean
   /** Whether this mounted chat currently owns foreground keyboard shortcuts. */
@@ -2050,7 +2059,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, foregroundActive, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ onNotesEditRequest, active = true, foregroundActive, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const ownsForeground = active && (foregroundActive ?? true)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -2388,6 +2397,21 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
 
   // File upload state
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([])
+  const [quoteGeneration, setQuoteGeneration] = useState(0)
+  const quoteConversationId = JSON.stringify([chatId, sharedSessionRef.current || sessionId, sharedChatEpoch.current, quoteGeneration])
+  const quoteConversationRef = useRef(quoteConversationId)
+  quoteConversationRef.current = quoteConversationId
+  const visibleAttachments = useMemo(() => scopedChatAttachments(attachedFiles, quoteConversationId), [attachedFiles, quoteConversationId])
+  const visibleAttachmentsRef = useRef(visibleAttachments)
+  visibleAttachmentsRef.current = visibleAttachments
+  useEffect(() => {
+    setAttachedFiles(previous => scopedChatAttachments(previous, quoteConversationId))
+  }, [quoteConversationId])
+  const addSelectedQuote = useCallback((quote: ChatQuote) => {
+    if (quote.conversationId !== quoteConversationRef.current) return
+    setAttachedFiles(previous => appendChatQuote(previous, quote))
+    chatInputElementRef.current?.focus()
+  }, [])
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounter = useRef(0)
 
@@ -2404,7 +2428,7 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
   // Voice silence detection refs
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
-  const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[]) => Promise<void>) | null>(null)
+  const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[], explicitComposerAction?: boolean) => Promise<void>) | null>(null)
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
   const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
@@ -3496,7 +3520,8 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
   }
 
   const removeAttachedFile = useCallback((index: number) => {
-    setAttachedFiles(prev => prev.filter((_, i) => i !== index))
+    const file = visibleAttachmentsRef.current[index]
+    setAttachedFiles(previous => previous.filter(existing => existing !== file))
   }, [])
 
   // Drag-and-drop file upload handlers
@@ -4842,6 +4867,7 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
 
   // Clear chat history and start fresh
   const clearHistory = useCallback(() => {
+    setQuoteGeneration(value => value + 1)
     localStorage.removeItem(chatHistoryStorage)
     setMsgs(welcomeMessages)
     setStudioConnectorSuggestion(null)
@@ -5199,11 +5225,22 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
     localStorage.setItem(VOICE_MODE_STORAGE, String(newValue))
   }, [voiceEnabled, stopCurrentAudio])
 
-  const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
+  const doSend = async (text: string, attachmentOverride?: Attachment[], explicitComposerAction = false) => {
+    const quoteScopeAtSend = quoteConversationRef.current
+    if (attachmentOverride?.some(file => file.chatQuote && file.chatQuote.conversationId !== quoteScopeAtSend)) return
+    const currentAttachments = chatAttachmentsForSend(attachmentOverride ?? attachedFiles, quoteScopeAtSend, explicitComposerAction || !!attachmentOverride)
     if (sharedBusyRef.current) return
     const executionEpoch = sharedChatEpoch.current
     const notificationText = notificationDisplayText(text)
     const visibleText = notificationText ?? text
+
+    if (onNotesEditRequest && (explicitComposerAction || attachmentOverride !== undefined) && await onNotesEditRequest(text)) {
+      if (executionEpoch === sharedChatEpoch.current && quoteScopeAtSend === quoteConversationRef.current) {
+        pushUser(visibleText)
+        pushAssistantRef.current?.('Review the proposed notes changes above. Proposals use your configured model. Apply saves them to this meeting’s local notes; no follow-up messages are sent.')
+      }
+      return
+    }
 
     // A persisted background chat may have stale provider/model state until it
     // becomes active. Wait for that activation refresh before snapshotting the
@@ -5211,7 +5248,7 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
     if (providerSelectionRefreshRef.current) {
       await providerSelectionRefreshRef.current
     }
-    if (executionEpoch !== sharedChatEpoch.current) return
+    if (executionEpoch !== sharedChatEpoch.current || quoteScopeAtSend !== quoteConversationRef.current) return
 
     // Execution modes and tone are global preferences. Snapshot localStorage
     // at send time so a retained chat can never use permissions disabled in a
@@ -5263,12 +5300,11 @@ export default function ClawdChat({ active = true, foregroundActive, showActivit
     setReplyToMsg(null)
 
     // Capture current attachments and clear them
-    const currentAttachments = attachmentOverride ? [...attachmentOverride] : [...attachedFiles]
-    if (!attachmentOverride) setAttachedFiles([])
+    if (!attachmentOverride) setAttachedFiles(previous => previous.filter(file => !currentAttachments.includes(file)))
 
     // Show user message with attachment indicators
     const attachmentSummary = currentAttachments.length > 0
-      ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
+      ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.chatQuote ? 'Quoted excerpt' : f.name).join(', ')}*`
       : ''
     pushUser(text + attachmentSummary, currentReplyTo?.id)
 
@@ -6152,7 +6188,7 @@ ${actualText}`
 
   // Stable-identity wrapper — passed to ChatInputBar instead of doSend directly.
   const stableDoSend = useCallback((text: string) => {
-    return doSendRef.current?.(text) ?? Promise.resolve()
+    return doSendRef.current?.(text, undefined, true) ?? Promise.resolve()
   }, [])
 
   // Same ref-based stability pattern for other ChatInputBar callbacks whose
@@ -7032,7 +7068,7 @@ ${actualText}`
                 </ReactMarkdown>
                 {queued.attachments.length > 0 && (
                   <div className="ClawdQueuedAttachmentSummary">
-                    Attached: {queued.attachments.map(file => file.name).join(', ')}
+                    Attached: {queued.attachments.map(file => file.chatQuote ? 'Quoted excerpt' : file.name).join(', ')}
                   </div>
                 )}
               </div>
@@ -7190,6 +7226,7 @@ ${actualText}`
         </div>
       )}
 
+      <ChatSelectionActions rootRef={chatBodyRef} conversationId={quoteConversationId} active={active && (foregroundActive ?? true)} onAdd={addSelectedQuote} />
       <ChatInputBar
         key={`conversation-input-${sharedChatEpoch.current}`}
         busy={busy}
@@ -7200,11 +7237,12 @@ ${actualText}`
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
         voicePaused={meetingQuietMode}
-        attachedFiles={attachedFiles}
+        attachedFiles={visibleAttachments}
         onSend={stableDoSend}
         onQueue={stableQueueMessage}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
+        onJumpToQuote={scrollToMsg}
         onStartRecording={openVoiceSession}
         onStopRecording={stopRecording}
         onStopGeneration={stableStopGeneration}

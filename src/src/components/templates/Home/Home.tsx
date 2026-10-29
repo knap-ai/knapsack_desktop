@@ -723,7 +723,14 @@ function Home({
               setSelectedWorkspace(ws)
             }}
             onQuickNote={() => {
-              quickNoteActionRef.current()
+              const selected = feed.currentFeedItem()
+              if (!isAnyRecording && selected?.getCalendarEvent()) {
+                setCurrentTab(TabChoices.Meeting)
+                setMeetingSubView('meetings')
+                void feed.startCalendarMeeting(selected, { openMeetingLink: true }).catch((error: unknown) => {
+                  console.error('Could not start selected calendar meeting', error)
+                })
+              } else quickNoteActionRef.current()
             }}
             onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
             onMeetingSelect={() => {

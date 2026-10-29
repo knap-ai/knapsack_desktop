@@ -27,6 +27,12 @@ fn remove_broken_symlinks_recursive(dir: &Path) {
 }
 
 fn main() {
+  println!("cargo:rustc-check-cfg=cfg(knapsack_synthetic_qa)");
+  println!("cargo:rerun-if-env-changed=KNAPSACK_QA_BUILD_BUNDLE_ID");
+  if std::env::var("KNAPSACK_QA_BUILD_BUNDLE_ID").is_ok_and(|id| !id.is_empty()) {
+    println!("cargo:rustc-cfg=knapsack_synthetic_qa");
+  }
+
   let dist_dir = Path::new("../dist");
   let dist_pages = [
     "index.html",

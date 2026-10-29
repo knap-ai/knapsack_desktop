@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSavedTranscript } from "src/api/transcripts";
 import { copyTranscriptText, transcriptBodyForClipboard } from "src/utils/transcriptClipboard";
 import { detectLanguage, translateToEnglish, type DetectedLanguage } from "src/utils/translate";
@@ -12,7 +12,12 @@ interface TranscriptViewProps {
   participantNames?: string[]
 }
 
-const TranscriptView: React.FC<TranscriptViewProps> = ({
+// A thread owns all transcript, translation, and clipboard state from its first render.
+const TranscriptView: React.FC<TranscriptViewProps> = props => (
+  <ThreadTranscriptView key={props.threadId} {...props} />
+);
+
+const ThreadTranscriptView: React.FC<TranscriptViewProps> = ({
   threadId,
   onClose,
   participantNames = [],
@@ -26,9 +31,16 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const [translateError, setTranslateError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
+  const currentRequest = useRef(0);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
+    const generation = ++currentRequest.current;
+    const isCurrent = () => currentRequest.current === generation;
     if (threadId) {
       getSavedTranscript(threadId.toString()).then(data => {
+        if (!isCurrent()) return;
+        setIsLoading(false);
         if (!data) {
           setError("Transcript not found")
           return
@@ -40,13 +52,20 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
         setTranslatedContent(null);
         setTranslateError(null);
       }).catch(() => {
+        if (!isCurrent()) return;
+        setIsLoading(false);
         setError("Failed to fetch transcript")
       })
+    } else {
+      setIsLoading(false);
+      setError("Transcript not found");
     }
+    return () => { currentRequest.current++; };
   }, [threadId])
 
   const handleTranslate = async () => {
-    if (!content || !detectedLang) return;
+    if (isLoading || error || !content || !detectedLang || isTranslating) return;
+    const generation = currentRequest.current;
     if (translatedContent) {
       setIsTranslated(true);
       return;
@@ -55,12 +74,14 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     setTranslateError(null);
     try {
       const result = await translateToEnglish(content, detectedLang.code);
+      if (currentRequest.current !== generation) return;
       setTranslatedContent(result);
       setIsTranslated(true);
     } catch {
+      if (currentRequest.current !== generation) return;
       setTranslateError("Translation failed. Please try again.");
     } finally {
-      setIsTranslating(false);
+      if (currentRequest.current === generation) setIsTranslating(false);
     }
   };
 
@@ -71,12 +92,14 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   );
 
   const handleCopy = async () => {
+    if (isLoading || error || !displayedContent?.trim()) return
+    const generation = currentRequest.current
     setCopyStatus(null)
     try {
       await copyTranscriptText(displayedContent ?? '')
-      setCopyStatus('Transcript copied')
+      if (currentRequest.current === generation) setCopyStatus('Transcript copied')
     } catch {
-      setCopyStatus('Could not copy transcript')
+      if (currentRequest.current === generation) setCopyStatus('Could not copy transcript')
     }
   }
 
@@ -91,6 +114,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
             type="button"
             className={styles.copyButton}
             onClick={() => void handleCopy()}
+            disabled={isLoading || !!error || !displayedContent?.trim()}
             aria-label="Copy transcript"
             title="Copy transcript"
           >

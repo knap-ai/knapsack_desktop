@@ -56,8 +56,10 @@ walkdir = "=2.5.0"
         (test / f"src/{name}.rs").write_text(content)
     service = (root / 'src-tauri/src/clawd/service.rs').read_text()
     begin = service.index('fn apply_knapsack_account_sign_in(')
-    end = service.index('async fn exchange_and_store_knapsack_code(', begin)
+    # Extract only the synchronous helper, never adjacent HTTP exchange code.
+    end = service.index('\n}\n', begin) + len('\n}\n')
     helper = service[begin:end]
+    assert helper.count('fn ') == 1 and 'reqwest' not in helper and 'async ' not in helper
     (test / 'src/account_sign_in.rs').write_text(helper)
     (test / "src/lib.rs").write_text('''
 mod tauri {

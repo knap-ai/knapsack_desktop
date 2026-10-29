@@ -1,0 +1,33 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const { testPlan } = require('./qa-gateway-rust-tests.cjs')
+
+test('focused Rust test plan supplies compiled identity, isolated state and a mandatory assertion flag', () => {
+  const plan = testPlan({ OPENCLAW_GATEWAY_TOKEN: 'fictional-inherited-token', DATABASE_URL: '/fictional-production.db' })
+  assert.equal(plan.command, 'cargo')
+  assert.deepEqual(plan.args, ['test', '--no-default-features', 'synthetic_gateway', '--', '--test-threads=1'])
+  const env = plan.options.env
+  assert.equal(env.KNAPSACK_QA_EXPECT_GATEWAY_TESTS, '1')
+  assert.equal(env.KNAPSACK_QA_SYNTHETIC, '1')
+  assert.equal(env.KNAPSACK_QA_SKIP_GATEWAY, '1')
+  assert.ok(env.KNAPSACK_QA_BUILD_RUN_ID)
+  assert.match(env.KNAPSACK_QA_BUILD_BUNDLE_ID, /^ai\.knap\.knapsack\.qa\./)
+  assert.equal(env.KNAPSACK_QA_BUILD_HOME, env.HOME)
+  assert.equal(env.KNAPSACK_QA_BUILD_STATE_DIR, env.OPENCLAW_STATE_DIR)
+  assert.equal(env.KNAPSACK_QA_BUILD_CONFIG_PATH, env.OPENCLAW_CONFIG_PATH)
+  assert.equal(env.KNAPSACK_QA_BUILD_DATABASE_PATH, env.DATABASE_URL)
+  assert.notEqual(env.DATABASE_URL, '/fictional-production.db')
+  assert.equal(env.OPENCLAW_GATEWAY_TOKEN, undefined)
+  assert.ok(env.CARGO_TARGET_DIR.startsWith(path.dirname(env.HOME)))
+})
+
+test('hosted CI invokes the focused runner and cross-platform QA harness includes boundary checks', () => {
+  const pkg = require('../package.json')
+  assert.match(pkg.scripts['test:qa-harness'], /qa-gateway-isolation\.test\.cjs/)
+  assert.match(pkg.scripts['test:qa-harness'], /qa-gateway-rust-tests\.test\.cjs/)
+  assert.equal(pkg.scripts['test:qa-gateway-rust'], 'node scripts/qa-gateway-rust-tests.cjs')
+  const workflow = fs.readFileSync(path.join(__dirname, '../../.github/workflows/build-macos.yml'), 'utf8')
+  assert.match(workflow, /npm run test:qa-gateway-rust/)
+})

@@ -10,7 +10,6 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 
 import { emit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { open } from '@tauri-apps/api/shell'
 
 export interface RecordingContextProps {
   isRecording: (threadId: number) => boolean
@@ -24,7 +23,7 @@ export interface RecordingContextProps {
     threadId: number,
     feedItemId?: number,
     eventId?: number,
-    eventUrl?: string,
+    _eventUrl?: string,
     isStart?: boolean,
   ) => Promise<void>
   stopRecording: (
@@ -155,7 +154,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     threadId: number,
     feedItemId?: number,
     eventId?: number,
-    eventUrl?: string,
+    _eventUrl?: string,
     isStart: boolean = false,
   ) => {
     if (isStartingRef.current) {
@@ -255,13 +254,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       KNAnalytics.trackEvent('recording_started', { thread_id: threadId, save_transcript: saveTranscript })
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
-      if (eventUrl && isStart) {
-        try {
-          await open(eventUrl)
-        } catch (error) {
-          logError(new Error('Recording started, but the meeting link could not open. Open it from your calendar.'), { error: String(error) }, true)
-        }
-      } else if (!isStart) {
+      if (!isStart) {
         setIsPaused(false)
       }
     } catch (err: any) {

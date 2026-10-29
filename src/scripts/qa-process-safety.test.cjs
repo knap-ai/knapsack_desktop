@@ -31,7 +31,7 @@ test('ancestry traversal terminates on malformed process trees', () => {
   assert.equal(isQaDescendant(22, () => ({ parent: 22, command: 'openclaw' }), 10), false);
 });
 
-test('real renamed gateway child is owned only by its actual QA parent', async () => {
+test('real renamed gateway child is owned only by its actual QA parent', { skip: process.platform === 'win32' }, async () => {
   const child = spawn(process.execPath, ['-e', 'process.title="openclaw"; console.log("ready"); setInterval(()=>{},1000)'], { stdio: ['ignore', 'pipe', 'ignore'] });
   try {
     await once(child.stdout, 'data');

@@ -17,6 +17,7 @@ interface MeetingNotesTabBarProps {
   onViewTranscriptClick: (threadId: number) => void
   onTasksButtonClick: () => void
   onInsightsClick?: () => void
+  copyOpensShare?: boolean
   onCopyClick: () => void
   isEditing: boolean
   onEditClick: () => void
@@ -31,6 +32,7 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
   onTasksButtonClick,
   onInsightsClick,
   onCopyClick,
+  copyOpensShare,
   canChangeTemplate,
   onEditClick,
   isEditing,
@@ -86,7 +88,7 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
           onClick={onInsightsClick}
         />
       )}
-      <CopyButton onClick={onCopyClick} />
+      <CopyButton onClick={onCopyClick} showCopyStatus={!copyOpensShare} />
       <EditDisplayToggleButton isEditing={isEditing} onClick={onEditClick} />
     </div>
   )

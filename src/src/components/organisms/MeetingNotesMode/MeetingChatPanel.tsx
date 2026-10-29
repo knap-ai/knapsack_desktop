@@ -3,6 +3,7 @@ import type { ComponentProps, KeyboardEvent as ReactKeyboardEvent, PointerEvent 
 import ClawdChat from 'src/components/organisms/ClawdChat'
 
 interface MeetingChatPanelProps {
+  review?: React.ReactNode
   height: number
   minimized: boolean
   resizing: boolean
@@ -17,6 +18,7 @@ interface MeetingChatPanelProps {
 }
 
 const MeetingChatPanel = ({
+  review,
   height,
   minimized,
   resizing,
@@ -57,6 +59,7 @@ const MeetingChatPanel = ({
     >
       <span aria-hidden="true">—</span>
     </button>
+    {review}
     <ClawdChat {...chatProps} foregroundActive={!minimized} onBusyChange={onBusyChange} />
   </section>
 )

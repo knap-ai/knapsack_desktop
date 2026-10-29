@@ -9,6 +9,20 @@ use tokio::sync::Mutex;
 
 use crate::db::models::heartbeat::{HeartbeatConfig, HeartbeatLog};
 
+fn ensure_heartbeat_allowed() -> Result<(), String> {
+  if crate::qa_launch::is_synthetic_build() {
+    return Err("Heartbeat is disabled in isolated QA.".into());
+  }
+  Ok(())
+}
+
+// The last boundary before either supported provider's HTTP request. Keep a
+// direct guard here even when a future caller bypasses scheduling/resolution.
+async fn send_heartbeat_request(request: reqwest::RequestBuilder, provider: &str) -> Result<reqwest::Response, String> {
+  ensure_heartbeat_allowed()?;
+  request.send().await.map_err(|error| format!("{} request failed: {}", provider, error))
+}
+
 /// Track recently sent notification messages to avoid repeating the same alert.
 /// Stores (message, timestamp) pairs; entries older than 4 hours are pruned.
 static RECENT_NOTIFICATIONS: once_cell::sync::Lazy<Mutex<Vec<(String, i64)>>> =
@@ -43,6 +57,7 @@ pub async fn start_heartbeat_loop(
   app_handle: tauri::AppHandle,
   is_chatting: Arc<Mutex<AtomicBool>>,
 ) {
+  if ensure_heartbeat_allowed().is_err() { return; }
   info!("[heartbeat] Background loop started");
 
   // Give the app some time to finish initializing before the first check
@@ -66,6 +81,7 @@ pub async fn trigger_heartbeat(
   app_handle: &tauri::AppHandle,
   is_chatting: &Arc<Mutex<AtomicBool>>,
 ) -> Result<HeartbeatLog, String> {
+  ensure_heartbeat_allowed()?;
   run_single_heartbeat(app_handle, true).await
 }
 
@@ -74,6 +90,7 @@ async fn run_heartbeat_check(
   app_handle: &tauri::AppHandle,
   is_chatting: &Arc<Mutex<AtomicBool>>,
 ) -> Result<(), String> {
+  ensure_heartbeat_allowed()?;
   // 1. Read config
   let config = HeartbeatConfig::get_config().map_err(|e| format!("DB error: {:?}", e))?;
 
@@ -117,6 +134,7 @@ async fn run_single_heartbeat(
   app_handle: &tauri::AppHandle,
   force: bool,
 ) -> Result<HeartbeatLog, String> {
+  ensure_heartbeat_allowed()?;
   info!("[heartbeat] Running heartbeat check (force={})", force);
 
   let config = HeartbeatConfig::get_config().map_err(|e| format!("DB error: {:?}", e))?;
@@ -457,6 +475,7 @@ Respond with ONLY valid JSON, no markdown, no explanation:
 /// Call the LLM to assess the context and make a notify/silent decision.
 /// Prefers Groq for speed and cost, falls back to other configured providers.
 async fn call_llm_for_decision(prompt: &str) -> Result<LlmDecision, String> {
+  ensure_heartbeat_allowed()?;
   let provider = resolve_heartbeat_provider()?;
 
   let client = if provider.is_anthropic {
@@ -479,15 +498,12 @@ async fn call_llm_for_decision(prompt: &str) -> Result<LlmDecision, String> {
         "temperature": 0.1
     });
 
-    let resp = client
+    let resp = send_heartbeat_request(client
       .post("https://api.anthropic.com/v1/messages")
       .header("x-api-key", &provider.api_key)
       .header("anthropic-version", "2023-06-01")
       .header("Content-Type", "application/json")
-      .json(&body)
-      .send()
-      .await
-      .map_err(|e| format!("Anthropic request failed: {}", e))?;
+      .json(&body), "Anthropic").await?;
 
     let status = resp.status();
     let text = resp
@@ -519,14 +535,11 @@ async fn call_llm_for_decision(prompt: &str) -> Result<LlmDecision, String> {
 
     let url = format!("{}/chat/completions", &provider.base_url);
 
-    let resp = client
+    let resp = send_heartbeat_request(client
       .post(&url)
       .header("Authorization", format!("Bearer {}", &provider.api_key))
       .header("Content-Type", "application/json")
-      .json(&body)
-      .send()
-      .await
-      .map_err(|e| format!("{} request failed: {}", provider.name, e))?;
+      .json(&body), &provider.name).await?;
 
     let status = resp.status();
     let text = resp
@@ -613,6 +626,7 @@ fn openai_compatible_client(base_url: &str) -> Result<reqwest::Client, reqwest::
 /// If the user's active provider key is unavailable, falls back to the
 /// cheapest available provider. Respects KNAPSACK_DISABLE_PAID_FALLBACK.
 fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
+  ensure_heartbeat_allowed()?;
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -815,5 +829,31 @@ mod tests {
       updated_at: None,
     };
     assert!(!is_quiet_hours(&config));
+  }
+}
+
+#[cfg(test)]
+mod synthetic_heartbeat_tests {
+  use super::*;
+  fn compiled_qa() -> bool {
+    if std::env::var_os("KNAPSACK_QA_EXPECT_GATEWAY_TESTS").is_some() { assert!(crate::qa_launch::is_synthetic_build()); }
+    crate::qa_launch::is_synthetic_build()
+  }
+  #[tokio::test]
+  async fn synthetic_qa_heartbeat_provider_access_is_denied() {
+    if !compiled_qa() { return; }
+    assert_eq!(resolve_heartbeat_provider().err().as_deref(),Some("Heartbeat is disabled in isolated QA."));
+    assert_eq!(call_llm_for_decision("fictional QA prompt").await.err().as_deref(),Some("Heartbeat is disabled in isolated QA."));
+  }
+  #[tokio::test]
+  async fn synthetic_qa_heartbeat_http_boundary_sends_no_request() {
+    if !compiled_qa() { return; }
+    let listener=std::net::TcpListener::bind(("127.0.0.1",0)).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let client=reqwest::Client::builder().no_proxy().timeout(std::time::Duration::from_millis(150)).build().unwrap();
+    let request=client.post(format!("http://{}/fictional-heartbeat",listener.local_addr().unwrap())).body("fictional");
+    let outcome=send_heartbeat_request(request,"Fictional").await;
+    assert_eq!(listener.accept().unwrap_err().kind(),std::io::ErrorKind::WouldBlock);
+    assert_eq!(outcome.err().as_deref(),Some("Heartbeat is disabled in isolated QA."));
   }
 }

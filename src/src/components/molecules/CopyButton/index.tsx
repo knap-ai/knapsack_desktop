@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { Button, ButtonSize, ButtonVariant } from 'src/components/atoms/button'
 
 interface CopyButtonProps {
+  showCopyStatus?: boolean
   onClick: () => void | Promise<void>
 }
 
@@ -15,6 +16,7 @@ export enum CopyButtonVariant {
 
 const CopyButton: React.FC<CopyButtonProps> = ({
   onClick,
+  showCopyStatus = true,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -33,7 +35,7 @@ const CopyButton: React.FC<CopyButtonProps> = ({
   const handleClick = async () => {
     try {
       await onClick()
-      setIsCopied(true)
+      setIsCopied(showCopyStatus)
     } catch {
       // The caller owns user-visible error reporting. Do not claim success.
     }

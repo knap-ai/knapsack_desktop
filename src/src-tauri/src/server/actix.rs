@@ -50,6 +50,21 @@ async fn ping() -> impl Responder {
   HttpResponse::Ok().body("pong")
 }
 
+fn synthetic_qa_readiness_status(synthetic_build: bool, database_ready: bool) -> actix_web::http::StatusCode {
+  match (synthetic_build, database_ready) {
+    (false, _) => actix_web::http::StatusCode::NOT_FOUND,
+    (true, false) => actix_web::http::StatusCode::SERVICE_UNAVAILABLE,
+    (true, true) => actix_web::http::StatusCode::OK,
+  }
+}
+
+#[get("/api/knapsack/qa/ready")]
+async fn synthetic_qa_ready() -> impl Responder {
+  let ready = crate::db::db::database_ready();
+  let status = synthetic_qa_readiness_status(crate::qa_launch::is_synthetic_build(), ready);
+  HttpResponse::build(status).json(serde_json::json!({ "ready": status.is_success() }))
+}
+
 pub type InferenceThreads = Arc<Mutex<Vec<Arc<InferenceThreadRequest>>>>;
 const MOBILE_LAN_PORT: u16 = 18_898;
 
@@ -64,6 +79,24 @@ fn mobile_lan_port(port: u16) -> u16 {
 fn desktop_discovery_label() -> String {
   let host_name = System::host_name().unwrap_or_else(|| "This Mac".to_string());
   format!("Knapsack on {host_name}")
+}
+
+fn synthetic_api_port_preflight(port: u16, synthetic_build: bool) -> std::io::Result<bool> {
+  if !synthetic_build {
+    return Ok(false);
+  }
+  let probe = std::net::TcpListener::bind(("127.0.0.1", port)).map_err(|error| {
+    std::io::Error::new(
+      std::io::ErrorKind::AddrInUse,
+      format!("Synthetic QA refuses occupied API port {port}; no process was signaled: {error}"),
+    )
+  })?;
+  drop(probe);
+  Ok(true)
+}
+
+fn mobile_lan_enabled(synthetic_build: bool) -> bool {
+  !synthetic_build
 }
 
 #[tokio::main]
@@ -114,8 +147,16 @@ pub async fn start_server<'a>(
         .or_else(|| Some("http://127.0.0.1:18789".to_string())),
     }));
 
-  // Pre-check: detect and attempt to kill zombie processes on this port
-  if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
+  // Synthetic QA must never signal an existing listener. The real Actix bind
+  // below remains authoritative if a foreign listener wins the race after this
+  // preflight; startup then fails with AddrInUse and the listener remains alive.
+  let skip_destructive_cleanup =
+    synthetic_api_port_preflight(port, crate::qa_launch::is_synthetic_build())?;
+
+  // Production retains its existing zombie cleanup behavior.
+  if !skip_destructive_cleanup {
+    // Pre-check: detect and attempt to kill zombie processes on this port
+    if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
     drop(stream);
     eprintln!(
       "WARNING: Port {} is already in use! Attempting to kill zombie process...",
@@ -193,6 +234,7 @@ pub async fn start_server<'a>(
     } else {
       eprintln!("SUCCESS: Port {} has been freed.", port);
     }
+    }
   }
 
   // Developer Mode shared state
@@ -203,66 +245,72 @@ pub async fn start_server<'a>(
   let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
   let (desktop_api_token, mobile_api_token) = clawd::service::api_auth_tokens(&app_handle)
     .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
-  let mobile_api_token_for_server = mobile_api_token.clone();
-  let mobile_app_handle = app_handle.clone();
-  let mobile_port = mobile_lan_port(port);
-  let mobile_server = HttpServer::new(move || {
-    App::new()
-      .app_data(Data::new(mobile_app_handle.clone()))
-      .wrap(ApiAuth::mobile(mobile_api_token_for_server.clone()))
-      .wrap(Logger::default())
-      .service(ping)
-      .service(api::mobile::create_mobile_meeting)
-      .service(api::mobile::list_mobile_meetings)
-      .service(api::mobile::get_mobile_meeting)
-      .service(api::mobile::get_mobile_session)
-      .service(api::mobile::create_mobile_cloud_link)
-      .service(api::mobile::get_mobile_team)
-      .service(api::mobile::save_mobile_team)
-      .service(api::mobile::get_mobile_team_messages)
-      .service(api::mobile::send_mobile_team_message)
-      .service(api::mobile::list_mobile_calendar_events)
-      .service(api::mobile::get_mobile_autopilot)
-      .service(api::mobile::get_mobile_autopilot_email)
-      .service(api::mobile::perform_mobile_autopilot_email_action)
-      .service(api::mobile::get_mobile_gbrain_root)
-      .service(api::mobile::list_mobile_gbrain_entries)
-      .service(api::mobile::get_mobile_gbrain_page)
-      .service(api::mobile::list_mobile_chats)
-      .service(api::mobile::get_mobile_chat)
-      .service(api::mobile::create_mobile_chat)
-      .service(api::mobile::send_mobile_chat_message)
-      .service(api::mobile::save_mobile_notes)
-      .service(api::mobile::update_mobile_meeting_status)
-      .service(api::mobile::upload_mobile_recording)
-      .service(clawd::managed_agents::managed_agents_index)
-      .service(clawd::managed_agents::managed_agent_channel_run)
-  });
+  let (mobile_server_handle, _mobile_discovery) = if mobile_lan_enabled(crate::qa_launch::is_synthetic_build()) {
+    let mobile_api_token_for_server = mobile_api_token.clone();
+    let mobile_app_handle = app_handle.clone();
+    let mobile_port = mobile_lan_port(port);
+    let mobile_server = HttpServer::new(move || {
+      App::new()
+        .app_data(Data::new(mobile_app_handle.clone()))
+        .wrap(ApiAuth::mobile(mobile_api_token_for_server.clone()))
+        .wrap(Logger::default())
+        .service(ping)
+        .service(api::mobile::create_mobile_meeting)
+        .service(api::mobile::list_mobile_meetings)
+        .service(api::mobile::get_mobile_meeting)
+        .service(api::mobile::get_mobile_session)
+        .service(api::mobile::create_mobile_cloud_link)
+        .service(api::mobile::get_mobile_team)
+        .service(api::mobile::save_mobile_team)
+        .service(api::mobile::get_mobile_team_messages)
+        .service(api::mobile::send_mobile_team_message)
+        .service(api::mobile::list_mobile_calendar_events)
+        .service(api::mobile::get_mobile_autopilot)
+        .service(api::mobile::get_mobile_autopilot_email)
+        .service(api::mobile::perform_mobile_autopilot_email_action)
+        .service(api::mobile::get_mobile_gbrain_root)
+        .service(api::mobile::list_mobile_gbrain_entries)
+        .service(api::mobile::get_mobile_gbrain_page)
+        .service(api::mobile::list_mobile_chats)
+        .service(api::mobile::get_mobile_chat)
+        .service(api::mobile::create_mobile_chat)
+        .service(api::mobile::send_mobile_chat_message)
+        .service(api::mobile::save_mobile_notes)
+        .service(api::mobile::update_mobile_meeting_status)
+        .service(api::mobile::upload_mobile_recording)
+        .service(clawd::managed_agents::managed_agents_index)
+        .service(clawd::managed_agents::managed_agent_channel_run)
+    });
 
-  let mobile_server_handle = match mobile_server.workers(1).bind(("0.0.0.0", mobile_port)) {
-    Ok(server) => {
-      log::info!("Starting mobile LAN server on 0.0.0.0:{mobile_port}");
-      let server = server.run();
-      let handle = server.handle();
-      tokio::spawn(async move {
-        if let Err(err) = server.await {
-          log::error!("Knapsack mobile LAN server exited with error: {err}");
-        }
-      });
-      Some(handle)
-    }
-    Err(err) => {
-      log::warn!("Unable to bind Knapsack mobile LAN server on port {mobile_port}: {err}");
-      None
-    }
+    let handle = match mobile_server.workers(1).bind(("0.0.0.0", mobile_port)) {
+      Ok(server) => {
+        log::info!("Starting mobile LAN server on 0.0.0.0:{mobile_port}");
+        let server = server.run();
+        let handle = server.handle();
+        tokio::spawn(async move {
+          if let Err(err) = server.await {
+            log::error!("Knapsack mobile LAN server exited with error: {err}");
+          }
+        });
+        Some(handle)
+      }
+      Err(err) => {
+        log::warn!("Unable to bind Knapsack mobile LAN server on port {mobile_port}: {err}");
+        None
+      }
+    };
+    let discovery = handle.as_ref().and_then(|_| {
+      mobile_discovery::start_mobile_discovery_service(
+        mobile_port,
+        &desktop_discovery_label(),
+        &mobile_api_token,
+        false,
+      )
+    });
+    (handle, discovery)
+  } else {
+    (None, None)
   };
-  let _mobile_discovery = mobile_server_handle.as_ref().and_then(|_| {
-    mobile_discovery::start_mobile_discovery_service(
-      mobile_port,
-      &desktop_discovery_label(),
-      &mobile_api_token,
-    )
-  });
 
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
@@ -303,6 +351,7 @@ pub async fn start_server<'a>(
       .wrap(ApiAuth::desktop(desktop_api_token.clone()))
       .wrap(cors)
       .wrap(Logger::default())
+      .service(synthetic_qa_ready)
       .service(llm_complete)
       .service(stop_llm_execution)
       .service(api::app_info::get_release_type)
@@ -368,6 +417,7 @@ pub async fn start_server<'a>(
       .service(api::mobile::update_mobile_meeting_status)
       .service(api::mobile::upload_mobile_recording)
       .service(api::notes::list_all_notes)
+      .service(api::notes::revise_notes)
       .service(api::notes::get_notes)
       .service(api::notes::save_notes)
       .service(api::audio::delete_audio_files)
@@ -522,6 +572,9 @@ pub async fn start_server<'a>(
       .service(clawd::channels::generic_channel_status)
       .service(clawd::channels::generic_channel_configure)
       .service(clawd::channels::generic_channel_disconnect)
+      .service(clawd::channels::slack_notes_workspaces)
+      .service(clawd::channels::slack_notes_channels)
+      .service(clawd::channels::slack_notes_send)
       .service(clawd::channels::slack_accounts)
       .service(clawd::channels::slack_account_disconnect)
       .service(clawd::slack_admin::get_members)
@@ -648,4 +701,65 @@ pub async fn start_server<'a>(
 
   // Run the server
   server.await
+}
+
+#[cfg(test)]
+mod synthetic_qa_port_tests {
+  use super::*;
+
+  #[test]
+  fn synthetic_qa_disables_mobile_lan_listener() {
+    assert!(!mobile_lan_enabled(true));
+    assert!(mobile_lan_enabled(false));
+  }
+
+  #[test]
+  fn synthetic_qa_readiness_requires_completed_database_initialization() {
+    assert_eq!(
+      synthetic_qa_readiness_status(true, false),
+      actix_web::http::StatusCode::SERVICE_UNAVAILABLE
+    );
+    assert_eq!(
+      synthetic_qa_readiness_status(true, true),
+      actix_web::http::StatusCode::OK
+    );
+    assert_eq!(
+      synthetic_qa_readiness_status(false, true),
+      actix_web::http::StatusCode::NOT_FOUND
+    );
+  }
+
+  #[test]
+  fn synthetic_qa_refuses_an_existing_api_listener_without_signaling_it() {
+    let foreign = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = foreign.local_addr().unwrap().port();
+
+    let error = synthetic_api_port_preflight(port, true).unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
+    assert!(error.to_string().contains("no process was signaled"));
+    assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_ok());
+    drop(foreign);
+  }
+
+  #[test]
+  fn synthetic_qa_late_foreign_listener_survives_the_real_actix_bind_race() {
+    let reservation = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = reservation.local_addr().unwrap().port();
+    drop(reservation);
+    assert!(synthetic_api_port_preflight(port, true).unwrap());
+
+    // Simulate a foreign process winning the interval between launcher/native
+    // preflight and HttpServer::bind. Synthetic startup must simply fail.
+    let foreign = std::net::TcpListener::bind(("127.0.0.1", port)).unwrap();
+    let result = HttpServer::new(App::new).bind(("127.0.0.1", port));
+
+    let error = match result {
+      Ok(_) => panic!("Actix unexpectedly replaced a foreign listener"),
+      Err(error) => error,
+    };
+    assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
+    assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_ok());
+    drop(foreign);
+  }
 }

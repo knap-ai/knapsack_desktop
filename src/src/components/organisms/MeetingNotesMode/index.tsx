@@ -1,3 +1,4 @@
+import { useNotesEditReview } from './useNotesEditReview'
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import dayjs from 'dayjs'
 
@@ -40,8 +41,10 @@ import {
 } from 'src/utils/meetingChatLifecycle'
 import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 import { getEventUrl } from 'src/utils/meetingUtils'
+import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
+import CalendarMeetingLink from 'src/components/molecules/CalendarMeetingLink'
 import { shouldSaveTranscript } from 'src/utils/settings'
-import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import SlackNotesShare from 'src/components/molecules/SlackNotesShare'
 import {
   INTERNAL_MEETING,
   MEETING_TEMPLATES,
@@ -1001,7 +1004,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setContent,
     setMarkdown,
   } =
-    useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt)
+    useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) })
 
   const debouncedSave = useMemo(
     () =>
@@ -1019,6 +1022,19 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       debouncedSave.cancel()
     }
   }, [debouncedSave])
+
+  const [slackShareOpen, setSlackShareOpen] = useState(false)
+  useEffect(() => setSlackShareOpen(false), [thread.id, userEmail])
+  const notesEdit = useNotesEditReview({
+    threadId: thread.id, completed: !!thread.recorded && !recordingHandlers.isRecording(thread.id),
+    notes: notesMarkdown, context: meetingChatContext.replace(`Current notes:\n${notesMarkdown || 'No notes yet.'}\n`, ''), queue: addToLLMQueue,
+    flush: async () => { await debouncedSave.flush() },
+    saved: value => {
+      const normalized = normalizeMeetingNotesMarkdown(value)
+      setNotesMarkdown(normalized); setMarkdown(normalized)
+      editor?.commands.setContent(editor?.storage.markdown.parser.parse(normalized) || normalized, false)
+    },
+  })
 
   React.useLayoutEffect(() => {
     // The editor instance is shared while navigating between meetings. Clear
@@ -1387,7 +1403,11 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     }
   }
 
-  const handleRecordClick = async (isStart: boolean) => {
+  const handleRecordClick = (isStart: boolean) => isStart
+    ? startCalendarRecordingAction(meeting, () => recordMeeting(isStart))
+    : recordMeeting(isStart)
+
+  const recordMeeting = async (isStart: boolean) => {
     const saveTranscript = await shouldSaveTranscript()
     const runParamsObj = getRunParamObject()
     // The recorder expects the local calendar row ID, not Google's opaque
@@ -1653,6 +1673,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
+                <CalendarMeetingLink meeting={meeting} />
                 {!thread.recorded && !isEndingMeetingState && (
                   <RecordControlPanel
                     onClickJoin={() => handleRecordClick(true)}
@@ -2005,6 +2026,7 @@ Be direct, specific, and concise. No filler text.`
               </div>
             </div>
             <div className="flex-shrink-0 flex items-center gap-2">
+              <CalendarMeetingLink meeting={meeting} />
               {!thread.recorded && !isEndingMeetingState && (
                 <RecordControlPanel
                   onClickJoin={() => handleRecordClick(true)}
@@ -2148,22 +2170,15 @@ Be direct, specific, and concise. No filler text.`
             )}
             onTasksButtonClick={handleTasksButtonClick}
             onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
-            onCopyClick={async () => {
-              try {
-                await copyMeetingNotesForSlack(
-                  notesMarkdown,
-                  meeting?.title || thread.subtitle,
-                )
-              } catch (error) {
-                handleErrorContact('Knapsack could not copy these notes. Please try again.')
-                throw error
-              }
-            }}
+            copyOpensShare={true}
+            onCopyClick={() => setSlackShareOpen(true)}
             canChangeTemplate={true}
             isEditing={isEditing}
             onEditClick={onEditClick}
           />
         )}
+
+        {slackShareOpen && <SlackNotesShare key={`${thread.id}:${userEmail}`} threadId={thread.id} userEmail={userEmail} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle})} onClose={()=>setSlackShareOpen(false)}/>}
 
         {/* Meeting brief drawer — auto-generated on open and kept available while recording */}
         {meeting && !thread.recorded && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating) && (
@@ -2519,7 +2534,9 @@ Be direct, specific, and concise. No filler text.`
           onResizeClick={handleMeetingChatResizeClick}
           onResizeKeyDown={handleMeetingChatResizeKeyDown}
           onBusyChange={busy => dispatchMeetingChatLifecycle({ type: 'set-busy', busy })}
+          review={notesEdit.review}
           chatProps={{
+            onNotesEditRequest: notesEdit.request,
             userName,
             userEmail,
             compact: true,

@@ -1522,10 +1522,13 @@ fn stage_recording_files(
   Ok(staged)
 }
 
-pub fn recover_staged_recording_deletions() -> Result<(), Error> {
-  let Some(home_dir) = dirs::home_dir() else {
+fn recover_staged_recording_deletions_for_home(
+  home_dir: &Path,
+  synthetic_build: bool,
+) -> Result<(), Error> {
+  if synthetic_build {
     return Ok(());
-  };
+  }
   let knapsack_dir = home_dir.join(".knapsack");
   let entries = match std::fs::read_dir(&knapsack_dir) {
     Ok(entries) => entries,
@@ -1568,6 +1571,13 @@ pub fn recover_staged_recording_deletions() -> Result<(), Error> {
     }
   }
   Ok(())
+}
+
+pub fn recover_staged_recording_deletions() -> Result<(), Error> {
+  let Some(home_dir) = dirs::home_dir() else {
+    return Ok(());
+  };
+  recover_staged_recording_deletions_for_home(&home_dir, crate::qa_launch::is_synthetic_build())
 }
 
 #[delete("/api/knapsack/recording/{feed_item_id}")]
@@ -2247,6 +2257,35 @@ pub async fn get_meeting_insights(path: web::Path<u64>) -> impl Responder {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn synthetic_qa_startup_preserves_staged_production_recordings_with_empty_database() {
+    let production_home = tempfile::tempdir().unwrap();
+    let production_dir = production_home.path().join(".knapsack");
+    std::fs::create_dir_all(&production_dir).unwrap();
+    let original = production_dir.join("audio/original.flac");
+    let staged = production_dir.join("audio/original.flac.staged");
+    std::fs::create_dir_all(staged.parent().unwrap()).unwrap();
+    std::fs::write(&staged, b"production recording sentinel").unwrap();
+    let manifest = super::RecordingDeletionManifest {
+      feed_item_id: 999,
+      paths: vec![(original.clone(), staged.clone())],
+    };
+    let manifest_path = production_dir.join("recording-delete-sentinel.json");
+    std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    let empty_qa_database = production_home.path().join("empty-qa.db");
+    std::fs::write(&empty_qa_database, b"").unwrap();
+
+    super::recover_staged_recording_deletions_for_home(production_home.path(), true).unwrap();
+
+    assert_eq!(
+      std::fs::read(&staged).unwrap(),
+      b"production recording sentinel"
+    );
+    assert!(manifest_path.exists());
+    assert!(empty_qa_database.exists());
+    assert!(!original.exists());
+  }
+
   #[test]
   fn native_and_http_recording_controls_share_capture_lifecycle() {
     use std::sync::atomic::Ordering;

@@ -43,11 +43,15 @@ jobs:
 
       - name: Test recording routing and Developer Mode intent
         working-directory: src
-        run: npm run test:meeting-recording-routing && npm run test:dev-intent && node --test scripts/meeting-notes-hydration.test.cjs && npm run test:meeting-chat-route
+        run: npm run test:meeting-recording-routing && npm run test:dev-intent && node --test scripts/meeting-notes-hydration.test.cjs && npm run test:meeting-chat-route && npm run test:meeting-link && npm run test:add-to-chat && npm run test:meeting-notes-edit && npm run test:slack-notes && npm run test:qa-dom-fixtures
 
       - name: Test calendar context, local speech, privacy selection, and queued steering
         working-directory: src
         run: node --test scripts/calendar-chat-context.test.cjs scripts/local-speech-ui.test.cjs scripts/privacy-provider-selection.test.cjs scripts/chat-steer.test.cjs
+
+      - name: Test isolated QA harness
+        working-directory: src
+        run: npm run test:qa-harness && npm run test:qa-provider-ui
 
       - name: Create .env from example
         working-directory: src

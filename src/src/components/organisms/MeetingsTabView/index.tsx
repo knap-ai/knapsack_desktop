@@ -1,3 +1,4 @@
+import SlackNotesShare from 'src/components/molecules/SlackNotesShare'
 import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 
@@ -151,9 +152,10 @@ const MeetingsTabView = ({
   const isSelectedMeetingNote = selectedMeeting?.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
   const notesThread = selectedMeeting?.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
   const isCurrentRecording = !!notesThread && recordingHandlers.isRecording(notesThread.id)
+  const [slackShareOpen, setSlackShareOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
-  useEffect(() => { setShareOpen(false); setCopyStatus('') }, [notesThread?.id])
+  useEffect(() => { setShareOpen(false); setSlackShareOpen(false); setCopyStatus('') }, [notesThread?.id,userEmail])
   const shareNotes = async (email: boolean) => {
     if (!notesThread) return
     try {
@@ -301,9 +303,14 @@ const MeetingsTabView = ({
             </button>}
           </div>
           <div className="MeetingsTabView__topbar-right" style={{ position: 'relative' }}>
+            {slackShareOpen && notesThread && <SlackNotesShare key={`${notesThread.id}:${userEmail}`} threadId={notesThread.id} userEmail={userEmail} onClose={()=>setSlackShareOpen(false)} notes={async()=>{
+              const response=await fetch(`${KN_API_NOTES}/${notesThread.id}`);const body=await response.json()
+              if(!response.ok||!body.data?.exists||body.data.thread_id!==notesThread.id)throw new Error('Notes are unavailable for this meeting.')
+              return {markdown:body.data.notes,title:selectedMeeting?.getTitle?.()}
+            }}/>}
             {copyStatus && <span role="status">{copyStatus}</span>}
             {shareOpen && <div className="MeetingsTabView__share-menu">
-              <button onClick={() => void shareNotes(false)}>Copy notes for sharing</button>
+              <button onClick={() => {setShareOpen(false);setSlackShareOpen(true)}}>Copy for Slack / send to channel</button>
               <button onClick={() => void shareTranscript()}>Copy transcript</button>
               {onEmailClick && <button onClick={() => void shareNotes(true)}>Draft email with notes</button>}
               <button onClick={() => setShareOpen(false)}>Close</button>
