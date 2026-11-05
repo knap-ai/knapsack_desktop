@@ -8,11 +8,23 @@ const dist=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../src-tau
 const source=fs.readFileSync(path.join(dist,'server.impl-BCpatfdp.js'),'utf8')
 const start='loadStartupPlugins: runtimePluginsLoaded ? void 0 : async (loadOptions = {}) => {'
 const end='\n\t\t\t},\n\t\t\tonStartupPluginsLoading:'
-assert.equal(source.split(start).length,2)
-const body=source.slice(source.indexOf(start)+start.length,source.indexOf(end,source.indexOf(start))).replace(/import\(("[^"\n]+")\)/g,'loadModule($1)')
+function startupCallbackBody(input){
+ const normalized=input.replace(/\r\n?/g,'\n')
+ assert.equal(normalized.split(start).length,2)
+ const from=normalized.indexOf(start)+start.length,to=normalized.indexOf(end,from)
+ assert(to>=from,'Missing startup callback terminator')
+ return normalized.slice(from,to).replace(/import\(("[^"\n]+")\)/g,'loadModule($1)')
+}
+const body=startupCallbackBody(source)
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor
 const keys=['loadOptions','loadModule','startupPluginIds','defaultWorkspaceDir','loadStartupPluginsModule','gatewayPluginConfigAtStart','startupActivationSourceConfig','log','baseMethods','coreGatewayMethodNames','pluginHostServices','pluginLookUpTable','startupTrace','deferredConfiguredChannelPluginIds']
 const callback=new AsyncFunction(...keys,body)
+test('startup callback extraction handles LF and Windows CRLF and rejects a missing terminator',()=>{
+ const lf=source.replace(/\r\n?/g,'\n'),crlf=lf.replace(/\n/g,'\r\n')
+ assert.equal(startupCallbackBody(crlf),startupCallbackBody(lf))
+ assert.doesNotThrow(()=>new AsyncFunction(...keys,startupCallbackBody(crlf)))
+ assert.throws(()=>startupCallbackBody(lf.replace(end,'')),/Missing startup callback terminator/)
+})
 async function invoke({managed='1',fast='1',deferred=true,workspace,planIds=['qa-startup'],initial=['browser'],deferredIds=['slack'],fallback='slack,telegram',config={}}={}){
  const saved={};for(const [key,value]of Object.entries({OPENCLAW_DESKTOP_MANAGED_GATEWAY:managed,OPENCLAW_DESKTOP_FAST_BIND:fast,OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS:fallback})){saved[key]=process.env[key];process.env[key]=value}
  const calls=[]
