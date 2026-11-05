@@ -230,6 +230,8 @@ export function normalizeFollowUpEmailVoice(body: string): string {
 
 function conversationalActionItem(item: string): string {
   const cleaned = cleanMeetingLine(item)
+    .replace(/\s*[—–-]\s*Due:\s*(?:not specified|not set|none|TBD)(?=[.;]|$)/gi, '')
+    .replace(/\s*[—–-]\s*Due:\s*/gi, '; timing: ')
   const ownerAction = cleaned.match(/^you\s+(?:—|–|-)\s+(.+)$/i)
   if (ownerAction) return `I’ll ${lowerCaseFirst(ownerAction[1])}`
 
@@ -264,7 +266,7 @@ export function buildFollowUpEmailBody(
   const greetingName = firstName(recipientName)
   const greeting = `<p>Hi${greetingName ? ` ${escHtml(greetingName)}` : ''},</p>`
   const cleanTitle = meetingTitle?.replace(/\(?\s*placeholder\s*\)?/gi, '').replace(/\s+/g, ' ').trim()
-  const intro = `<p>Thanks again for the conversation${cleanTitle ? ` about <strong>${escHtml(cleanTitle)}</strong>` : ''}.</p>`
+  const intro = `<p>Thank you for the discussion${cleanTitle ? ` about ${escHtml(cleanTitle.replace(/\s*(?:<>|↔)\s*/g, ' and '))}` : ''}.</p>`
 
   let body = greeting + intro
 
@@ -273,25 +275,25 @@ export function buildFollowUpEmailBody(
   }
 
   if (highlights.length > 0) {
-    body += `<p>My main takeaways were:</p><ul style="margin:4px 0;padding-left:20px">`
+    body += `<p><strong>Key takeaways</strong></p><ul style="list-style-type:disc;margin:8px 0 16px;padding-left:24px">`
     highlights.forEach(item => {
-      body += `<li>${escHtml(ensureSentence(item))}</li>`
+      body += `<li style="margin:6px 0">${escHtml(ensureSentence(item))}</li>`
     })
     body += `</ul>`
   }
 
   if (actionItems.length > 0) {
-    body += `<p>For next steps:</p><ul style="margin:4px 0;padding-left:20px">`
+    body += `<p><strong>Next steps</strong></p><ul style="list-style-type:disc;margin:8px 0 16px;padding-left:24px">`
     actionItems.slice(0, 5).forEach(item => {
-      body += `<li>${escHtml(ensureSentence(conversationalActionItem(item)))}</li>`
+      body += `<li style="margin:6px 0">${escHtml(ensureSentence(conversationalActionItem(item)))}</li>`
     })
     body += `</ul>`
   } else if (highlights.length === 0 && !summary && groundedFallback) {
     body += `<p>${escHtml(groundedFallback)}</p>`
   }
 
-  body += `<p>Let me know if I missed anything.</p>`
-  body += `<p>Best${userName ? `,<br>${escHtml(userName)}` : ','}</p>`
+  body += `<p>Please let me know if anything needs correcting or if I have missed an important point.</p>`
+  if (userName?.trim()) body += `<p>Best regards,<br>${escHtml(userName.trim())}</p>`
   return normalizeFollowUpEmailVoice(body)
 }
 

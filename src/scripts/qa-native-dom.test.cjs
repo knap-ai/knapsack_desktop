@@ -20,3 +20,11 @@ test('actual Vite SDK load hook fences private imports without a server and excl
  const program=`import {resolveConfig} from './node_modules/vite/dist/node/index.js';import fs from 'node:fs';const input={root:process.cwd(),envDir:process.env.QA_TEST_EMPTY_ENV,logLevel:'silent'};const dev=await resolveConfig(input,'serve');const plugin=dev.plugins.find(p=>p.name==='qa-dom-sdk-facade');const result=await plugin.load(fs.realpathSync('./node_modules/@tauri-apps/api/tauri.js'));const helper=fs.readFileSync('./node_modules/@tauri-apps/api/helpers/tauri.js','utf8');const prod=await resolveConfig(input,'build');console.log(JSON.stringify({facade:result.code.includes('__knapsackQaTransport__'),nativeUntouched:!result.code.includes('__TAURI_IPC__'),privateCore:helper.includes("from '../tauri.js'"),notPrebundled:dev.optimizeDeps.exclude.includes('@tauri-apps/api'),productionExcluded:!prod.plugins.some(p=>p.name==='qa-dom-sdk-facade')}));`
  try{const result=spawnSync(process.execPath,['--input-type=module','-e',program],{cwd:path.join(__dirname,'..'),encoding:'utf8',env:{PATH:process.env.PATH,HOME:folder,QA_TEST_EMPTY_ENV:folder,KNAPSACK_QA_DOM_PROBES:'1',VITE_KNAPSACK_LOCAL_QA_SAFE:'1'}});assert.equal(result.status,0,result.stderr);assert.ok(Object.values(JSON.parse(result.stdout.trim())).every(value=>value===true))}finally{fs.rmSync(folder,{recursive:true,force:true})}
 })
+
+test('native lifecycle evidence requires exact identity, fixed coverage and successful outcome',()=>{
+ const {validateCaptureReport}=require('./qa-native-dom-run.cjs');const value={version:1,run_id:'fictional',bundle_id:'qa.fixture',coverage:'native_app_synthetic_callbacks_no_hardware',passed:true};
+ assert.equal(validateCaptureReport(value,'fictional','qa.fixture'),true);
+ for(const changed of [{run_id:'old'},{bundle_id:'production'},{passed:false},{coverage:'unit_test'},{extra:true}])assert.equal(validateCaptureReport({...value,...changed},'fictional','qa.fixture'),false);
+ const rust=source('src-tauri/src/qa_dom_probes.rs');assert.ok(rust.indexOf('if !wait_for_preflight().await')<rust.indexOf('native_capture_probe()'));
+ const callback=source('src-tauri/src/audio/macos.rs');assert.match(callback,/#\[cfg\(knapsack_synthetic_qa\)\]\s*pub\(crate\) fn native_tap_probe/);
+})

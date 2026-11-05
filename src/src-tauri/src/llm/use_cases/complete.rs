@@ -631,6 +631,30 @@ async fn resolve_knapsack_bearer_token_inner(email: &str) -> Result<String, LLME
   ))
 }
 
+/// Local thinking models can spend the entire interactive deadline reasoning.
+/// Bound only Ollama here; other providers retain their existing request contract.
+fn completion_request_body(provider: &str, model: &str, messages: serde_json::Value) -> serde_json::Value {
+  let mut body = serde_json::json!({ "model": model, "messages": messages });
+  if provider == "ollama" {
+    // Ollama maps OpenAI-compatible reasoning_effort=none to think=false.
+    body["reasoning_effort"] = serde_json::json!("none");
+    body["max_tokens"] = serde_json::json!(4096);
+  }
+  body
+}
+
+fn completion_content(provider: &str, json: &serde_json::Value) -> Result<String, LLMError> {
+  if json["choices"][0]["finish_reason"].as_str() == Some("length") {
+    return Err(LLMError::ChatCompletionFailed(format!(
+      "{} reached its response limit. Existing notes are preserved; try a shorter template or another model.", provider
+    )));
+  }
+  json["choices"][0]["message"]["content"].as_str()
+    .filter(|content| !content.trim().is_empty())
+    .map(str::to_owned)
+    .ok_or_else(|| LLMError::ChatCompletionFailed(format!("{}: no content in response", provider)))
+}
+
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
 /// Retries up to 3 times on transient failures with exponential backoff.
 /// For the knapsack provider a 401 triggers one token refresh + retry.
@@ -658,13 +682,12 @@ async fn openai_compatible_completion(
 
   let model = crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &provider.api_key)
     .map_err(LLMError::ProviderNotConfigured)?;
-  let body = serde_json::json!({
-    "model": model,
-    "messages": msgs,
-  });
+  let body = completion_request_body(&provider.name, &model, serde_json::json!(msgs));
 
   let url = format!("{}/chat/completions", &provider.base_url);
-  let max_retries = 3;
+  // A cancelled local request may still occupy the model's only worker. Do not
+  // amplify a saturated Ollama queue by immediately submitting the same work.
+  let max_retries = if provider.name == "ollama" { 1 } else { 3 };
   let mut last_error = String::new();
 
   // Debug: log auth details for troubleshooting provider errors
@@ -750,12 +773,7 @@ async fn openai_compatible_completion(
         usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
       }
 
-      let content = json["choices"][0]["message"]["content"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-          LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name))
-        })?;
+      let content = completion_content(&provider.name, &json)?;
 
       if usage.output_tokens == 0 {
         usage.output_tokens = estimate_tokens(&content);
@@ -1608,5 +1626,73 @@ mod provider_selection_tests {
   fn supported_openai_models_continue_to_the_selected_route() {
     assert!(ensure_supported_openai_model("gpt-6-astra").is_ok());
     assert!(ensure_supported_openai_model("gpt-5.6-terra").is_ok());
+  }
+}
+
+#[cfg(test)]
+mod production_inference_regression_tests {
+  use super::*;
+
+  #[test]
+  fn ollama_notes_disable_thinking_and_bound_output_without_changing_cloud_requests() {
+    let messages = serde_json::json!([{"role":"user","content":"Synthetic meeting: Alice owns the Friday demo."}]);
+    let body = completion_request_body("ollama", "qwen3.5:35b", messages.clone());
+    assert_eq!(body["reasoning_effort"], "none");
+    assert_eq!(body["max_tokens"], 4096);
+    assert_eq!(body["messages"], messages);
+    for provider in ["openai", "groq", "gemini", "trustedrouter", "openrouter"] {
+      let body = completion_request_body(provider, "synthetic-model", messages.clone());
+      assert!(body.get("reasoning_effort").is_none());
+      assert!(body.get("max_tokens").is_none());
+    }
+  }
+
+  #[tokio::test]
+  async fn saturated_ollama_receives_one_bounded_request_without_retry_amplification() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+      let (mut socket, _) = listener.accept().await.unwrap();
+      let mut request = Vec::new();
+      let mut chunk = [0u8; 2048];
+      loop {
+        let count = socket.read(&mut chunk).await.unwrap();
+        assert_ne!(count, 0);
+        request.extend_from_slice(&chunk[..count]);
+        if let Some(end) = request.windows(4).position(|bytes| bytes == b"\r\n\r\n") {
+          let headers = String::from_utf8_lossy(&request[..end]);
+          let length: usize = headers.lines().find_map(|line| {
+            line.to_ascii_lowercase().strip_prefix("content-length:").map(|s| s.trim().parse().unwrap())
+          }).unwrap();
+          if request.len() >= end + 4 + length {
+            let body: serde_json::Value = serde_json::from_slice(&request[end+4..end+4+length]).unwrap();
+            assert_eq!(body["reasoning_effort"], "none");
+            assert_eq!(body["max_tokens"], 4096);
+            break;
+          }
+        }
+      }
+      socket.write_all(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 4\r\nConnection: close\r\n\r\nbusy").await.unwrap();
+      drop(socket);
+      assert!(tokio::time::timeout(std::time::Duration::from_millis(2500), listener.accept()).await.is_err(), "Ollama must not receive a duplicate retry");
+    });
+    let provider = ResolvedProvider { name:"ollama".into(), api_key:"ollama-local".into(),
+      model:"qwen3.5:35b".into(), base_url:format!("http://{}/v1",address), is_anthropic:false };
+    let result = openai_compatible_completion(&provider, &[LlmMessage {
+      sender:MessageSender::User, content:"Fictional meeting: Alice owns the Friday demo.".into()
+    }]).await;
+    assert!(result.is_err());
+    server.await.unwrap();
+  }
+
+  #[test]
+  fn truncated_or_thinking_only_notes_are_not_saved_as_success() {
+    let truncated = serde_json::json!({"choices":[{"finish_reason":"length","message":{"content":"Partial notes"}}]});
+    assert!(completion_content("ollama", &truncated).is_err());
+    let thinking = serde_json::json!({"choices":[{"finish_reason":"stop","message":{"content":"  ","reasoning":"Private reasoning"}}]});
+    assert!(completion_content("ollama", &thinking).is_err());
+    let complete = serde_json::json!({"choices":[{"finish_reason":"stop","message":{"content":"Alice owns the Friday demo."}}]});
+    assert_eq!(completion_content("ollama", &complete).unwrap(), "Alice owns the Friday demo.");
   }
 }

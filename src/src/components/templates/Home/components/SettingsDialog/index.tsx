@@ -15,9 +15,9 @@ import { Profile } from 'src/hooks/auth/useAuth'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
 import { KN_API_GET_USER_EMAIL, KN_SERVER_HOST } from 'src/utils/constants'
+import { groupSettingsGoogleConnections, normalizeConnectionEmail } from 'src/utils/settingsConnections'
 import { googleAccountConnectPresentation } from 'src/utils/accountConnectionPresentation'
 import { logError } from 'src/utils/errorHandling'
-import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { getPrivacyExperimentTrackingId } from 'src/utils/onboardingIntent'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
@@ -63,6 +63,8 @@ import { open as openExternalUrl } from '@tauri-apps/api/shell'
 import styles from './styles.module.scss'
 import AudioSettings from './AudioSettings'
 import DiagnosticCaptureControl from './DiagnosticCaptureControl'
+import { ConnectionGrantRemove } from './ConnectionGrantRemove'
+import { useSettingsConnectionRemoval } from 'src/hooks/useSettingsConnectionRemoval'
 
 type SettingsDialogProps = {
   handlePrivacyLinkClick: () => void
@@ -713,6 +715,8 @@ export const SettingsDialog = ({
   useEffect(() => { if (!isOpen) setBackupOpen(false) }, [isOpen])
   const [settingsConnections, setSettingsConnections] =
     useState<Record<string, Connection>>(connections)
+  const [settingsInventoryLoaded, setSettingsInventoryLoaded] = useState(false)
+  const inventoryRequest = useRef(0)
   const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] =
     useState<boolean>(false)
   const [saveTranscripts, setSaveTranscripts] = useState<boolean>(true)
@@ -818,7 +822,7 @@ export const SettingsDialog = ({
   const [scheduledTaskBusy, setScheduledTaskBusy] = useState<string | null>(null)
   const [backendPrimaryEmail, setBackendPrimaryEmail] = useState('')
   const displayConnections =
-    isOpen && Object.keys(settingsConnections).length > 0 ? settingsConnections : connections
+    isOpen && settingsInventoryLoaded ? settingsConnections : connections
   const googlePrimaryEmail =
     email ||
     profile?.email ||
@@ -833,17 +837,21 @@ export const SettingsDialog = ({
 
   const loadSettingsConnections = useCallback(async () => {
     if (!googlePrimaryEmail) return
+    const request = ++inventoryRequest.current
     try {
       const updatedConnections = await getConnections(googlePrimaryEmail, { includeAllUsers: true })
-      setSettingsConnections(updatedConnections)
+      if (request === inventoryRequest.current) {
+        setSettingsConnections(updatedConnections)
+        setSettingsInventoryLoaded(true)
+      }
     } catch (error: any) {
       logError(new Error('Failed to load all settings connections'), {
         additionalInfo: 'Settings connections aggregate',
         error: error?.message || String(error),
       })
-      setSettingsConnections(connections)
+      throw error
     }
-  }, [connections, googlePrimaryEmail])
+  }, [googlePrimaryEmail])
 
   const loadSlackOauthAccounts = useCallback(async () => {
     try {
@@ -942,36 +950,7 @@ export const SettingsDialog = ({
     }
   }, [googleOauthBusy, requireGooglePrimaryEmail])
 
-  const getGoogleAccountLabel = useCallback(
-    (item: Connection) =>
-      item.calendarAccountEmail || item.ownerEmail || googlePrimaryEmail || 'unknown account',
-    [googlePrimaryEmail],
-  )
-
-  const googleAccounts = Array.from(
-    [
-      ...getGoogleGmailConnections(displayConnections).map(connection => ({
-        connection,
-        service: 'Gmail',
-      })),
-      ...getGoogleCalendarConnections(displayConnections).map(connection => ({
-        connection,
-        service: 'Calendar',
-      })),
-      ...getGoogleDriveConnections(displayConnections).map(connection => ({
-        connection,
-        service: 'Drive',
-      })),
-    ].reduce((accounts, item) => {
-      const accountEmail = getGoogleAccountLabel(item.connection)
-      const existing = accounts.get(accountEmail) || []
-      existing.push(item)
-      accounts.set(accountEmail, existing)
-      return accounts
-    }, new Map<string, Array<{ connection: Connection; service: string }>>()),
-  )
-    .map(([accountEmail, services]) => ({ accountEmail, services }))
-    .sort((a, b) => a.accountEmail.localeCompare(b.accountEmail))
+  const googleAccounts = groupSettingsGoogleConnections(displayConnections, googlePrimaryEmail)
   const googleConnectPresentation = googleAccountConnectPresentation(
     googleAccounts.length,
     googleOauthBusy,
@@ -987,8 +966,8 @@ export const SettingsDialog = ({
   )
 
   useEffect(() => {
-    setSettingsConnections(connections)
-  }, [connections])
+    if (!settingsInventoryLoaded) setSettingsConnections(connections)
+  }, [connections, settingsInventoryLoaded])
 
   useEffect(() => {
     if (!isOpen || email || profile?.email || backendPrimaryEmail) return
@@ -1008,7 +987,7 @@ export const SettingsDialog = ({
 
   useEffect(() => {
     if (!isOpen) return
-    void loadSettingsConnections()
+    void loadSettingsConnections().catch(() => {})
     void loadSlackOauthAccounts()
   }, [isOpen, loadSettingsConnections, loadSlackOauthAccounts])
 
@@ -1239,30 +1218,18 @@ export const SettingsDialog = ({
     setSendPushNotificationsIsChecked(userWantsNotfications)
   }, [sendPushNotificationsIsChecked])
 
-  const handleDeleteConnection = useCallback(
-    async (connection: Connection) => {
-      if (!email) {
-        logError(new BaseException('The user email is missing'), {
-          additionalInfo: 'Attempted to delete a connection without a valid user email',
-        })
-        return
-      }
-      if (connection.id) {
-        await deleteConnection(connection.id)
-      } else if (connection.key !== ConnectionKeys.LOCAL_FILES) {
-        logError(new BaseException('This connection is missing the ID property'), {
-          additionalInfo: connection.key,
-        })
-        return
-      }
-      if (connection.key === ConnectionKeys.LOCAL_FILES) {
-        setIsFilesEnabled(false)
-      }
-      await fetchConnections(email)
-      await loadSettingsConnections()
+  const { remove: handleDeleteConnection, removingId: removingConnectionId, error: connectionRemovalError } = useSettingsConnectionRemoval({
+    deleteConnection,
+    onRemoved: connection => {
+      if (connection.key === ConnectionKeys.LOCAL_FILES) setIsFilesEnabled(false)
+      ++inventoryRequest.current
+      setSettingsConnections(current => Object.fromEntries(Object.entries(current).filter(([, item]) =>
+        connection.id ? item.id !== connection.id : item.key !== connection.key)))
+      setSettingsInventoryLoaded(true)
     },
-    [deleteConnection, email, fetchConnections, loadSettingsConnections],
-  )
+    refreshApp: async () => { if (googlePrimaryEmail) await fetchConnections(googlePrimaryEmail) },
+    refreshSettings: loadSettingsConnections,
+  })
 
   const handleShowNotificationLeadTimeChange = (min: string) => {
     const minNumber = parseInt(min)
@@ -2282,6 +2249,7 @@ export const SettingsDialog = ({
           <Typography weight={TypographyWeight.medium}>Permissions</Typography>
 
           <div className="PermissionContent flex flex-col gap-2">
+            {connectionRemovalError && <div role="alert">{connectionRemovalError}</div>}
             <div className="flex flex-col gap-2 py-2 border-b border-zinc-100">
               <div className="flex justify-between min-h-[36px] items-center gap-4">
                 <div className="flex min-w-0 flex-col gap-1">
@@ -2378,26 +2346,22 @@ export const SettingsDialog = ({
                 >
                   <Typography weight={TypographyWeight.medium}>{account.accountEmail}</Typography>
                   <div className="flex flex-col gap-1">
-                    {account.services.map(({ connection, service }) => (
-                      <div
-                        className="flex justify-between items-center min-h-[28px] pl-3"
-                        key={`${service}-${connection.id}-${connection.ownerEmail}`}
-                      >
-                        <div className="flex flex-col">
-                          <Typography className="text-sm text-gray-600">{service}</Typography>
-                          {(liveConnectionStateById.get(connection.id) ?? connection.state) ===
-                            ConnectionStates.FAILED && (
-                            <Typography className="text-xs text-red-600">
-                              Needs reconnect — no new data is being read
-                            </Typography>
-                          )}
-                        </div>
-                        <Typography
-                          className={`cursor-pointer ${styles.link}`}
-                          onClick={() => handleDeleteConnection(connection)}
-                        >
-                          Remove
-                        </Typography>
+                    {account.services.map(({ service, grants }) => (
+                      <div key={service} className="flex flex-col gap-1 pl-3">
+                        <Typography className="text-sm text-gray-600">{service}</Typography>
+                        {grants.map(connection => (
+                          <div key={`${connection.id}-${connection.ownerEmail}`} className="flex justify-between items-center gap-3 min-h-[28px]">
+                            <div className="flex flex-col text-xs text-gray-500">
+                              <span>{normalizeConnectionEmail(connection.ownerEmail) === normalizeConnectionEmail(googlePrimaryEmail)
+                                ? 'Current Knapsack profile'
+                                : `Knapsack profile: ${connection.ownerEmail || 'unknown'}`}</span>
+                              {(liveConnectionStateById.get(connection.id) ?? connection.state) === ConnectionStates.FAILED &&
+                                <span className="text-red-600">Needs reconnect — no new data is being read</span>}
+                            </div>
+                            <ConnectionGrantRemove connection={connection} service={service}
+                              busy={removingConnectionId !== null} onRemove={handleDeleteConnection} />
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>

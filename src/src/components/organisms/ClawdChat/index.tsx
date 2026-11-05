@@ -1823,6 +1823,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   )
 })
 
+export { ChatInputBar }
+
 // ── Allowlist management section (rendered inside each connected channel) ──
 
 const DM_POLICIES = [
@@ -2307,6 +2309,16 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
+  useEffect(() => {
+    const connectSlack = () => {
+      if (!activeRef.current) return
+      setShowChannelsPanel(true)
+      setExpandedChannel('slack')
+      setShowKeyPrompt(false)
+    }
+    window.addEventListener('knapsack:connect-slack', connectSlack)
+    return () => window.removeEventListener('knapsack:connect-slack', connectSlack)
+  }, [])
   const [whatsappPhoneInput, setWhatsappPhoneInput] = useState('')
   const [whatsappPhoneLinking, setWhatsappPhoneLinking] = useState(false)
   // Generic channel credential inputs

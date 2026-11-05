@@ -82,7 +82,7 @@ test('macOS tap exclusions use Core Audio process objects rather than Unix PIDs'
 })
 
 
-test('recording indicator waits for microphone acknowledgement and transcript persistence', () => {
+test('recording journal is durable before capture and indicator waits for microphone acknowledgement', () => {
   const source = read('src-tauri/src/audio/audio.rs')
   const start = source.indexOf('pub async fn start_recording(')
   const end = source.indexOf('struct StopRecordingRequest', start)
@@ -90,7 +90,7 @@ test('recording indicator waits for microphone acknowledgement and transcript pe
   const micReady = recording.indexOf('mic_startup_rx.recv()')
   const transcript = recording.indexOf('transcript.create()')
   const indicator = recording.indexOf('indicator_window.show()')
-  assert.ok(micReady > 0 && transcript > micReady && indicator > transcript)
+  assert.ok(transcript > 0 && micReady > transcript && indicator > micReady)
   assert.equal((recording.match(/indicator_window.show\(\)/g) || []).length, 1)
   const stream = source.slice(source.indexOf('async fn stream_audio('))
   assert.ok(stream.indexOf('startup_tx.send(Ok(()))') > stream.indexOf('.play()'))

@@ -71,8 +71,8 @@ test('follow-up drafts use meeting substance and exclude all of the user identit
   const emails = source('utils/emails.tsx')
   const home = source('components/templates/Home/Home.tsx')
   const workspace = source('components/organisms/CenterWorkspace/index.tsx')
-  assert.match(emails, /My main takeaways were:/)
-  assert.match(emails, /For next steps:/)
+  assert.match(emails, /<strong>Key takeaways<\/strong>/)
+  assert.match(emails, /<strong>Next steps<\/strong>/)
   assert.match(emails, /Decisions\|Key Decisions/)
   assert.doesNotMatch(emails, /Great meeting today/)
   for (const file of [home, workspace]) {

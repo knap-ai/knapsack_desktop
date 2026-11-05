@@ -25,6 +25,7 @@
     "test:qa-harness": "node --test scripts/qa-dev-run.test.cjs scripts/qa-process-safety.test.cjs scripts/qa-loop-runner.test.cjs scripts/qa-gateway-isolation.test.cjs scripts/qa-gateway-rust-tests.test.cjs scripts/qa-provider-isolation.test.cjs scripts/qa-background-isolation.test.cjs scripts/qa-native-dom.test.cjs",
     "test:qa-provider-ui": "vitest run src/utils/privacyProviderSelection.qa.test.ts",
     "test:qa-gateway-rust": "node scripts/qa-gateway-rust-tests.cjs",
+    "test:gateway-startup": "node --test scripts/gateway-deferred-startup.test.mjs",
     "test:qa-loop": "node --test scripts/qa-loop-runner.test.cjs",
     "test:app-update": "node --test scripts/app-update.test.cjs",
     "test:onboarding-intent": "node --test scripts/onboarding-intent.test.cjs",

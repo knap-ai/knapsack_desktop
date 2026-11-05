@@ -20,7 +20,9 @@ const loadTypeScriptModule = (relativePath) => {
     "module",
     "require",
     compiled,
-  )(loaded.exports, loaded, require);
+  )(loaded.exports, loaded, id => id.startsWith('.')
+    ? loadTypeScriptModule(path.join(path.dirname(relativePath), id + '.ts'))
+    : require(id));
   return loaded.exports;
 };
 
@@ -44,7 +46,8 @@ test("Slack copy uses rich HTML with a marker-free plain-text fallback", () => {
   assert.match(payload.html, /<h2>Demo Meeting<\/h2>/);
   assert.match(payload.html, /<strong>Pilot:<\/strong> Ship now/);
   assert.match(payload.html, /<a href="https:\/\/example\.com">Open brief<\/a>/);
-  assert.match(payload.html, /<pre>Metric\s+\|\s+Result/);
+  assert.match(payload.html, /<ul><li>Metric: Lift<\/li><li>Result: 3%<\/li><\/ul>/);
+  assert.match(payload.text, /• Metric: Lift\n• Result: 3%/);
   assert.doesNotMatch(payload.text, /\*Demo Meeting\*/);
   assert.match(payload.text, /Decisions\n• Pilot: Ship now/);
 });

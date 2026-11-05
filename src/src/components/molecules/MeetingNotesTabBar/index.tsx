@@ -18,7 +18,8 @@ interface MeetingNotesTabBarProps {
   onTasksButtonClick: () => void
   onInsightsClick?: () => void
   copyOpensShare?: boolean
-  onCopyClick: () => void
+  onCopyClick: () => void | Promise<void>
+  onShareClick?: () => void
   isEditing: boolean
   onEditClick: () => void
 }
@@ -33,13 +34,14 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
   onInsightsClick,
   onCopyClick,
   copyOpensShare,
+  onShareClick,
   canChangeTemplate,
   onEditClick,
   isEditing,
 }) => {
 
   return (
-    <div className="flex flex-row gap-x-6 items-center">
+    <div className="meeting-notes-actions flex flex-row flex-wrap gap-x-6 gap-y-3 items-center">
       <Button
         label={templateLabel}
         variant={ButtonVariant.regular}
@@ -89,6 +91,7 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
         />
       )}
       <CopyButton onClick={onCopyClick} showCopyStatus={!copyOpensShare} />
+      {onShareClick && <button type="button" className="text-xxs uppercase font-semibold font-InterTight tracking-[0.08em] text-ks-warm-grey-800 hover:underline" onClick={onShareClick}>Share to Slack…</button>}
       <EditDisplayToggleButton isEditing={isEditing} onClick={onEditClick} />
     </div>
   )

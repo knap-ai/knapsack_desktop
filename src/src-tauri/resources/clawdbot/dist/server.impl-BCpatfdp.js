@@ -2647,11 +2647,26 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				}
 				const { loadGatewayStartupPluginRuntime } = await loadStartupPluginsModule();
 				const configuredDesktopChannelPluginIds = String(process.env.OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean);
-				const deferredStartupPluginIds = [...new Set([...startupPluginIds, ...(loadOptions.includeDeferred === true ? [...deferredConfiguredChannelPluginIds, ...configuredDesktopChannelPluginIds] : [])])];
+				let manifestStartupPluginIds = [];
+				let deferredWorkspaceDir = defaultWorkspaceDir;
+				if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_FAST_BIND === "1" && loadOptions.includeDeferred === true) {
+					const [{ t: loadGatewayStartupPluginPlan }, { c: resolveDefaultAgentId, o: resolveAgentWorkspaceDir }] = await Promise.all([
+						import("./channel-plugin-ids-nB-ga3MN.js"),
+						import("./agent-scope-config-CMp71_27.js")
+					]);
+					deferredWorkspaceDir ??= resolveAgentWorkspaceDir(gatewayPluginConfigAtStart, resolveDefaultAgentId(gatewayPluginConfigAtStart));
+					manifestStartupPluginIds = loadGatewayStartupPluginPlan({
+						config: gatewayPluginConfigAtStart,
+						activationSourceConfig: startupActivationSourceConfig,
+						workspaceDir: deferredWorkspaceDir,
+						env: process.env
+					}).pluginIds;
+				}
+				const deferredStartupPluginIds = [...new Set([...startupPluginIds, ...manifestStartupPluginIds, ...(loadOptions.includeDeferred === true ? [...deferredConfiguredChannelPluginIds, ...configuredDesktopChannelPluginIds] : [])])];
 				return loadGatewayStartupPluginRuntime({
 					cfg: gatewayPluginConfigAtStart,
 					activationSourceConfig: startupActivationSourceConfig,
-					workspaceDir: defaultWorkspaceDir,
+					workspaceDir: deferredWorkspaceDir,
 					log,
 					baseMethods,
 					coreGatewayMethodNames,

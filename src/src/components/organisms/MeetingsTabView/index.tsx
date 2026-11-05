@@ -310,7 +310,8 @@ const MeetingsTabView = ({
             }}/>}
             {copyStatus && <span role="status">{copyStatus}</span>}
             {shareOpen && <div className="MeetingsTabView__share-menu">
-              <button onClick={() => {setShareOpen(false);setSlackShareOpen(true)}}>Copy for Slack / send to channel</button>
+              <button onClick={() => void shareNotes(false)}>Copy for Slack</button>
+              <button onClick={() => {setShareOpen(false);setSlackShareOpen(true)}}>Share to Slack…</button>
               <button onClick={() => void shareTranscript()}>Copy transcript</button>
               {onEmailClick && <button onClick={() => void shareNotes(true)}>Draft email with notes</button>}
               <button onClick={() => setShareOpen(false)}>Close</button>

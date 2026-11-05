@@ -236,6 +236,9 @@ async fn speech_to_text(
     if crate::privacy_mode::is_local_only() {
       return Err(LLMError::ChatCompletionFailed(LOCAL_ONLY_TRANSCRIPTION_ERROR.into()).into());
     }
+    if provider.name == "knapsack" && std::env::var("KNAPSACK_USER_EMAIL").unwrap_or_default() != provider.api_key {
+      return Err(LLMError::ChatCompletionFailed("Account changed. Your audio is preserved.".into()).into());
+    }
     crate::privacy_mode::enforce_route(provider.name, provider.model, provider.base_url, &provider.api_key)
       .map_err(|message| LLMError::ChatCompletionFailed(message))?;
     let request = if provider.name == "knapsack" {
@@ -245,6 +248,10 @@ async fn speech_to_text(
     } else {
       client.post(provider.base_url).multipart(form)
     };
+    // Admission is serialized with journal deletion after asynchronous file/auth
+    // preparation. Requests admitted earlier are already in flight; deletion
+    // cannot retroactively unsend them, but no later retry is admitted.
+    if let Some(audio)=audio_file.file_name().and_then(|s|s.to_str()) { super::recovery::check_owner(audio)?; }
     let request_span = Span::current(Phase::Request);
     let request_result = request
       .bearer_auth(&bearer)
@@ -345,7 +352,7 @@ async fn speech_to_text(
       match status.as_u16() {
         401 => "Sign in to Knapsack again to resume transcription".into(),
         402 => "Add Knapsack credits to resume transcription".into(),
-        403 => "Your organization does not allow Groq transcription".into(),
+        403 => "Knapsack denied transcription access. Check account permissions or contact support. Your audio is preserved.".into(),
         404 | 503 => "Knapsack transcription is not available yet. Please contact support".into(),
         413 => "Audio chunk exceeds the transcription upload limit".into(),
         _ => status.to_string(),
@@ -376,12 +383,13 @@ async fn speech_to_text(
 }
 
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
+  if let Some(audio) = audio_file.file_name().and_then(|s| s.to_str()) { super::recovery::check_owner(audio)?; }
   if crate::privacy_mode::is_local_only() {
     let local = Span::current(Phase::LocalInference);
     let result = crate::local_speech::transcribe_meeting(audio_file.clone()).await;
     diagnostics::finish_result(local, &result);
     let text = result.map_err(|message| LLMError::ChatCompletionFailed(message))?;
-    return persist_chunk_transcript(&filename, &text);
+    return persist_chunk_transcript(audio_file, &filename, &text);
   }
   let providers = resolve_stt_providers()?;
   log::info!(
@@ -401,7 +409,7 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
     diagnostics::finish_result(span, &result);
     match result {
       Ok(transcription) => {
-        return persist_chunk_transcript(&filename, &transcription);
+        return persist_chunk_transcript(audio_file, &filename, &transcription);
       }
       Err(e) => {
         let err_str = e.to_string();
@@ -437,7 +445,11 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
   )
 }
 
-fn persist_chunk_transcript(filename: &str, text: &str) -> Result<(), Error> {
+fn persist_chunk_transcript(audio: &Path, filename: &str, text: &str) -> Result<(), Error> {
+  if let Some(audio) = audio.file_name().and_then(|s|s.to_str()) {
+    super::recovery::check_owner(audio)?;
+    if super::recovery::persist(audio,text)? { return Ok(()) }
+  }
   let dir = dirs::home_dir().ok_or_else(|| Error::KSError("No home directory".into()))?.join(".knapsack/transcripts");
   fs::create_dir_all(&dir)?;
   let mut file = OpenOptions::new().create(true).append(true).open(dir.join(filename))?;
@@ -449,6 +461,9 @@ fn persist_chunk_transcript(filename: &str, text: &str) -> Result<(), Error> {
 /// Bound queue admission as well as the network work. Audio must be saved before
 /// calling this helper, so a saturated provider never loses captured samples.
 pub async fn finalize_live_chunk(audio_filename: String, transcript_filename: String, semaphore: &tokio::sync::Semaphore) {
+  if let Err(error)=super::recovery::register(&audio_filename) {
+    record_transcription_result(&transcript_filename,&Err(error));return;
+  }
   // Local recognition can take longer than the live capture cadence. Keep
   // queued chunks in the completion barrier instead of abandoning them.
   if crate::privacy_mode::is_local_only() {
@@ -470,7 +485,21 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
   diagnostics::TRACE.scope(Trace::new(Kind::Transcription, None), finalize_chunk_inner(audio_filename, transcript_filename)).await;
 }
 
+// The provider client permits a 120-second upload/transcription. The former
+// 20-second outer deadline cancelled healthy requests before that client could
+// finish or refresh authentication. Keep a finite total budget, including auth
+// and retries, and preserve the saved chunk on exhaustion.
+const CLOUD_TRANSCRIPTION_DEADLINE: Duration = Duration::from_secs(150);
+async fn complete_cloud_transcription<F>(work: F) -> Result<(), Error>
+where F: std::future::Future<Output = Result<(), Error>> {
+  tokio::time::timeout(CLOUD_TRANSCRIPTION_DEADLINE, work).await
+    .unwrap_or_else(|_| Err(LLMError::ChatCompletionFailed("Transcription timed out; audio is saved locally. Check your connection or transcription provider.".into()).into()))
+}
+
 async fn finalize_chunk_inner(audio_filename: String, transcript_filename: String) {
+  let worker = transcription_worker(&audio_filename);
+  let _serial = worker.lock().await;
+  if let Err(error)=super::recovery::register(&audio_filename) {record_transcription_result(&transcript_filename,&Err(error));return;}
   let total = Span::current(Phase::Total);
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
@@ -478,11 +507,13 @@ async fn finalize_chunk_inner(audio_filename: String, transcript_filename: Strin
   let audio_path = flac_path.join(&audio_filename);
   // A blocking local recognizer cannot be cancelled by dropping its future.
   // Await it so Stop's completion barrier includes the persisted transcript.
-  let result = if crate::privacy_mode::is_local_only() {
+  let cached=super::recovery::cached(&audio_filename);
+  let result = if let Ok(Some(text))=cached {
+    persist_chunk_transcript(&audio_path,&transcript_filename,&text)
+  } else if crate::privacy_mode::is_local_only() {
     transcribe_audio(&audio_path, transcript_filename.clone()).await
   } else {
-    tokio::time::timeout(Duration::from_secs(20), transcribe_audio(&audio_path, transcript_filename.clone())).await
-      .unwrap_or_else(|_| Err(LLMError::ChatCompletionFailed("Transcription timed out; audio is saved locally. Check your connection or transcription provider.".into()).into()))
+    complete_cloud_transcription(transcribe_audio(&audio_path, transcript_filename.clone())).await
   };
   // Only clear a previous failure once this stream has transcribed and saved
   // a chunk successfully. Microphone activity alone is not recovery evidence.
@@ -510,7 +541,16 @@ async fn finalize_chunk_inner(audio_filename: String, transcript_filename: Strin
 }
 
 lazy_static! {
+  static ref RECOVERY_WORKERS: std::sync::Mutex<std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>> = std::sync::Mutex::new(std::collections::HashMap::new());
   static ref PENDING_TRANSCRIPTION_NOTIFY: Notify = Notify::new();
+}
+fn transcription_worker(audio: &str) -> std::sync::Arc<tokio::sync::Mutex<()>> {
+  let mut workers = RECOVERY_WORKERS.lock().unwrap();
+  workers.retain(|_, worker| worker.strong_count() > 0);
+  if let Some(worker) = workers.get(audio).and_then(|worker| worker.upgrade()) { return worker; }
+  let worker = std::sync::Arc::new(tokio::sync::Mutex::new(()));
+  workers.insert(audio.to_string(), std::sync::Arc::downgrade(&worker));
+  worker
 }
 static PENDING_TRANSCRIPTION_JOBS: AtomicUsize = AtomicUsize::new(0);
 
@@ -618,6 +658,7 @@ pub fn unify_transcript(
   transcript_filename: &str,
 ) -> Result<(), Error> {
   let input_path = Path::new(input_filename);
+  if super::recovery::finish(input_path,Path::new(transcript_filename))? { return Ok(()) }
   let output_path = Path::new(output_filename);
   let transcript_path = Path::new(transcript_filename);
 
@@ -651,7 +692,7 @@ fn read_file_content(path: &Path) -> Result<String, Error> {
   }
 }
 
-fn merge_transcripts(input: &str, output: &str) -> String {
+pub(super) fn merge_transcripts(input: &str, output: &str) -> String {
   let re = Regex::new(r"\[(\d+\.\d+)\s*-\s*(\d+\.\d+)\]:\s*(.+)").unwrap();
   let mut segments: Vec<(f64, bool, String)> = Vec::new();
   let mut result = String::new();
@@ -1056,5 +1097,44 @@ mod tests {
 
     assert!(wait_for_transcription_jobs(Duration::from_secs(1)).await);
     worker.await.unwrap();
+  }
+}
+
+/// Only receipts created by this version and belonging to this account are replayed.
+pub async fn resume_pending_transcription(owner: String) -> Result<(), String> {
+  let jobs = super::recovery::pending(&owner).map_err(|error| error.to_string())?;
+  let mut error = None;
+  for (audio, transcript) in jobs {
+    if std::env::var("KNAPSACK_USER_EMAIL").unwrap_or_default() != owner {
+      return Err("Account changed. Pending audio was preserved.".into());
+    }
+    let _job = begin_transcription_job();
+    finalize_chunk(audio, transcript.clone()).await;
+    if let Some(message) = transcription_error(&transcript) { error = Some(message); }
+  }
+  match error { Some(error) => Err(error), None => Ok(()) }
+}
+
+#[cfg(test)]
+mod production_transcription_regression_tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn healthy_transcription_can_finish_after_the_former_twenty_second_cutoff() {
+    let result = complete_cloud_transcription(async {
+      tokio::time::sleep(Duration::from_secs(21)).await;
+      Ok(())
+    }).await;
+    assert!(result.is_ok());
+    assert!(CLOUD_TRANSCRIPTION_DEADLINE > Duration::from_secs(120));
+    assert!(CLOUD_TRANSCRIPTION_DEADLINE <= Duration::from_secs(180));
+  }
+
+  #[tokio::test]
+  async fn cloud_transcription_preserves_the_original_provider_failure() {
+    let result = complete_cloud_transcription(async {
+      Err(LLMError::ChatCompletionFailed("Synthetic account access denied; audio saved".into()).into())
+    }).await;
+    assert!(result.unwrap_err().to_string().contains("Synthetic account access denied"));
   }
 }

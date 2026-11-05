@@ -10,9 +10,23 @@ interface EmailComposeDrawerProps {
   userEmail?: string
   userName?: string
   onDismiss: () => void
+  senderLoading?: boolean
+  senderError?: string
+  onRefreshSenders?: () => void
+  onManageAccounts?: () => void
 }
 
-const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [] }: EmailComposeDrawerProps) => {
+const EmailComposeDrawer = ({
+  draft,
+  userEmail,
+  userName,
+  onDismiss,
+  senders = [],
+  senderLoading = false,
+  senderError = '',
+  onRefreshSenders,
+  onManageAccounts,
+}: EmailComposeDrawerProps) => {
   const [to, setTo] = useState(draft.to)
   const [subject, setSubject] = useState(draft.subject)
   const [ccList, setCcList] = useState<string[]>(() =>
@@ -25,6 +39,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
   const drawerRef = useRef<HTMLDivElement>(null)
   const senderListHasLoadedRef = useRef(senders.length > 0)
   const [sending, setSending] = useState(false)
+  const sendingRef = useRef(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const attachments = draft.attachments ?? []
@@ -74,10 +89,12 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
   }, [ccInput, ccList, handleAddCc, handleRemoveCc])
 
   const handleSend = useCallback(async () => {
+    if (sendingRef.current) return
     if (!sender) {
       setError('Choose a connected Gmail or Outlook sender. Your draft is preserved.')
       return
     }
+    sendingRef.current = true
     setSending(true)
     setError('')
     try {
@@ -100,6 +117,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
     } catch (e: any) {
       setError(e?.message || 'Failed to send email')
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }, [to, subject, ccList, draft, sender, userName, onDismiss])
@@ -156,7 +174,35 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
         </button>
       </div>
 
-      {senders.length === 0 && <p role="status" style={{ padding: "0 16px" }}>Connect Gmail or Outlook to send. You can keep editing this draft.</p>}
+      {senderLoading && (
+        <p role="status" style={{ padding: '0 16px' }}>
+          Checking connected mailboxes…
+        </p>
+      )}
+      {senderError && (
+        <p role="alert" style={{ padding: '0 16px' }}>
+          {senderError}
+        </p>
+      )}
+      {!senderLoading && !senderError && senders.length === 0 && (
+        <p role="status" style={{ padding: '0 16px' }}>
+          Connect Gmail or Outlook to send. You can keep editing this draft.
+        </p>
+      )}
+      {(senderError || (!senderLoading && senders.length === 0)) && (
+        <div style={{ padding: '0 16px' }}>
+          {onRefreshSenders && (
+            <button type="button" onClick={onRefreshSenders}>
+              Refresh mailboxes
+            </button>
+          )}
+          {onManageAccounts && (
+            <button type="button" onClick={onManageAccounts}>
+              Manage connected accounts
+            </button>
+          )}
+        </div>
+      )}
       {/* Fields */}
       <div style={{ padding: '4px 16px 0', flexShrink: 0, borderBottom: '1px solid #e2e8f0' }}>
         {/* From — the connected mailbox that will actually send this draft. */}
@@ -164,7 +210,12 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
           <span style={labelStyle}>From</span>
           <select aria-label="Sender mailbox" value={senderId} disabled={sending} onChange={event => setSenderId(event.target.value)} style={inputStyle}>
             <option value="">Choose sender</option>
-            {senders.map(item => <option key={item.id} value={item.id}>{item.accountEmail} ({item.provider === 'outlook' ? 'Outlook' : 'Gmail'})</option>)}
+            {senders.map(item => (
+              <option key={item.id} value={item.id}>
+                {item.accountEmail} ({item.provider === 'outlook' ? 'Outlook' : 'Gmail'}
+                {item.requiresSelection ? ` · connected as ${item.ownerEmail}` : ''})
+              </option>
+            ))}
           </select>
         </div>
 
@@ -271,6 +322,9 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss, senders = [
         )}
         <div
           ref={bodyRef}
+          className="EmailComposeBody"
+          role="textbox"
+          aria-label="Email body"
           contentEditable
           suppressContentEditableWarning
           style={{

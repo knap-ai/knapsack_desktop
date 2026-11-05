@@ -80,6 +80,10 @@ jobs:
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
 
+      - name: Test deferred gateway startup policy
+        working-directory: src
+        run: npm run test:gateway-startup
+
       - name: Report clawdbot duplicates before prune
         working-directory: src
         run: node scripts/report-clawdbot-duplicates.cjs

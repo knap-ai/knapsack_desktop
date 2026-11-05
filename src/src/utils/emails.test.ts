@@ -3,6 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { buildFollowUpEmailBody } from './emails'
 
 describe('meeting follow-up email quality', () => {
+  it('uses visible bullets and cleans internal deadline fields without adding commitments', () => {
+    const body = buildFollowUpEmailBody('## Action Items\n- You — Share the pilot notes — Due: Not specified\n- Jo — Review API readiness — Due: Friday', 'Acme <> Example', undefined, 'Sam')
+    expect(body).toContain('Acme and Example')
+    expect(body).toContain('list-style-type:disc')
+    expect(body).toContain('I’ll share the pilot notes.')
+    expect(body).toContain('Jo will review API readiness; timing: Friday.')
+    expect(body).not.toMatch(/Due:|Not specified|Best(?: regards)?,/)
+  })
   it('uses grounded meeting content without inventing a future commitment', () => {
     const body = buildFollowUpEmailBody(
       '# Meeting Notes\n\nWe discussed the pilot feedback and pricing questions.',
@@ -24,14 +32,14 @@ describe('meeting follow-up email quality', () => {
       'Sam',
     )
 
-    expect(body).toContain('For next steps:')
+    expect(body).toContain('<strong>Next steps</strong>')
     expect(body).toContain('I’ll send revised pricing by Friday.')
   })
 
   it('keeps sparse drafts sendable without fabricating details', () => {
     const body = buildFollowUpEmailBody('# Meeting Notes', undefined, 'Alex')
-    expect(body).toContain('Thanks again for the conversation.')
-    expect(body).toContain('Let me know if I missed anything.')
+    expect(body).toContain('Thank you for the discussion.')
+    expect(body).toContain('Please let me know if anything needs correcting')
     expect(body).not.toMatch(/I(?:’|')ll|deadline|next steps separately/i)
   })
 })

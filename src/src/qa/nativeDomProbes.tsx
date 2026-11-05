@@ -1,3 +1,4 @@
+import 'src/main.css'
 // Not imported by the production entrypoint or included in production Rollup inputs.
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -110,6 +111,17 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    render(<Chat scope="qa-b"/>);await until(()=>!container.querySelector('blockquote'));check(!document.querySelector('[aria-label="Selected text actions"]'));check(container.querySelector('[data-qa="files"]')?.textContent==='1')
   }
   if(probe==='notes_edit'){
+   const [{Editor},{default:StarterKit},{MeetingNotesTable},{default:TableRow},{default:TableHeader},{default:TableCell},{Markdown},{default:MarkdownDisplay},{default:EditToggle}]=await Promise.all([
+    import('@tiptap/core'),import('@tiptap/starter-kit'),import('src/utils/meetingNotesTableExtension'),import('@tiptap/extension-table-row'),import('@tiptap/extension-table-header'),import('@tiptap/extension-table-cell'),import('tiptap-markdown'),import('src/components/molecules/MarkdownDisplay'),import('src/components/molecules/EditDisplayToggleButton')
+   ])
+   const source='<table><tr><th>Owner</th><th>Task</th></tr><tr><td rowspan="2">Jo</td><td><strong>Review</strong> one|two</td></tr><tr><td><p>First paragraph</p><p>Second paragraph</p></td></tr></table>'
+   const extensions=[StarterKit,MeetingNotesTable,TableRow,TableHeader,TableCell,Markdown]
+   const edited=new Editor({extensions,content:source});const saved=edited.storage.markdown.getMarkdown();const reopened=new Editor({extensions,content:saved})
+   check(reopened.getHTML().includes('one|two')&&reopened.getHTML().includes('rowspan="2"')&&reopened.getHTML().includes('Second paragraph'))
+   render(<MarkdownDisplay markdown={saved}/>);check(container.querySelector('td[rowspan="2"]')?.textContent==='Jo');check(!!container.querySelector('strong'))
+   const clipboard=format.buildSlackClipboardPayload(saved);check(clipboard.text.includes('one|two')&&clipboard.text.includes('Second paragraph'))
+   let toggles=0;render(<EditToggle isEditing onClick={()=>toggles++}/>);click('Done');check(toggles===1);edited.destroy();reopened.destroy()
+
    state.notes=BASE;state.revision=1;localStorage.removeItem('meeting-notes-edit:900101');render(<Notes/>);await tick()
    click('Correct attribution');await readyButton('Apply to saved notes');check(!!container.querySelector('ins')&&state.notes===BASE)
    click('Apply to saved notes');await readyButton('Undo notes edit');await until(()=>container.querySelector('[data-qa="notes"]')?.textContent===AFTER)
