@@ -152,7 +152,7 @@ fn save(rows: Vec<Row>) -> bool {
   false
 }
 pub(crate) fn start(window: Window) {
-  if !enabled() || window.label() != "main" {
+  if !enabled() || window.label() != "main" || std::env::var("KNAPSACK_QA_MANUAL_NOTES").as_deref() == Ok("1") {
     return;
   }
   // The handle is created by this process, never selected by app name or AX.
@@ -183,6 +183,13 @@ pub(crate) fn start(window: Window) {
         window.app_handle().exit(1);
         return;
       }
+      // Run inside the actual isolated app after launcher ownership/empty-state
+      // preflight, not the unit-test binary. No hardware or provider is opened.
+      let capture_passed = matches!(tokio::time::timeout(Duration::from_secs(3), crate::audio::audio::native_capture_probe()).await, Ok(Ok(())));
+      let capture_report = serde_json::json!({"version":1,"run_id":option_env!("KNAPSACK_QA_BUILD_RUN_ID").unwrap_or(""),"bundle_id":option_env!("KNAPSACK_QA_BUILD_BUNDLE_ID").unwrap_or(""),"coverage":"native_app_synthetic_callbacks_no_hardware","passed":capture_passed});
+      let folder = std::path::Path::new(option_env!("KNAPSACK_QA_BUILD_STATE_DIR").unwrap_or(""));
+      let saved = std::fs::write(folder.join("qa-capture-result.tmp"), serde_json::to_vec_pretty(&capture_report).unwrap()).and_then(|_| std::fs::rename(folder.join("qa-capture-result.tmp"),folder.join("qa-capture-result.json"))).is_ok();
+      if !capture_passed || !saved { window.unlisten(listener); window.app_handle().exit(1); return; }
       let deadline = Instant::now() + SUITE_LIMIT;
       let mut rows = Vec::new();
       for probe in PROBES {

@@ -7,7 +7,7 @@ import { Color } from '@tiptap/extension-color'
 import Heading from '@tiptap/extension-heading'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
-import Table from '@tiptap/extension-table'
+import { MeetingNotesTable as Table } from 'src/utils/meetingNotesTableExtension'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import TableRow from '@tiptap/extension-table-row'
@@ -44,6 +44,7 @@ import { getEventUrl } from 'src/utils/meetingUtils'
 import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
 import CalendarMeetingLink from 'src/components/molecules/CalendarMeetingLink'
 import { shouldSaveTranscript } from 'src/utils/settings'
+import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 import SlackNotesShare from 'src/components/molecules/SlackNotesShare'
 import {
   INTERNAL_MEETING,
@@ -56,8 +57,10 @@ import RecordControlPanel from 'src/components/molecules/RecordControlPanel'
 import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
 import MeetingChatPanel from './MeetingChatPanel'
 
-import { Event, listen } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
+import type { Event as TauriEvent } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
+import { open as shellOpen } from '@tauri-apps/api/shell'
 
 import MeetingChatNotice from 'src/components/molecules/MeetingChatNotice'
 import { TaskItem } from '../CenterWorkspace'
@@ -267,12 +270,32 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
   const [microphoneLevel, setMicrophoneLevel] = useState(0)
+  const [reconnecting, setReconnecting] = useState(false)
+  const reconnectLock = useRef(false)
+  useEffect(() => {
+    if (!reconnecting) return
+    const timer=setTimeout(() => {reconnectLock.current=false;setReconnecting(false)},60000)
+    const connected=listen('knapsack-connected',()=>{reconnectLock.current=false;setReconnecting(false)})
+    return () => {clearTimeout(timer);void connected.then(unlisten=>unlisten())}
+  },[reconnecting])
+  const reconnectTranscription = async () => {
+    if (reconnectLock.current) return
+    reconnectLock.current=true;setReconnecting(true)
+    const callback=encodeURIComponent(`${KN_SERVER_HOST}/api/auth/knapsack-callback`)
+    const studio=import.meta.env.VITE_KN_STUDIO_SERVER || 'https://studio.knapsack.ai'
+    try {await shellOpen(`${studio}/desktop-connect?callback=${callback}`)}
+    catch {reconnectLock.current=false;setReconnecting(false);setTranscriptionError('Could not open sign-in. Your audio is preserved. Try again.')}
+  }
+  const finishingEdit = useRef(false)
+  const [pendingAudio, setPendingAudio] = useState(0)
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
     const check = async () => {
       try {
-        const status = await isRecordingStatus()
+        const [status, recovery] = await Promise.all([isRecordingStatus(), invoke<{pending:number}>('transcription_recovery_status', {threadId:thread.id}).catch(() => ({pending:0}))])
+        if (!cancelled) setPendingAudio(recovery.pending)
         if (!cancelled) {
           setTranscriptionError(status && status.threadId === thread.id ? status.transcriptionError ?? null : null)
           setMicrophoneLevel(status && status.threadId === thread.id && status.isRecording ? status.microphoneLevel ?? 0 : 0)
@@ -947,21 +970,18 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     ],
     onUpdate: ({ editor }) => {
       const htmlContent = editor.getHTML()
-      // Get markdown content and preserve intentional formatting
-      // 1. Replace triple or more newlines with double newlines
-      // 2. Preserve double newlines (paragraph breaks)
-      // 3. Remove escape characters
+      // Preserve serializer escapes: removing \| corrupts table columns.
       const markdownContent = editor.storage.markdown.getMarkdown()
         .replace(/\n{3,}/g, '\n\n')  // Replace 3+ newlines with double newlines
-        .replace(/\\/g, '')          // Remove escape characters
 
       setContent(htmlContent)
       setNotesMarkdown(markdownContent)
       setMarkdown(markdownContent)
-      localStorage.setItem('meeting-notes-draft', markdownContent)
+      localStorage.setItem(`meeting-notes-draft:${thread.id}`, markdownContent)
+      setSaveState('Saving…')
 
       if (thread.id) {
-        debouncedSave(thread.id, markdownContent)
+        void debouncedSave(thread.id, markdownContent)?.catch(() => {})
       }
     },
     editorProps: {
@@ -1006,20 +1026,27 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   } =
     useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) })
 
+  const [saveState, setSaveState] = useState('')
+  const saveNotesRef = useRef(saveNotes)
+  saveNotesRef.current = saveNotes
   const debouncedSave = useMemo(
     () =>
       debounce(async (threadId: number, markdownContent: string) => {
         try {
-          await saveNotes(threadId, markdownContent)
+          await saveNotesRef.current(threadId, markdownContent)
+          if (localStorage.getItem(`meeting-notes-draft:${threadId}`) === markdownContent) {
+            localStorage.removeItem(`meeting-notes-draft:${threadId}`)
+            if (activeNotesThreadIdRef.current === threadId) setSaveState('Saved')
+          }
         } catch (error) {
-          console.error('Error saving notes:', error)
+          if (activeNotesThreadIdRef.current === threadId) setSaveState('Could not save. Your draft is kept on this device.')
         }
       }, 500),
     [],
   )
   useEffect(() => {
     return () => {
-      debouncedSave.cancel()
+      void debouncedSave.flush()?.catch(() => {})
     }
   }, [debouncedSave])
 
@@ -1073,7 +1100,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       notesController.abort()
       if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
     }
-  }, [thread.id, isLLMLoading, synthesisState])
+  }, [thread.id, editor, isLLMLoading, synthesisState])
 
   useEffect(() => {
     closeTranscript()
@@ -1083,7 +1110,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   useEffect(() => {
     const unlistenAutoStopRecordingPromise = listen(
       'start_recording',
-      async (event: Event<{ openUrl: boolean }>) => {
+      async (event: TauriEvent<{ openUrl: boolean }>) => {
         if (!disableIsRecording) {
           handleRecordClick(event.payload.openUrl)
         }
@@ -1091,7 +1118,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     )
       const unlistenAutoStartRecordingPromise = listen(
         'stop_recording',
-        async (event: Event<{ threadId?: number | null }>) => {
+        async (event: TauriEvent<{ threadId?: number | null }>) => {
         if (event.payload?.threadId && event.payload.threadId !== thread.id) return
 
         const statusDisable = await isRecordingStatus()
@@ -1107,7 +1134,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     // Listen for heartbeat insights during recording — always show inline, notify if proactive mode on
     const unlistenHeartbeatPromise = listen(
       'meeting_heartbeat',
-      async (event: Event<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
+      async (event: TauriEvent<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
         if (event.payload.threadId !== thread.id) return
         const { insight, elapsedMinutes } = event.payload
         const mins = Math.round(elapsedMinutes)
@@ -1128,7 +1155,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       unlistenAutoStartRecordingPromise.then(unlisten => unlisten())
       unlistenHeartbeatPromise.then(unlisten => unlisten())
     }
-  }, [thread.id, isLLMLoading, synthesisState])
+  }, [thread.id, editor, isLLMLoading, synthesisState])
 
   // Track the previous promptTemplate to detect changes
   const previousPromptTemplateRef = React.useRef(thread.promptTemplate)
@@ -1355,8 +1382,11 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
           return null
         }
         const notesExist = data?.data?.exists === true
-        if (notesExist) {
-          const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes || '')
+        if (notesExist || localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`) !== null) {
+          // Never replace an unsaved edit with a background read or generation refresh.
+          const draft = localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`)
+          const normalizedNotes = draft ?? normalizeMeetingNotesMarkdown(data?.data?.notes || '')
+          if (draft !== null) { setIsEditing(true); setSaveState('Unsaved draft restored') }
           setNotesMarkdown(normalizedNotes)
           const parsedNotes = editor?.storage.markdown.parser.parse(normalizedNotes)
           editor?.commands.setContent(parsedNotes || normalizedNotes, false)
@@ -1788,8 +1818,23 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     }
   }
 
-  const onEditClick = () => {
-    setIsEditing(!isEditing)
+  const onEditClick = async () => {
+    if (finishingEdit.current) return
+    const editingThreadId = thread.id
+    if (isEditing) {
+      finishingEdit.current = true
+      editor?.setEditable(false, false)
+      try {
+        await debouncedSave.flush()
+        // Retry the current draft even when a previous autosave failed.
+        await saveNotes(thread.id, notesMarkdown)
+        localStorage.removeItem(`meeting-notes-draft:${thread.id}`)
+        if (activeNotesThreadIdRef.current !== editingThreadId) return
+        setSaveState('Saved')
+      } catch { setSaveState('Could not save. Your draft is kept on this device.'); return }
+      finally { finishingEdit.current = false; editor?.setEditable(true, false) }
+    }
+    if (activeNotesThreadIdRef.current === editingThreadId) setIsEditing(value => !value)
   }
 
   const getAttendeeLabel = (participant: { name: string; email: string }) =>
@@ -2114,11 +2159,20 @@ Be direct, specific, and concise. No filler text.`
           <span>Microphone signal</span><meter min={0} max={1} value={Math.min(1, Math.sqrt(microphoneLevel))} aria-label="Live microphone signal" />
           <span>{microphoneLevel > 0.001 ? 'Receiving sound' : 'Quiet — check Settings → Audio if speaking'}</span>
         </div>}
-        {transcriptionError && (
+        {(transcriptionError || pendingAudio > 0) && (
           <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 my-3">
             <strong>Transcription needs attention</strong>
-            <p>{transcriptionError}</p>
-            <p>Untranscribed audio is saved on this device. This notice clears when transcription resumes.</p>
+            <p>{transcriptionError || 'Saved audio is waiting to be transcribed.'}</p>
+            {(/sign.?in|auth failed|session expired|unauthorized/i.test(transcriptionError || '') || (pendingAudio > 0 && !transcriptionError)) &&
+              <button type="button" className="transcription-reconnect" disabled={reconnecting} onClick={() => void reconnectTranscription()}>{reconnecting ? 'Waiting for sign-in…' : 'Sign in to Knapsack'}</button>}
+            <p>Your audio is saved on this device. Fix the issue above, then retry. Your notes stay as you edited them.</p>
+            {pendingAudio > 0 && <button type="button" className="transcription-reconnect" disabled={recoveryBusy} onClick={async () => {
+              if (recoveryBusy) return
+              setRecoveryBusy(true)
+              try { await invoke('resume_saved_transcription') }
+              catch (error) { setTranscriptionError(`${String(error)} Your audio is preserved.`) }
+              finally { setRecoveryBusy(false) }
+            }}>{recoveryBusy ? 'Resuming transcription…' : 'Retry saved audio'}</button>}
           </div>
         )}
         {permissionError && !recordingHandlers.isRecording(thread.id) && (
@@ -2170,14 +2224,18 @@ Be direct, specific, and concise. No filler text.`
             )}
             onTasksButtonClick={handleTasksButtonClick}
             onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
-            copyOpensShare={true}
-            onCopyClick={() => setSlackShareOpen(true)}
+            onCopyClick={async () => {
+              try { await copyMeetingNotesForSlack(notesMarkdown, meeting?.title || thread.subtitle); setSaveState('Copied for Slack') }
+              catch (error) { setSaveState('Could not copy. Try again.'); throw error }
+            }}
+            onShareClick={() => setSlackShareOpen(true)}
             canChangeTemplate={true}
             isEditing={isEditing}
             onEditClick={onEditClick}
           />
         )}
 
+        {saveState && <p className="meeting-notes-save-status" role="status">{saveState}</p>}
         {slackShareOpen && <SlackNotesShare key={`${thread.id}:${userEmail}`} threadId={thread.id} userEmail={userEmail} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle})} onClose={()=>setSlackShareOpen(false)}/>}
 
         {/* Meeting brief drawer — auto-generated on open and kept available while recording */}

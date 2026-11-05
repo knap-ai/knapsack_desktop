@@ -77,7 +77,6 @@ export function useNotesEditReview(options:Options) {
     finally{if(current())setBusy(false)}
   }
   const review=<section aria-label="Proposed notes edit" aria-live="polite">
-    <small>Notes edit proposals use your configured model. Changes are saved only when you apply them.</small>
     {busy && <p>Preparing or saving notes revision…</p>}{error && <p role="alert">{error}</p>}
     {visible && <><p>{visible.request}</p>{visible.proposal && <>
       <p>Review changes to this meeting’s saved notes. Transcript stays unchanged.</p>

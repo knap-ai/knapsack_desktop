@@ -25,7 +25,7 @@ export default function SlackNotesShare({threadId,userEmail,notes,onClose}:Props
  const action=async(kind:'copy'|'preview'|'send')=>{
   if(locked.current)return;locked.current=true;setBusy(true);setError('');setStatus('');const token=epoch.current
   try{
-   if(kind==='copy'){const value=await notes();if(!current(token))return;await copyMeetingNotesForSlack(value.markdown,value.title);if(current(token))setStatus('Copied readable Slack text. Native tables require Send.')}
+   if(kind==='copy'){const value=await notes();if(!current(token))return;await copyMeetingNotesForSlack(value.markdown,value.title);if(current(token))setStatus('Copied for Slack. Paste into any conversation.')}
    if(kind==='preview'){
     const channel=channels.find(c=>c.id===selected);if(!workspace||!channel)throw new Error('Choose a connected workspace and available channel.')
     const destination={owner,accountId:workspace.accountId,teamId:workspace.teamId,channelId:channel.id}
@@ -40,8 +40,8 @@ export default function SlackNotesShare({threadId,userEmail,notes,onClose}:Props
   }catch(e){if(current(token))setError(e instanceof Error?e.message:'Slack sharing failed. Verify the channel before retrying a send.')}
   finally{locked.current=false;if(current(token))setBusy(false)}
  }
- return <div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-busy={busy} aria-label="Copy or send notes to Slack" onKeyDown={e=>{if(e.key==='Escape'&&!busy){e.stopPropagation();onClose()}if(e.key==='Tab'){const controls=Array.from(root.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), [tabindex="0"]')||[]);const first=controls[0],last=controls[controls.length-1];if(e.shiftKey&&(document.activeElement===first||document.activeElement===root.current)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===root.current)){e.preventDefault();first?.focus()}}}} style={{position:'fixed',zIndex:10000,inset:'10% 15%',background:'var(--ks-paper, #fff)',color:'#222',padding:24,overflow:'auto',boxShadow:'0 8px 40px #0005',borderRadius:12}}>
-  <h2>Share notes to Slack</h2><p>Copy creates readable text. Send posts native tables using an existing connected Slack bot.</p>
+ return <div className="slack-notes-backdrop"><div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-busy={busy} aria-label="Copy or send notes to Slack" onKeyDown={e=>{if(e.key==='Escape'&&!busy){e.stopPropagation();onClose()}if(e.key==='Tab'){const controls=Array.from(root.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), [tabindex="0"]')||[]);const first=controls[0],last=controls[controls.length-1];if(e.shiftKey&&(document.activeElement===first||document.activeElement===root.current)){e.preventDefault();last?.focus()}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===root.current)){e.preventDefault();first?.focus()}}}} className="slack-notes-dialog">
+  <h2>Share to Slack</h2><p>Choose a workspace and channel, then review your notes before sending.</p>
   <button disabled={busy} onClick={()=>action('copy')}>Copy for Slack</button>
   <label>Workspace <select aria-label="Slack workspace" disabled={busy} value={account} onChange={e=>{setAccount(e.target.value);setSelected('');setPreview(undefined);setError('');setStatus('')}}><option value="">Choose workspace</option>{workspaces.map(w=><option key={w.accountId} value={w.accountId} disabled={w.unavailable}>{w.name} ({w.teamId||'unavailable'} · {w.accountId})</option>)}</select></label>
   <label>Channel <select aria-label="Slack channel" disabled={busy||!workspace} value={selected} onChange={e=>choose(e.target.value)}><option value="">Choose channel</option>{channels.map(c=><option key={c.id} value={c.id}>#{c.name} ({c.id}){c.private?' · private':''}</option>)}</select></label>
@@ -54,7 +54,8 @@ export default function SlackNotesShare({threadId,userEmail,notes,onClose}:Props
   {busy&&<p role="status">Loading or sending…</p>}
   {error&&<p role="alert">{error}</p>}{status&&<p role="status">{status}</p>}
   <button disabled={busy} onClick={onClose}>Close</button>
-  {!workspaces.length&&<p>No usable native Slack connection was found. Studio-only connections are not available in this picker.</p>}
+  {!workspaces.length&&<button type="button" onClick={()=>{onClose();window.dispatchEvent(new Event('knapsack:connect-slack'))}}>Connect Slack</button>}
+  {!workspaces.length&&<p>Connect Slack to send notes directly. You can always copy notes without connecting.</p>}
 
- </div>
+ </div></div>
 }

@@ -1010,6 +1010,8 @@ html, body {
 }
 
 .notetaker-note__chat-overlay {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   z-index: 80;
   left: 16px;
@@ -1027,6 +1029,17 @@ html, body {
   animation: meeting-chat-reveal 0.18s ease-out;
   transition: height 0.16s ease-out, box-shadow 0.16s ease-out;
 }
+
+.EmailComposeBody p { margin: 0 0 12px; }
+.EmailComposeBody ul { list-style-type: disc; margin: 8px 0 16px; padding-left: 24px; }
+.EmailComposeBody li { margin: 6px 0; }
+.notetaker-note__chat-overlay[hidden] { display: none; }
+.notetaker-note__chat-overlay > .ClawdChatRoot {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+.notetaker-note__chat-overlay > :not(.ClawdChatRoot) { flex-shrink: 0; }
 
 @keyframes meeting-chat-reveal {
   from { transform: translateY(18px); opacity: 0; }
@@ -1965,3 +1978,46 @@ html, body {
 .meeting-capture-notice button:hover {
   color: #263a31;
 }
+
+/* Notes actions remain within reach while the document scrolls. */
+.meeting-notes-actions {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: #FAFAF9;
+  padding: 14px 0;
+  border-bottom: 1px solid #E3E2E2;
+}
+.meeting-notes-save-status { font-size: 13px; color: #595653; }
+.notetaker-note__document .markdown-table-scroll { border: 0; border-radius: 0; }
+.notetaker-note__document .markdown-table-scroll table { margin: 0; }
+.notetaker-note__document .tableWrapper { overflow-x: auto; }
+.slack-notes-backdrop {
+  position: fixed; inset: 0; z-index: 10000; background: #0005;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.slack-notes-dialog {
+  width: min(560px, 100%); max-height: calc(100dvh - 40px); overflow: auto;
+  border-radius: 16px; padding: 24px; background: #fff; color: #302D2C;
+  box-shadow: 0 12px 48px #0003; display: flex; flex-direction: column; gap: 16px;
+  font: 14px/1.5 Inter, sans-serif;
+}
+.slack-notes-dialog h2 { font-size: 21px; font-weight: 600; }
+.slack-notes-dialog label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.slack-notes-dialog select, .slack-notes-dialog button {
+  border: 1px solid #D8D5D3; border-radius: 8px; padding: 10px 12px;
+  background: #fff; color: inherit; min-height: 40px; font: inherit;
+}
+.slack-notes-dialog button { cursor: pointer; align-self: flex-start; }
+.slack-notes-dialog button:disabled { opacity: .5; cursor: default; }
+.slack-notes-dialog :focus-visible { outline: 2px solid #626FA7; outline-offset: 3px; }
+.slack-notes-dialog section { overflow-x: auto; padding: 12px; border: 1px solid #D8D5D3; border-radius: 8px; }
+.slack-notes-dialog [role=alert] { color: #A32424; }
+
+.transcription-reconnect {
+  display: inline-block; margin: 8px 8px 8px 0; padding: 8px 12px;
+  border: 1px solid #C4A657; border-radius: 8px; background: white;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.transcription-reconnect:focus-visible { outline: 2px solid #626FA7; outline-offset: 3px; }
+.transcription-reconnect:disabled { opacity: .5; cursor: default; }

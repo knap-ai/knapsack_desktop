@@ -263,8 +263,13 @@ async fn get_user_email() -> impl Responder {
 
 #[get("/api/knapsack/connections")]
 async fn get_connections(req: HttpRequest) -> impl Responder {
-  let params =
-    actix_web::web::Query::<GetConnectionsParams>::from_query(req.query_string()).unwrap();
+  let params = match actix_web::web::Query::<GetConnectionsParams>::from_query(req.query_string()) {
+    Ok(params) => params,
+    Err(_) => {
+      return HttpResponse::BadRequest()
+        .json(json!({"success": false, "message": "Invalid connection query"}));
+    }
+  };
   let synced_since = match UserConnection::get_synced_since() {
     Ok(s) => Some(s),
     Err(_) => None,
@@ -275,7 +280,8 @@ async fn get_connections(req: HttpRequest) -> impl Responder {
       Ok(users) => users.into_iter().map(|user| user.email).collect::<Vec<_>>(),
       Err(error) => {
         log::warn!("Failed retrieving local users: {:?}", error);
-        vec![params.email.clone()]
+        return HttpResponse::InternalServerError()
+          .json(json!({"success": false, "message": "Could not retrieve local profiles"}));
       }
     }
   } else {
@@ -313,24 +319,32 @@ async fn get_connections(req: HttpRequest) -> impl Responder {
           owner_email,
           error
         );
+        return HttpResponse::InternalServerError()
+          .json(json!({"success": false, "message": "Could not retrieve connections"}));
       }
     }
   }
 
-  if connection_responses.is_empty() {
-    log::error!("Failed retrieving user connections");
-    HttpResponse::BadRequest().json(GetConnectionsResponse {
-      success: false,
-      connections: None,
-      message: Some("Failed to retrieve user connections".to_string()),
-    })
-  } else {
-    let response = GetConnectionsResponse {
-      connections: Some(connection_responses),
-      success: true,
-      message: None,
-    };
-    HttpResponse::Ok().json(response)
+  HttpResponse::Ok().json(connection_inventory_response(connection_responses))
+}
+
+fn connection_inventory_response(connections: Vec<UserConnectionResponse>) -> GetConnectionsResponse {
+  GetConnectionsResponse {
+    success: true,
+    connections: Some(connections),
+    message: None,
+  }
+}
+
+#[cfg(test)]
+mod inventory_tests {
+  use super::*;
+  #[test]
+  fn empty_inventory_is_authoritative_success() {
+    let response = serde_json::to_value(connection_inventory_response(Vec::new())).unwrap();
+    assert_eq!(response["success"], true);
+    assert_eq!(response["connections"], json!([]));
+    assert!(response["message"].is_null());
   }
 }
 

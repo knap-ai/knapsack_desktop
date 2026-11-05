@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeSanitize from 'rehype-sanitize'
+import { rehypeMeetingTables } from 'src/utils/meetingNotesTables'
 
 import './markdown-styles.css'
 
@@ -182,6 +184,7 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeMeetingTables, rehypeSanitize]}
         components={{
           h1: ({ node, ...props }) => <h1 className="text-lg font-InterTight font-bold mt-2 leading-7" {...props} />,
           h2: ({ node, ...props }) => <h2 className="uppercase font-InterTight text-sm font-bold leading-6 mt-2" {...props} />,
@@ -269,7 +272,7 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
             return <li className="mb-1" {...props} />;
           },
           table: ({ node, ...props }) => (
-            <div className="rounded-lg border border-gray-400 overflow-x-auto my-4">
+            <div className="markdown-table-scroll overflow-x-auto my-4">
               <table className="min-w-full" {...props} />
             </div>
           ),

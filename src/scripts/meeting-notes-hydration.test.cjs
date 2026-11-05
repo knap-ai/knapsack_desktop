@@ -17,7 +17,7 @@ function fixture(data, current = 44, responseOk = true) {
   const state = { notes: 'stale previous notes', synthesis: 'stale synthesis notes', editor: 'stale editor', loading: true, writes: 0, gets: 0 }
   const exports = {}
   vm.runInNewContext(code, {
-    exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
+    localStorage: { getItem: () => null }, exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
     fetch: async (url, opts) => {
       assert.equal(url, 'fixture-notes/44'); assert.equal(opts.method, 'GET'); state.gets++
       return { ok: responseOk, json: async () => ({ data }) }

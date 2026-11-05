@@ -17,6 +17,7 @@ use wasapi::*;
 use crate::error::Error;
 
 pub struct AudioRecorder {
+  capture_gate: Arc<super::capture_lifecycle::CaptureGate>,
   is_recording: Arc<AtomicBool>,
   captured_data: Arc<Mutex<Vec<f32>>>,
   output_path: Arc<String>,
@@ -35,6 +36,7 @@ pub fn get_output_path(filename: &str) -> PathBuf {
 impl AudioRecorder {
   pub fn new(semaphore: Arc<Semaphore>) -> Self {
     AudioRecorder {
+      capture_gate: Arc::new(super::capture_lifecycle::CaptureGate::new()),
       is_recording: Arc::new(AtomicBool::new(false)),
       captured_data: Arc::new(Mutex::new(Vec::new())),
       output_path: Arc::new("".to_string()),
@@ -84,6 +86,7 @@ impl AudioRecorder {
     loop {
       match rx_capt.recv() {
         Ok(chunk) => {
+          let _admission = match self.capture_gate.enter() { Some(admission) => admission, None => break };
           {
             let mut captured_data = self.captured_data.lock().unwrap();
             captured_data.extend(chunk.clone());
@@ -246,6 +249,8 @@ impl AudioRecorder {
   }
 
   pub fn stop_recording(&self) {
+    self.capture_gate.close();
+    self.is_recording.store(false, Ordering::Release);
     println!("ABOUT TO START the atomic bool change");
     // self.is_recording.store(false, Ordering::SeqCst);
     println!("FINISHED the atomic bool change");
@@ -294,9 +299,11 @@ pub async fn record_speaker_output(
   output_file: &str,
   semaphore: Arc<Semaphore>,
   startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
+  capture_gate: Arc<super::capture_lifecycle::CaptureGate>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   println!("------- RECORDING WINDOWS SPEAKER OUTPUT -------");
   let audio_recorder = AudioRecorder {
+    capture_gate,
     is_recording: is_recording.clone(),
     captured_data: Arc::new(Mutex::new(Vec::new())),
     output_path: Arc::new(output_file.to_string()),

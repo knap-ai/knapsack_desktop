@@ -1,9 +1,11 @@
 pub mod audio;
+pub mod capture_lifecycle;
 pub mod encode;
 pub mod mic_monitor;
 pub mod microphone;
 pub mod permission;
 pub mod transcribe;
+pub mod recovery;
 pub mod utils;
 
 #[cfg(target_os = "macos")]

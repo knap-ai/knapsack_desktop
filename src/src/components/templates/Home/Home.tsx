@@ -1,4 +1,4 @@
-import { connectedMailSenders } from 'src/utils/emailSenders'
+import { useMailSenders } from 'src/hooks/useMailSenders'
 import { ACCOUNT_CONTINUITY_ENABLED } from 'src/utils/releaseCapabilities'
 import { Link } from 'react-router-dom'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
@@ -199,6 +199,7 @@ function Home({
     [connections, userEmail],
   )
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
+  const mailSenders = useMailSenders(connections, userEmail, !!feed.composedEmailDraft)
   const nativeEmailConnected = useMemo(
     () =>
       getGoogleGmailConnections(connections).length > 0 ||
@@ -526,6 +527,12 @@ function Home({
     },
     [],
   )
+
+  useEffect(() => {
+    const connectSlack = () => setCurrentTab(TabChoices.Openclaw)
+    window.addEventListener('knapsack:connect-slack', connectSlack)
+    return () => window.removeEventListener('knapsack:connect-slack', connectSlack)
+  }, [])
 
   const handleBackToHome = async () => {
     setCurrentTab(TabChoices.Work)
@@ -1288,7 +1295,11 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                 <EmailComposeDrawer
                   key={feed.composedEmailDraft.id}
                   draft={feed.composedEmailDraft}
-                  senders={connectedMailSenders(connections, userEmail)}
+                  senders={mailSenders.senders}
+                  senderLoading={mailSenders.loading}
+                  senderError={mailSenders.error}
+                  onRefreshSenders={mailSenders.refresh}
+                  onManageAccounts={() => setIsSettingsDialogOpened(true)}
                   userEmail={userEmail}
                   userName={userName}
                   onDismiss={() => feed.setComposedEmailDraft(null)}

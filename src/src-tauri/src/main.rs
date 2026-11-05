@@ -626,6 +626,7 @@ struct KSearchIndexingStatusResponse {
 
 #[derive(Clone)]
 struct RecordingState {
+  pub capture_gate: Arc<StdMutex<Option<Arc<audio::capture_lifecycle::CaptureGate>>>>,
   pub mic_thread: Arc<StdMutex<Option<TokioJoinHandle<()>>>>,
   pub output_thread: Arc<StdMutex<Option<TokioJoinHandle<()>>>>,
   pub is_recording: Arc<AtomicBool>,
@@ -643,6 +644,7 @@ struct RecordingState {
 impl Default for RecordingState {
   fn default() -> Self {
     RecordingState {
+      capture_gate: Arc::new(StdMutex::new(None)),
       mic_thread: Arc::new(StdMutex::new(None)),
       output_thread: Arc::new(StdMutex::new(None)),
       is_recording: Arc::new(AtomicBool::new(false)),
@@ -1920,7 +1922,12 @@ async fn run_app() {
 
       let main_url: tauri::WindowUrl = Default::default();
       #[cfg(knapsack_synthetic_qa)]
-      let main_url = if qa_dom_probes::enabled() { tauri::WindowUrl::App("qa-dom.html".into()) } else { main_url };
+      let main_url = if qa_dom_probes::enabled() {
+        let path = if std::env::var("KNAPSACK_QA_MANUAL_NOTES").as_deref() == Ok("1") {
+          "qa-fixtures/meeting-notes.html?nativeClipboard=1"
+        } else { "qa-dom.html" };
+        tauri::WindowUrl::App(path.into())
+      } else { main_url };
 
       // Create window with specified logical size
       let mut window_builder = WindowBuilder::new(
@@ -2204,6 +2211,8 @@ async fn run_app() {
       emit_event,
       open_screen_recording_settings,
       open_microphone_settings,
+      audio::recovery::transcription_recovery_status,
+      audio::recovery::resume_saved_transcription,
       audio::devices::audio_devices,
       audio::devices::set_audio_microphone,
       audio::devices::set_audio_speaker,

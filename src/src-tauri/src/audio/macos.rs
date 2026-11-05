@@ -18,11 +18,6 @@ use flacenc::config::Encoder;
 use flacenc::error::Verify;
 use tokio::sync::Semaphore;
 
-lazy_static::lazy_static! {
-  static ref OUTPUT_FILE: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-  static ref AUDIO_SEMAPHORE: Arc<Mutex<Option<Arc<Semaphore>>>> = Arc::new(Mutex::new(None));
-}
-
 // Core Audio Tap FFI declarations.
 // CATapDescription is an Objective-C class; we interact with it via objc runtime messages.
 // AudioHardwareCreateProcessTap / DestroyProcessTap are C functions in CoreAudio.framework.
@@ -124,31 +119,18 @@ pub fn current_process_audio_object_id() -> Option<AudioObjectID> {
 
 use crate::error::Error;
 
-pub fn set_output_file(filename: &str) {
-  let mut output_file = OUTPUT_FILE.lock().unwrap();
-  *output_file = Some(filename.to_string());
-}
-
-pub fn get_output_file() -> Option<String> {
-  let output_file = OUTPUT_FILE.lock().unwrap();
-  output_file.clone()
-}
-
 /// Shared state for the IO proc callback to accumulate audio samples
 /// and periodically save them as FLAC chunks (same as the old ScreenCaptureKit delegate).
 #[cfg(target_os = "macos")]
 struct TapAudioState {
-  samples: Vec<f32>,
-  chunk_counter: u32,
-  last_save: Instant,
+  buffer: super::capture_lifecycle::CaptureBuffer<f32>,
+  capture_gate: Arc<super::capture_lifecycle::CaptureGate>,
+  semaphore: Arc<Semaphore>,
   is_paused: Arc<AtomicBool>,
-  sample_rate: u32,
-  channels: u32,
 }
 
-#[cfg(target_os = "macos")]
 lazy_static::lazy_static! {
-  static ref TAP_AUDIO_STATE: Arc<Mutex<Option<TapAudioState>>> = Arc::new(Mutex::new(None));
+  static ref TAP_CONTEXTS: super::capture_lifecycle::CaptureContexts<Mutex<TapAudioState>> = super::capture_lifecycle::CaptureContexts::new();
 }
 
 /// The C-level IO proc callback invoked by Core Audio when audio data is available
@@ -172,20 +154,18 @@ unsafe extern "C" fn tap_io_proc(
     return 0;
   }
 
-  let mut state_guard = match TAP_AUDIO_STATE.lock() {
-    Ok(g) => g,
-    Err(_) => return 0,
-  };
-
-  let state = match state_guard.as_mut() {
-    Some(s) => s,
-    None => return 0,
-  };
-
+  if client_data.is_null() { return 0; }
+  // Lookup clones this capture only; removed tokens can never bind a new capture.
+  let context = match TAP_CONTEXTS.get(client_data as usize) { Some(context) => context, None => return 0 };
+  let mut state_guard = match context.lock() { Ok(state) => state, Err(_) => return 0 };
+  let state = &mut *state_guard;
+  let gate = state.capture_gate.clone();
+  let _admission = match gate.enter() { Some(admission) => admission, None => return 0 };
   if state.is_paused.load(Ordering::Relaxed) {
     return 0;
   }
 
+  let mut admitted_samples = Vec::new();
   // Process all buffers — typically one buffer with interleaved float32 samples
   for i in 0..buffer_list.mNumberBuffers as usize {
     let buffer = &buffer_list.mBuffers[i];
@@ -203,40 +183,51 @@ unsafe extern "C" fn tap_io_proc(
       for frame in samples_slice.chunks_exact(num_channels) {
         let left = frame[0];
         let right = frame[1];
-        state.samples.push(left + right);
+        admitted_samples.push(left + right);
       }
     } else {
-      state.samples.extend_from_slice(samples_slice);
+      admitted_samples.extend_from_slice(samples_slice);
     }
   }
 
   // Periodic chunks keep meeting chat and insights up to date
   let now = Instant::now();
-  if now.duration_since(state.last_save) >= super::TRANSCRIPTION_CHUNK_INTERVAL {
-    let chunk: Vec<f32> = state.samples.drain(..).collect();
-    let counter = state.chunk_counter;
-    state.chunk_counter += 1;
-    state.last_save = now;
-
-    // Spawn off saving to avoid blocking the audio thread
-    save_chunk_async(chunk, counter);
+  if let Some(chunk) = state.buffer.append(&_admission, admitted_samples, now, super::TRANSCRIPTION_CHUNK_INTERVAL) {
+    save_chunk_async(chunk, state.semaphore.clone());
   }
 
   0
 }
 
-/// Save accumulated audio samples as a FLAC chunk (runs in a background thread).
-fn save_chunk_async(chunk: Vec<f32>, counter: u32) {
-  let base_filename = get_output_file().unwrap_or_else(|| "default".to_string());
-  let filename = format!("{}_{}.flac", base_filename, counter);
-  let transcript_filename = format!("{}.txt", base_filename);
-  let semaphore = {
-    let guard = AUDIO_SEMAPHORE.lock().unwrap();
-    let semaphore = guard.clone().unwrap();
-    drop(guard);
-    semaphore
-  };
+/// Invoke the actual Core Audio callback with a bounded fictional buffer.
+#[cfg(knapsack_synthetic_qa)]
+pub(crate) fn native_tap_probe() -> Result<(), &'static str> {
+  if !crate::qa_launch::is_synthetic_build() { return Err("not_synthetic"); }
+  let gate = Arc::new(super::capture_lifecycle::CaptureGate::new());
+  let state = Arc::new(Mutex::new(TapAudioState {
+    buffer: super::capture_lifecycle::CaptureBuffer::synthetic_in_memory("900201_output_synthetic".into()),
+    capture_gate: gate.clone(), semaphore: Arc::new(Semaphore::new(1)), is_paused: Arc::new(AtomicBool::new(false)),
+  }));
+  let token = TAP_CONTEXTS.insert(state.clone());
+  let mut samples = [0.25_f32,0.5_f32];
+  let buffers = AudioBufferList { mNumberBuffers:1, mBuffers:[coreaudio_sys::AudioBuffer { mNumberChannels:1, mDataByteSize:8, mData:samples.as_mut_ptr() as *mut libc::c_void }] };
+  let callback = || unsafe { tap_io_proc(0, ptr::null(), &buffers, ptr::null(), ptr::null_mut(), ptr::null(), token as *mut libc::c_void) };
+  callback(); gate.close();
+  for _ in 0..20 { callback(); }
+  TAP_CONTEXTS.remove(token);
+  // Retired callback token must safely reject even after a replacement exists.
+  let replacement = TAP_CONTEXTS.insert(state.clone()); callback(); TAP_CONTEXTS.remove(replacement);
+  let mut state = state.lock().unwrap();
+  let tail = state.buffer.finish().ok_or("tap_tail_missing")?;
+  if tail.samples != vec![0.25,0.5] || tail.filename!="900201_output_synthetic_0.flac" || state.buffer.finish().is_some() { return Err("tap_post_stop_samples"); }
+  Ok(())
+}
 
+/// Save accumulated audio samples as a FLAC chunk (runs in a background thread).
+fn save_chunk_async(chunk: super::capture_lifecycle::CapturedChunk<f32>, semaphore: Arc<Semaphore>) {
+  let filename = chunk.filename;
+  let transcript_filename = chunk.transcript_filename;
+  let chunk = chunk.samples;
   // Register synchronously so stop_recording cannot observe zero pending jobs
   // before this detached worker has started.
   let transcription_job = begin_transcription_job();
@@ -264,6 +255,7 @@ pub async fn record_speaker_output(
   output_file: &str,
   semaphore: Arc<Semaphore>,
   startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
+  capture_gate: Arc<super::capture_lifecycle::CaptureGate>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   #[cfg(not(target_os = "macos"))]
   {
@@ -284,13 +276,7 @@ pub async fn record_speaker_output(
       sel,
     };
 
-    // Store semaphore for chunk saving
-    {
-      let mut audio_semaphore = AUDIO_SEMAPHORE.lock().unwrap();
-      *audio_semaphore = Some(semaphore.clone());
-    }
 
-    set_output_file(output_file);
 
     // --- Step 1: Create CATapDescription ---
     // CATapDescription is an Objective-C class in CoreAudio.framework
@@ -482,26 +468,19 @@ pub async fn record_speaker_output(
       aggregate_device_id
     );
 
-    // --- Step 4: Initialize audio state ---
-    {
-      let mut state = TAP_AUDIO_STATE.lock().unwrap();
-      *state = Some(TapAudioState {
-        samples: Vec::new(),
-        chunk_counter: 0,
-        last_save: Instant::now(),
-        is_paused: is_paused.clone(),
-        sample_rate: 48000,
-        channels: 2,
-      });
-    }
-
+    // --- Step 4: Bind context, buffer and filenames immutably to this capture ---
+    let capture_state = Arc::new(Mutex::new(TapAudioState {
+      buffer: super::capture_lifecycle::CaptureBuffer::new(output_file.to_string()),
+      capture_gate: capture_gate.clone(), semaphore: semaphore.clone(), is_paused: is_paused.clone(),
+    }));
+    let callback_context = TAP_CONTEXTS.insert(capture_state.clone());
     // --- Step 5: Create IO proc and start capturing ---
     let mut io_proc_id: *mut libc::c_void = ptr::null_mut();
     let status = unsafe {
       AudioDeviceCreateIOProcID(
         aggregate_device_id,
         tap_io_proc as *const libc::c_void,
-        ptr::null_mut(),
+        callback_context as *mut libc::c_void,
         &mut io_proc_id,
       )
     };
@@ -510,17 +489,23 @@ pub async fn record_speaker_output(
         AudioHardwareDestroyAggregateDevice(aggregate_device_id);
         AudioHardwareDestroyProcessTap(tap_id);
       }
+      TAP_CONTEXTS.remove(callback_context);
       return Err(format!("AudioDeviceCreateIOProcID failed with status {}", status).into());
     }
     log::info!("[audio tap] Created IO proc, starting capture...");
 
     let status = unsafe { AudioDeviceStart(aggregate_device_id, io_proc_id) };
     if status != 0 {
-      unsafe {
-        AudioDeviceDestroyIOProcID(aggregate_device_id, io_proc_id);
+      capture_gate.close();
+      let destroyed = unsafe {
+        let result = AudioDeviceDestroyIOProcID(aggregate_device_id, io_proc_id);
         AudioHardwareDestroyAggregateDevice(aggregate_device_id);
         AudioHardwareDestroyProcessTap(tap_id);
-      }
+        result
+      };
+      TAP_CONTEXTS.remove(callback_context);
+      if destroyed != 0 { log::error!("[audio tap] IO proc destruction failed; late callbacks are disabled"); }
+      if let Some(tail) = capture_state.lock().unwrap().buffer.finish() { save_chunk_async(tail, semaphore.clone()); }
       return Err(format!("AudioDeviceStart failed with status {}", status).into());
     }
     log::info!("[audio tap] System audio capture started successfully");
@@ -528,29 +513,26 @@ pub async fn record_speaker_output(
 
     // --- Step 6: Wait until recording stops ---
     while is_recording.load(Ordering::Relaxed) {
-      sleep(Duration::from_millis(100)).await;
+      tokio::select! { biased; _ = capture_gate.closed() => break, _ = sleep(Duration::from_millis(100)) => {} }
     }
 
     // --- Step 7: Stop and clean up ---
     log::info!("[audio tap] Stopping system audio capture...");
-    unsafe {
+    capture_gate.close();
+    let destroyed = unsafe {
       AudioDeviceStop(aggregate_device_id, io_proc_id);
-      AudioDeviceDestroyIOProcID(aggregate_device_id, io_proc_id);
+      let result = AudioDeviceDestroyIOProcID(aggregate_device_id, io_proc_id);
       AudioHardwareDestroyAggregateDevice(aggregate_device_id);
       AudioHardwareDestroyProcessTap(tap_id);
+      result
+    };
+    // Lookup removal prevents late callbacks from accessing retired capture state.
+    // Already-running callbacks own an Arc and have passed the closed gate.
+    TAP_CONTEXTS.remove(callback_context);
+    if destroyed != 0 { log::error!("[audio tap] IO proc destruction failed; late callbacks are disabled"); }
+    if let Some(tail) = capture_state.lock().unwrap().buffer.finish() {
+      save_chunk_async(tail, semaphore.clone());
     }
-
-    // Save any remaining samples
-    {
-      let mut state_guard = TAP_AUDIO_STATE.lock().unwrap();
-      if let Some(mut state) = state_guard.take() {
-        if !state.samples.is_empty() {
-          let chunk: Vec<f32> = state.samples.drain(..).collect();
-          save_chunk_async(chunk, state.chunk_counter);
-        }
-      }
-    }
-
     log::info!("[audio tap] System audio capture stopped and cleaned up");
     Ok(())
   }

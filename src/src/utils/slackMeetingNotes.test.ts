@@ -77,7 +77,7 @@ describe('native Slack tables and readable clipboard constraints',()=>{
  it('sends actual table blocks with original row/column order and inert cell text',()=>{
   const message=buildSlackNotesMessage('# Summary\n\n| Owner | Task |\n| --- | --- |\n| Frida | Review <@U123> |','Fictional meeting')
   const table=message.blocks.find(b=>b.type==='table');expect(table).toMatchObject({type:'table',rows:[[{type:'raw_text',text:'Owner'},{type:'raw_text',text:'Task'}],[{type:'raw_text',text:'Frida'},{type:'raw_text',text:'Review <@U123>'}]]})
-  expect(message.text).toContain('Frida');expect(buildSlackClipboardPayload('| A | B |\n| --- | --- |\n| 1 | 2 |').html).toContain('<pre>')
+  expect(message.text).toContain('Frida');expect(buildSlackClipboardPayload('| A | B |\n| --- | --- |\n| 1 | 2 |').html).toContain('<li>A: 1</li>')
  })
  it('preserves escaped pipes and inline code pipes inside cells',()=>{const m=buildSlackNotesMessage('| A | B |\n| --- | --- |\n| one\\|two | `x|y` |');const t=m.blocks[0];expect(t.type==='table'&&t.rows[1].map(c=>c.text)).toEqual(['one|two','x|y'])})
  it('does not parse a code example as a real table',()=>{const md='```\n| A | B |\n| --- | --- |\n| 1 | 2 |\n```';expect(buildSlackNotesMessage(md).blocks.some(b=>b.type==='table')).toBe(false);expect(buildSlackClipboardPayload(md).text).toContain('| --- | --- |')})
@@ -85,3 +85,11 @@ describe('native Slack tables and readable clipboard constraints',()=>{
  it('retains literal underscores and cell values instead of treating every underscore as markup',()=>{const m=buildSlackNotesMessage('| Key | Value |\n| --- | --- |\n| team_id | `a_b` |');const t=m.blocks[0];expect(t.type==='table'&&t.rows[1].map(c=>c.text)).toEqual(['team_id','a_b'])})
 
 })
+
+ it('uses labeled table values without padding wide cells', () => {
+   const payload = buildSlackClipboardPayload('| Owner | Task |\n| --- | --- |\n| Jo | '+ 'Long task '.repeat(60) +' |')
+   expect(payload.text).toContain('• Owner: Jo')
+   expect(payload.text).toContain('• Task: Long task')
+   expect(payload.text).not.toContain('─')
+   expect(payload.html).not.toContain('<pre>')
+ })

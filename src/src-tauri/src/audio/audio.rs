@@ -138,15 +138,11 @@ fn wav_spec_from_config(config: &cpal::SupportedStreamConfig) -> hound::WavSpec 
 }
 
 type WavWriterHandle = Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>;
-lazy_static! {
-  static ref GLOBAL_SAMPLES: Mutex<Vec<i32>> = Mutex::new(Vec::new());
-}
 
 fn write_audio_data<T, U>(
   input: &[T],
-  last_save: &mut Instant,
-  chunk_counter: &mut u32,
-  input_filename: &str,
+  buffer: &Arc<Mutex<super::capture_lifecycle::CaptureBuffer<i32>>>,
+  gate: &super::capture_lifecycle::CaptureGate,
   channel: usize,
   sample_rate: usize,
   semaphore: Arc<Semaphore>,
@@ -161,14 +157,14 @@ fn write_audio_data<T, U>(
     return;
   }
 
+  let _admission = match gate.enter() { Some(admission) => admission, None => return };
   let now = Instant::now();
 
   if is_paused.load(Ordering::Relaxed) {
-    *last_save = now;
+    buffer.lock().unwrap().pause_tick(now);
     return;
   }
 
-  let mut global_samples = GLOBAL_SAMPLES.lock().unwrap();
   let samples: Vec<i32> = input
     .iter()
     .map(|&s| {
@@ -180,15 +176,11 @@ fn write_audio_data<T, U>(
     .collect();
 
   super::devices::update_microphone_level(&samples);
-  global_samples.extend_from_slice(&samples);
-
-  let should_save = now.duration_since(*last_save) >= super::TRANSCRIPTION_CHUNK_INTERVAL;
-
-  if should_save {
-    let chunk_samples = global_samples.drain(..).collect::<Vec<i32>>();
-
-    let chunk_filename = format!("{}_{}.flac", input_filename, *chunk_counter);
-    let transcript_filename = format!("{}.txt", input_filename);
+  let chunk = buffer.lock().unwrap().append(&_admission, samples, now, super::TRANSCRIPTION_CHUNK_INTERVAL);
+  if let Some(chunk) = chunk {
+    let chunk_samples = chunk.samples;
+    let chunk_filename = chunk.filename;
+    let transcript_filename = chunk.transcript_filename;
     // Register before spawning. A semaphore alone is not a completion barrier:
     // stop_recording could acquire it before this worker even starts.
     let transcription_job = begin_transcription_job();
@@ -207,8 +199,6 @@ fn write_audio_data<T, U>(
       });
     });
 
-    *last_save = now;
-    *chunk_counter += 1;
   }
 }
 
@@ -299,6 +289,7 @@ pub async fn start_recording(
   handle: Data<Arc<Handle>>,
   app_handle: Data<tauri::AppHandle>,
 ) -> Result<HttpResponse> {
+  let capture_owner = std::env::var("KNAPSACK_USER_EMAIL").unwrap_or_default();
   log::info!(
     "[recording] start_recording: thread_id={} feed_item_id={} event_id={} save_transcript={}",
     data.thread_id,
@@ -359,9 +350,19 @@ pub async fn start_recording(
     Ok(value) => value,
     Err(error) => return Ok(HttpResponse::InternalServerError().json(json!({"error": error.to_string()}))),
   };
+  let thread_id=data.thread_id;
+  let transcript_filename=existing_transcript.as_ref().map(|transcript|transcript.filename.clone()).unwrap_or_else(||Uuid::new_v4().to_string());
+  if existing_transcript.is_none() {
+    let mut transcript=Transcript {id:None,thread_id:Some(thread_id),filename:transcript_filename.clone(),start_time:Some(chrono::Utc::now().timestamp()),end_time:None,timestamp:None};
+    if let Err(error)=transcript.create(){return Ok(HttpResponse::InternalServerError().json(json!({"error":error.to_string()})))}
+  }
   let capture_id = Uuid::new_v4();
   let input_filename = format!("{}_input_{}", data.thread_id, capture_id);
   let output_filename = format!("{}_output_{}", data.thread_id, capture_id);
+  let mut capture_admission=match super::recovery::begin(thread_id,&input_filename,&output_filename,&transcript_filename,&capture_owner) {
+    Ok(admission)=>admission,
+    Err(error)=>return Ok(HttpResponse::InternalServerError().json(json!({"error":error.to_string()}))),
+  };
 
   {
     let mut input_filename_guard = recording_state.input_filename.lock().unwrap();
@@ -380,6 +381,8 @@ pub async fn start_recording(
     *feed_item_id_guard = Some(data.feed_item_id);
   }
 
+  let capture_gate = Arc::new(super::capture_lifecycle::CaptureGate::new());
+  *recording_state.capture_gate.lock().unwrap() = Some(capture_gate.clone());
   recording_state.is_starting.store(true, Ordering::Relaxed);
   recording_state.is_recording.store(true, Ordering::Relaxed);
   recording_state.is_paused.store(false, Ordering::Relaxed);
@@ -429,7 +432,8 @@ pub async fn start_recording(
   let thread_id = data.thread_id;
 
   let is_recording_state_mic = Arc::clone(&recording_state);
-  let is_recording_output = Arc::clone(&recording_state.is_recording);
+  let is_recording_output = capture_gate.running();
+  let output_capture_gate = capture_gate.clone();
   let is_paused_output = Arc::clone(&recording_state.is_paused);
 
   let mic_input_config = mic_input_config.clone();
@@ -452,6 +456,7 @@ pub async fn start_recording(
           &output_filename,
           output_file_semaphore,
           startup_tx,
+          output_capture_gate,
         ));
       if let Err(e) = result {
         let message = e.to_string();
@@ -529,6 +534,8 @@ pub async fn start_recording(
         mic_app_handle.get_ref(),
         data.clone(),
         mic_startup_tx,
+        capture_gate,
+        input_filename,
       ))
     {
       let _ = mic_failure_tx.send(Err(e.clone()));
@@ -569,43 +576,9 @@ pub async fn start_recording(
     })));
   }
 
-  // Keep previous meeting content when capture is resumed or restarted.
-  // Each capture has separate raw/chunk files; Stop appends only this capture.
-  if existing_transcript.is_none() {
-  let filename = Uuid::new_v4().to_string();
-  let start_time = std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .unwrap()
-    .as_secs() as i64;
-  let mut transcript = Transcript {
-    id: None,
-    thread_id: Some(thread_id),
-    filename,
-    start_time: Some(start_time),
-    end_time: None,
-    timestamp: None,
-  };
-  if let Err(e) = transcript.create() {
-    let _startup_finalization_guard = begin_recording_finalization(&recording_state);
-    let mic_handle = recording_state.mic_thread.lock().unwrap().take();
-    let output_handle = recording_state.output_thread.lock().unwrap().take();
-    if let Some(handle) = mic_handle {
-      let _ = handle.await;
-    }
-    if let Some(handle) = output_handle {
-      let _ = handle.await;
-    }
-    log::error!("Failed to create transcript record: {:?}", e);
-    return Ok(
-      HttpResponse::InternalServerError()
-        .body(format!("Failed to create transcript record: {:?}", e)),
-    );
-  }
-
-  }
-
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  capture_admission.commit();
   recording_state.is_starting.store(false, Ordering::Relaxed);
-
   // The timer is a capture acknowledgement, not a startup progress indicator.
   // Only show it after audio startup and transcript creation have succeeded.
   if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
@@ -643,8 +616,23 @@ impl Drop for StopFinalizationGuard {
   }
 }
 
+#[derive(Debug, PartialEq)]
+enum StopAdmissionError { Starting, Inactive, DifferentMeeting }
+
+fn admit_recording_stop(recording_state: &RecordingState, thread_id: u64) -> Result<StopFinalizationGuard, StopAdmissionError> {
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  if recording_state.is_starting.load(Ordering::Relaxed) { return Err(StopAdmissionError::Starting); }
+  if !recording_state.is_recording.load(Ordering::Relaxed) { return Err(StopAdmissionError::Inactive); }
+  if *recording_state.thread_id.lock().unwrap() != Some(thread_id) { return Err(StopAdmissionError::DifferentMeeting); }
+  if let Some(gate) = recording_state.capture_gate.lock().unwrap().as_ref() { gate.close(); }
+  recording_state.is_stopping.store(true, Ordering::Relaxed);
+  recording_state.is_recording.store(false, Ordering::Relaxed);
+  Ok(StopFinalizationGuard { is_stopping: recording_state.is_stopping.clone() })
+}
+
 fn begin_recording_finalization(recording_state: &RecordingState) -> StopFinalizationGuard {
   let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  if let Some(gate) = recording_state.capture_gate.lock().unwrap().as_ref() { gate.close(); }
   recording_state.is_stopping.store(true, Ordering::Relaxed);
   recording_state.is_starting.store(false, Ordering::Relaxed);
   recording_state.is_recording.store(false, Ordering::Relaxed);
@@ -718,25 +706,17 @@ pub async fn stop_recording(
     data.save_transcript
   );
 
-  let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
-  if !recording_state.is_recording.load(Ordering::Relaxed) {
-    log::warn!("[recording] stop_recording called but no recording in progress");
-    if let Some(window) = app_handle.get_window("recording-indicator") {
-      let _ = window.hide();
+  let _stop_finalization_guard = match admit_recording_stop(&recording_state, data.thread_id) {
+    Ok(guard) => guard,
+    Err(StopAdmissionError::Starting) => return HttpResponse::Conflict().body("Recording is still starting. Try Stop again when startup finishes."),
+    Err(StopAdmissionError::DifferentMeeting) => return HttpResponse::Conflict().body("A different meeting is recording. Open the active meeting to stop it."),
+    Err(StopAdmissionError::Inactive) => {
+      log::warn!("[recording] stop_recording called but no recording in progress");
+      if let Some(window) = app_handle.get_window("recording-indicator") { let _ = window.hide(); }
+      return HttpResponse::BadRequest().body("No recording in progress");
     }
-    return HttpResponse::BadRequest().body("No recording in progress");
-  }
-
-  if *recording_state.thread_id.lock().unwrap() != Some(data.thread_id) {
-    return HttpResponse::Conflict().body("A different meeting is recording. Open the active meeting to stop it.");
-  }
-
-  recording_state.is_stopping.store(true, Ordering::Relaxed);
-  recording_state.is_recording.store(false, Ordering::Relaxed);
-  let _stop_finalization_guard = StopFinalizationGuard {
-    is_stopping: recording_state.is_stopping.clone(),
   };
-  drop(lifecycle_guard);
+  log::info!("[recording] capture admission closed: thread_id={} cutoff={} input={:?} output={:?}; later disk writes may contain only pre-cutoff samples", data.thread_id, Utc::now().to_rfc3339(), recording_state.input_filename.lock().unwrap().as_ref(), recording_state.output_filename.lock().unwrap().as_ref());
   log::info!("[recording] is_recording set to false, waiting for threads to finish");
 
   // Hide the floating recording indicator pill
@@ -788,9 +768,9 @@ pub async fn stop_recording(
   // Wait for every registered worker before merging; otherwise Stop can race
   // ahead and generate notes from only the final chunk (usually the meeting's
   // closing remarks).
-  // Live chunks now have a five-second admission deadline and twenty-second
-  // total transcription deadline, so provider retries cannot grow an unbounded
-  // queue. Keep the existing conservative barrier for encoder/runtime delays.
+  // Cloud chunks have a five-second admission deadline and a finite total
+  // transcription deadline that includes upload/auth/retries. Local recognition
+  // is awaited to completion. Keep the conservative encoder/runtime barrier.
   if !wait_for_transcription_jobs(Duration::from_secs(18 * 60)).await {
     let err_msg = "Timed out waiting for all meeting audio chunks to finish transcription";
     log::error!("[recording] {}", err_msg);
@@ -1039,34 +1019,25 @@ pub fn generate_filename(thread_subtitle: String, timestamp: i64) -> String {
   }
 }
 
-fn delete_transcript_file(thread_id: u64) -> Result<(), Error> {
-  let transcript = match Transcript::find_by_thread_id(thread_id) {
-    Ok(Some(t)) => t,
-    Ok(None) => {
-      return Err(Error::KSError(format!("Find no transcript")));
-    }
-    Err(_) => {
-      return Err(Error::KSError(format!("Failed to find transcript:")));
-    }
-  };
-
-  let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let knapsack_data_dir = home_dir.join(".knapsack");
-  let transcript_dir = knapsack_data_dir.join("transcripts");
-  let transcript_path = transcript_dir.join(transcript.clone().filename);
-
-  if transcript_path.exists() {
-    std::fs::remove_file(&transcript_path).map_err(|e| {
-      log::error!("Failed to delete transcript file: {:?}", e);
-      return Error::KSError(format!("Failed to delete transcript file: {:?}", e));
-    })?;
-  }
-  let _ = transcript.delete().map_err(|e| {
-    log::error!("Failed to delete transcript record: {:?}", e);
-    return Error::KSError(format!("Failed to delete transcript record: {:?}", e));
-  });
-
+fn with_transcript_deletion_lifecycle<T>(action:impl FnOnce()->Result<T,Error>)->Result<T,Error> {
+  let _recording=RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  let _recovery=super::recovery::lifecycle_guard();
+  action()
+}
+fn delete_transcript_file(thread_id:u64)->Result<(),Error> {
+  with_transcript_deletion_lifecycle(|| {
+  if super::recovery::is_live_thread(thread_id){return Err(Error::KSError("Stop this recording before deleting its transcript".into()))}
+  let transcript=Transcript::find_by_thread_id(thread_id)?.ok_or_else(||Error::KSError("Find no transcript".into()))?;
+  let home=dirs::home_dir().ok_or_else(||Error::KSError("No home directory".into()))?;
+  let mut paths=super::recovery::deletion_files(&home,&[thread_id])?;
+  paths.push(home.join(".knapsack/transcripts").join(&transcript.filename));
+  let mut connection=get_db_conn();let transaction=connection.transaction()?;
+  let staged=stage_recording_paths(&home,0,Some(thread_id),paths)?;
+  transaction.execute("DELETE FROM transcripts WHERE thread_id=?1",params![thread_id as i64])?;
+  transaction.commit()?;
+  let warnings=staged.finish();if !warnings.is_empty(){return Err(Error::KSError(warnings.join("; ")))}
   Ok(())
+  })
 }
 
 #[derive(Debug)]
@@ -1138,7 +1109,7 @@ impl StagedRecordingFiles {
   }
 }
 
-fn sync_recording_directory(path: &Path) -> std::io::Result<()> {
+pub(super) fn sync_recording_directory(path: &Path) -> std::io::Result<()> {
   #[cfg(not(target_os = "windows"))]
   {
     File::open(path)?.sync_all()
@@ -1172,6 +1143,8 @@ fn sync_recording_directories<'a>(paths: impl Iterator<Item = &'a Path>) -> Vec<
 #[derive(Debug, Deserialize, Serialize)]
 struct RecordingDeletionManifest {
   feed_item_id: u64,
+  #[serde(default)]
+  transcript_thread_id: Option<u64>,
   paths: Vec<(PathBuf, PathBuf)>,
 }
 
@@ -1406,6 +1379,7 @@ fn recording_file_candidates(
       .filter(|path| path.starts_with(&saved_transcript_dir)),
   );
 
+  candidates.extend(super::recovery::deletion_files(home_dir,&deleted.thread_ids)?);
   candidates.sort();
   candidates.dedup();
   Ok(candidates)
@@ -1420,6 +1394,9 @@ fn stage_recording_files(
       "Could not locate the home folder for transcript cleanup".to_string(),
     ));
   };
+  stage_recording_paths(&home_dir,feed_item_id,None,recording_file_candidates(&home_dir,deleted)?)
+}
+fn stage_recording_paths(home_dir:&Path,feed_item_id:u64,transcript_thread_id:Option<u64>,candidates:Vec<PathBuf>)->Result<StagedRecordingFiles,Error> {
   let mut staged = StagedRecordingFiles {
     paths: Vec::new(),
     restore_on_drop: true,
@@ -1429,7 +1406,6 @@ fn stage_recording_files(
     .duration_since(std::time::UNIX_EPOCH)
     .unwrap_or_default()
     .as_nanos();
-  let candidates = recording_file_candidates(&home_dir, deleted)?;
   let planned_paths = candidates
     .iter()
     .enumerate()
@@ -1454,6 +1430,7 @@ fn stage_recording_files(
   let manifest_temp = manifest_path.with_extension("json.tmp");
   let manifest = RecordingDeletionManifest {
     feed_item_id,
+    transcript_thread_id,
     paths: planned_paths.clone(),
   };
   let manifest_bytes =
@@ -1549,7 +1526,9 @@ fn recover_staged_recording_deletions_for_home(
       &std::fs::read(&path).map_err(|error| Error::KSError(error.to_string()))?,
     )
     .map_err(|error| Error::KSError(error.to_string()))?;
-    let recording_exists = FeedItem::find_by_id(manifest.feed_item_id)?.is_some();
+    let recording_exists = if let Some(thread_id)=manifest.transcript_thread_id {
+      Transcript::find_by_thread_id(thread_id)?.is_some()
+    }else{FeedItem::find_by_id(manifest.feed_item_id)?.is_some()};
     let mut errors = Vec::new();
     for (original, staged) in manifest.paths.iter().rev() {
       if !staged.exists() {
@@ -1597,6 +1576,7 @@ pub async fn delete_recording(
     }));
   }
 
+  let _recovery_guard=super::recovery::lifecycle_guard();
   let mut connection = get_db_conn();
   match delete_recording_rows(&mut connection, feed_item_id, |deleted| {
     stage_recording_files(feed_item_id, deleted)
@@ -1787,28 +1767,14 @@ async fn stream_audio(
   app_handle: &tauri::AppHandle,
   data: StartRecordingRequest,
   startup_tx: mpsc::UnboundedSender<Result<(), String>>,
+  capture_gate: Arc<super::capture_lifecycle::CaptureGate>,
+  input_filename: String,
 ) -> Result<(), String> {
   log::debug!("RECORDING MIC AUDIO! -----------------------------------");
-
-  // Clear any leftover samples from a previous recording session
-  {
-    let mut global_samples = GLOBAL_SAMPLES.lock().unwrap();
-    global_samples.clear();
-  }
 
   let err_fn = move |err| {
     log::error!("an error occurred on stream: {}", err);
   };
-  let mut last_save: Instant = Instant::now();
-  let mut chunk_counter: u32 = 0;
-  // Get the input filename
-  let input_filename = recording_state
-    .input_filename
-    .lock()
-    .unwrap()
-    .clone()
-    .unwrap_or_default();
-
   // A temporary calendar DB failure must not abort microphone capture.
   let meeting_end_time = match fetch_meeting_end_time(data.event_id).await {
     Ok(end) => end,
@@ -1822,6 +1788,9 @@ async fn stream_audio(
   let is_paused = recording_state.is_paused.clone();
 
   let input_filename_clone = input_filename.clone();
+  let buffer = Arc::new(Mutex::new(super::capture_lifecycle::CaptureBuffer::new(input_filename.clone())));
+  let callback_buffer = buffer.clone();
+  let callback_gate = capture_gate.clone();
 
   let channel = config.channels() as usize;
   let sample_rate = config.sample_rate().0 as usize;
@@ -1841,9 +1810,8 @@ async fn stream_audio(
           }
           write_audio_data::<i8, i8>(
             data,
-            &mut last_save,
-            &mut chunk_counter,
-            &input_filename,
+            &callback_buffer,
+            &callback_gate,
             channel,
             sample_rate,
             semaphore,
@@ -1868,9 +1836,8 @@ async fn stream_audio(
           }
           write_audio_data::<i16, i16>(
             data,
-            &mut last_save,
-            &mut chunk_counter,
-            &input_filename,
+            &callback_buffer,
+            &callback_gate,
             channel,
             sample_rate,
             semaphore,
@@ -1895,9 +1862,8 @@ async fn stream_audio(
           }
           write_audio_data::<i32, i32>(
             data,
-            &mut last_save,
-            &mut chunk_counter,
-            &input_filename,
+            &callback_buffer,
+            &callback_gate,
             channel,
             sample_rate,
             semaphore,
@@ -1922,9 +1888,8 @@ async fn stream_audio(
           }
           write_audio_data::<f32, f32>(
             data,
-            &mut last_save,
-            &mut chunk_counter,
-            &input_filename,
+            &callback_buffer,
+            &callback_gate,
             channel,
             sample_rate,
             semaphore,
@@ -1965,8 +1930,8 @@ async fn stream_audio(
   let heartbeat_input_filename = input_filename_clone.clone();
   let heartbeat_output_filename = input_filename_clone.replace("_input", "_output");
 
-  while recording_state.is_recording.load(Ordering::Relaxed) {
-    sleep(Duration::from_millis(100)).await;
+  while capture_gate.running().load(Ordering::Acquire) {
+    tokio::select! { biased; _ = capture_gate.closed() => break, _ = sleep(Duration::from_millis(100)) => {} }
     let elapsed_time = Utc::now() - start_time;
 
     // 15-minute heartbeat: generate insight and send notification
@@ -1978,7 +1943,12 @@ async fn stream_audio(
         elapsed_minutes
       );
 
-      match generate_meeting_insight(&heartbeat_input_filename, &heartbeat_output_filename).await {
+      let insight_result = tokio::select! {
+        biased;
+        _ = capture_gate.closed() => break,
+        result = generate_meeting_insight(&heartbeat_input_filename, &heartbeat_output_filename) => result,
+      };
+      match insight_result {
         Ok(insight) => {
           log::info!("[heartbeat] Insight generated: {}", &insight);
           // Persist the insight so it can be recovered from the meeting view
@@ -2033,12 +2003,13 @@ async fn stream_audio(
   }
 
   drop(stream);
-  let samples = {
-    let mut global_samples = GLOBAL_SAMPLES.lock().unwrap();
-    global_samples.drain(..).collect::<Vec<i32>>()
-  };
-  let chunk_filename = format!("{}_{}.flac", input_filename_clone, chunk_counter);
-  let transcript_filename = format!("{}.txt", input_filename_clone);
+  // Only pre-cutoff samples remain. The shared counter also prevents the tail
+  // from reusing chunk0 after the callback incremented its own captured copy.
+  let tail = buffer.lock().unwrap().finish();
+  let Some(tail) = tail else { return Ok(()); };
+  let samples = tail.samples;
+  let chunk_filename = tail.filename;
+  let transcript_filename = tail.transcript_filename;
   let semaphore = recording_state.input_file_semaphore.clone();
   // Use a timeout so the mic thread doesn't block indefinitely waiting for
   // a previous chunk's transcription to finish.
@@ -2255,8 +2226,72 @@ pub async fn get_meeting_insights(path: web::Path<u64>) -> impl Responder {
   }
 }
 
+/// Fixed native-runtime QA only: injects fictional samples, never opens hardware.
+#[cfg(knapsack_synthetic_qa)]
+pub(crate) async fn native_capture_probe() -> Result<(), &'static str> {
+  use super::capture_lifecycle::{CaptureBuffer, CaptureGate};
+  if !crate::qa_launch::is_synthetic_build() { return Err("not_synthetic"); }
+  for round in 0..3 {
+    let state = RecordingState::default();
+    let gate = Arc::new(CaptureGate::new());
+    let buffer = Arc::new(Mutex::new(CaptureBuffer::synthetic_in_memory(format!("900201_input_synthetic-{round}"))));
+    let semaphore = Arc::new(Semaphore::new(1));
+    let paused = Arc::new(AtomicBool::new(false));
+    *state.capture_gate.lock().unwrap() = Some(gate.clone());
+    *state.thread_id.lock().unwrap() = Some(900201);
+    state.is_starting.store(true, Ordering::Relaxed);
+    state.is_recording.store(true, Ordering::Relaxed);
+    if admit_recording_stop(&state, 900201).err() != Some(StopAdmissionError::Starting) || gate.enter().is_none() { return Err("startup_stop"); }
+    { let _lock = RECORDING_LIFECYCLE_LOCK.lock().unwrap(); state.is_starting.store(false, Ordering::Relaxed); }
+    write_audio_data::<i16,i16>(&[100,200], &buffer, &gate, 1, 48000, semaphore.clone(), &paused);
+    paused.store(true, Ordering::Relaxed);
+    write_audio_data::<i16,i16>(&[300], &buffer, &gate, 1, 48000, semaphore.clone(), &paused);
+    paused.store(false, Ordering::Relaxed);
+    let (started, ready) = tokio::sync::oneshot::channel();
+    let heartbeat_gate = gate.clone();
+    let heartbeat = tokio::spawn(async move {
+      tokio::select! { biased;
+        _ = heartbeat_gate.closed() => {},
+        _ = async move { let _ = started.send(()); std::future::pending::<()>().await } => {}
+      }
+    });
+    ready.await.map_err(|_| "heartbeat_start")?;
+    if admit_recording_stop(&state, 900202).err() != Some(StopAdmissionError::DifferentMeeting) { return Err("foreign_stop"); }
+    let finalizing = admit_recording_stop(&state, 900201).map_err(|_| "accepted_stop")?;
+    if admit_recording_stop(&state, 900201).err() != Some(StopAdmissionError::Inactive) { return Err("repeat_stop"); }
+    for _ in 0..20 { write_audio_data::<i16,i16>(&[400], &buffer, &gate, 1, 48000, semaphore.clone(), &paused); }
+    timeout(Duration::from_millis(500), heartbeat).await.map_err(|_| "heartbeat_cancel")?.map_err(|_| "heartbeat_join")?;
+    let tail = buffer.lock().unwrap().finish().ok_or("tail_missing")?;
+    if tail.samples.len()!=2 || tail.filename!=format!("900201_input_synthetic-{round}_0.flac") || buffer.lock().unwrap().finish().is_some() { return Err("tail_identity"); }
+    drop(finalizing);
+    *state.capture_gate.lock().unwrap() = Some(Arc::new(CaptureGate::new()));
+    if gate.enter().is_some() { return Err("old_capture_reopened"); }
+  }
+  #[cfg(target_os="macos")]
+  super::macos::native_tap_probe()?;
+  Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn transcript_only_deletion_waits_for_start_to_finish_capture_admission() {
+    use std::sync::{Arc,atomic::{AtomicUsize,Ordering},mpsc};
+    let phase=Arc::new(AtomicUsize::new(1));let observed=phase.clone();let (sent,received)=mpsc::channel();
+    let starting=super::RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+    let worker=std::thread::spawn(move||{sent.send(()).unwrap();super::with_transcript_deletion_lifecycle(||{assert_eq!(observed.load(Ordering::SeqCst),2);Ok(())}).unwrap();});
+    received.recv().unwrap();phase.store(2,Ordering::SeqCst);drop(starting);worker.join().unwrap();
+  }
+
+  #[test]
+  fn recording_deletion_stages_recovery_receipts_and_restores_on_failure() {
+    let home=tempfile::tempdir().unwrap();let queue=home.path().join(".knapsack/transcription-queue-v1");std::fs::create_dir_all(&queue).unwrap();
+    let receipt=queue.join("42_input_3ff2ba37-4e89-48ee-90bf-6c3c9cb80516.json");std::fs::write(&receipt,"synthetic transcript receipt").unwrap();
+    let staged=super::stage_recording_paths(home.path(),0,Some(42),vec![receipt.clone()]).unwrap();
+    assert!(!receipt.exists());drop(staged);assert_eq!(std::fs::read_to_string(&receipt).unwrap(),"synthetic transcript receipt");
+    let staged=super::stage_recording_paths(home.path(),0,Some(42),vec![receipt.clone()]).unwrap();assert!(staged.finish().is_empty());assert!(!receipt.exists());
+  }
+
   #[test]
   fn synthetic_qa_startup_preserves_staged_production_recordings_with_empty_database() {
     let production_home = tempfile::tempdir().unwrap();
@@ -2267,6 +2302,7 @@ mod tests {
     std::fs::create_dir_all(staged.parent().unwrap()).unwrap();
     std::fs::write(&staged, b"production recording sentinel").unwrap();
     let manifest = super::RecordingDeletionManifest {
+      transcript_thread_id:None,
       feed_item_id: 999,
       paths: vec![(original.clone(), staged.clone())],
     };
@@ -2333,6 +2369,64 @@ mod tests {
   }
 
   use super::*;
+
+  #[cfg(knapsack_synthetic_qa)]
+  #[tokio::test]
+  async fn native_capture_fixed_probe_is_safe_and_repeatable() {
+    super::native_capture_probe().await.unwrap();
+    super::native_capture_probe().await.unwrap();
+  }
+
+  #[test]
+  fn capture_stop_admission_preserves_startup_and_rejects_foreign_meeting() {
+    use crate::audio::capture_lifecycle::CaptureGate;
+    let state = RecordingState::default();
+    let gate = Arc::new(CaptureGate::new());
+    *state.capture_gate.lock().unwrap() = Some(gate.clone());
+    *state.thread_id.lock().unwrap() = Some(10);
+    state.is_recording.store(true, Ordering::Relaxed);
+    state.is_starting.store(true, Ordering::Relaxed);
+    assert_eq!(admit_recording_stop(&state, 10).err(), Some(StopAdmissionError::Starting));
+    assert!(gate.enter().is_some());
+    assert!(state.is_recording.load(Ordering::Relaxed));
+    assert!(!state.is_stopping.load(Ordering::Relaxed));
+    // This transition is performed only after both handles and journal commit.
+    { let _lifecycle = RECORDING_LIFECYCLE_LOCK.lock().unwrap(); state.is_starting.store(false, Ordering::Relaxed); }
+    assert_eq!(admit_recording_stop(&state, 11).err(), Some(StopAdmissionError::DifferentMeeting));
+    assert!(gate.enter().is_some());
+    let finalizing = admit_recording_stop(&state, 10).unwrap();
+    assert!(gate.enter().is_none());
+    assert!(state.is_stopping.load(Ordering::Relaxed));
+    assert!(!state.is_recording.load(Ordering::Relaxed));
+    assert_eq!(admit_recording_stop(&state, 10).err(), Some(StopAdmissionError::Inactive));
+    drop(finalizing);
+    assert!(!state.is_stopping.load(Ordering::Relaxed));
+    *state.capture_gate.lock().unwrap() = Some(Arc::new(CaptureGate::new()));
+    assert!(gate.enter().is_none());
+  }
+
+  #[test]
+  fn capture_microphone_callback_rejects_post_stop_samples_and_keeps_identity() {
+    use crate::audio::capture_lifecycle::{CaptureBuffer, CaptureGate};
+    let old_gate = CaptureGate::new();
+    let old_buffer = Arc::new(Mutex::new(CaptureBuffer::new("1_input_old".into())));
+    let semaphore = Arc::new(Semaphore::new(1));
+    let paused = Arc::new(AtomicBool::new(false));
+    write_audio_data::<i16, i16>(&[100, 200], &old_buffer, &old_gate, 1, 48000, semaphore.clone(), &paused);
+    old_gate.close();
+    let new_gate = CaptureGate::new();
+    let new_buffer = Arc::new(Mutex::new(CaptureBuffer::new("2_input_new".into())));
+    write_audio_data::<i16, i16>(&[300], &old_buffer, &old_gate, 1, 48000, semaphore.clone(), &paused);
+    write_audio_data::<i16, i16>(&[400], &new_buffer, &new_gate, 1, 48000, semaphore, &paused);
+    let old_tail = old_buffer.lock().unwrap().finish().unwrap();
+    assert_eq!(old_tail.samples.len(), 2);
+    assert_eq!(old_tail.filename, "1_input_old_0.flac");
+    assert!(old_buffer.lock().unwrap().finish().is_none());
+    let new_tail = new_buffer.lock().unwrap().finish().unwrap();
+    assert_eq!(new_tail.samples.len(), 1);
+    assert_eq!(new_tail.filename, "2_input_new_0.flac");
+  }
+
   use tempfile::TempDir;
 
   fn row_count(connection: &Connection, table: &str, id: i64) -> i64 {
@@ -2508,28 +2602,6 @@ mod tests {
     assert!(result.is_err());
   }
 
-  #[test]
-  fn test_global_samples_cleared_between_recordings() {
-    // Simulate leftover samples from a previous recording
-    {
-      let mut samples = GLOBAL_SAMPLES.lock().unwrap();
-      samples.extend_from_slice(&[100, 200, 300, 400, 500]);
-      assert_eq!(samples.len(), 5);
-    }
-
-    // Simulate the clearing that now happens at the start of stream_audio
-    {
-      let mut samples = GLOBAL_SAMPLES.lock().unwrap();
-      samples.clear();
-    }
-
-    // Verify the buffer is empty
-    let samples = GLOBAL_SAMPLES.lock().unwrap();
-    assert!(
-      samples.is_empty(),
-      "GLOBAL_SAMPLES should be empty after clearing"
-    );
-  }
 
   #[test]
   fn test_stale_transcript_files_cleaned_up() {

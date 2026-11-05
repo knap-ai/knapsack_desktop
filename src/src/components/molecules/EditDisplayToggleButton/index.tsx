@@ -23,9 +23,9 @@ const EditDisplayToggleButton: React.FC<EditDisplayToggleButtonProps> = ({
   };
 
   return (
-    <div className="flex flex-row items-center gap-2" onClick={handleClick}>
+    <div className="flex flex-row items-center gap-2">
       <Button
-        label={isEditing ? "View Notes" : "Edit"}
+        label={isEditing ? "Done" : "Edit"}
         variant={ButtonVariant.regular}
         size={ButtonSize.medium}
         icon={

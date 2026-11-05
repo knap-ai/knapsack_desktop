@@ -16804,6 +16804,12 @@ async fn exchange_and_store_knapsack_code(
     std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m);
   }
 
+  let recovery_owner = sign_in.email.clone();
+  tauri::async_runtime::spawn(async move {
+    if let Err(error) = crate::audio::transcribe::resume_pending_transcription(recovery_owner).await {
+      log::warn!("Pending transcription needs attention: {}", error);
+    }
+  });
   log::info!("[knapsack_auth] connected as {}", sign_in.email);
   let _ = app_handle.emit_all(
     "knapsack-connected",

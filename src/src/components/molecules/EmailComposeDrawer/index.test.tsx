@@ -8,6 +8,30 @@ afterEach(() => { cleanup(); vi.clearAllMocks() })
 const draft = { to: 'recipient@example.invalid', subject: 'Fictional follow-up', body: '<p>Fictional notes to review.</p>', senderEmail: 'owner@example.invalid' }
 const outlook = { id: 'outlook|mailbox@example.invalid', provider: 'outlook' as const, accountEmail: 'mailbox@example.invalid', ownerEmail: 'owner@example.invalid' }
 describe('reviewed meeting follow-up drafts', () => {
+  it('requires explicit choice for another owner and sends exactly once on repeated clicks', async () => {
+    let finish!: () => void
+    vi.mocked(sendComposedEmail).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const linked = { ...outlook, id: 'outlook|linked|other', ownerEmail: 'other@example.invalid', requiresSelection: true }
+    render(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[linked]} onDismiss={() => {}} />)
+    expect((screen.getByText('Send Email') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sender mailbox' }), { target: { value: linked.id } })
+    const send = screen.getByText('Send Email')
+    fireEvent.click(send); fireEvent.click(send)
+    expect(sendComposedEmail).toHaveBeenCalledTimes(1)
+    expect(sendComposedEmail).toHaveBeenCalledWith(expect.objectContaining({ userEmail: linked.ownerEmail, accountEmail: linked.accountEmail }))
+    finish()
+    await screen.findByText('✓ Email sent!')
+  })
+  it('keeps subject and body while mailbox refresh fails and exposes recovery actions', () => {
+    const refresh = vi.fn(), manage = vi.fn()
+    render(<EmailComposeDrawer draft={draft} senders={[]} senderError="Synthetic inventory failure" onRefreshSenders={refresh} onManageAccounts={manage} onDismiss={() => {}} />)
+    fireEvent.change(screen.getByDisplayValue(draft.subject), { target: { value: 'Edited subject' } })
+    fireEvent.click(screen.getByText('Refresh mailboxes')); fireEvent.click(screen.getByText('Manage connected accounts'))
+    expect(refresh).toHaveBeenCalledTimes(1); expect(manage).toHaveBeenCalledTimes(1)
+    expect(screen.getByDisplayValue('Edited subject')).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Email body' }).innerHTML).toBe(draft.body)
+    expect(sendComposedEmail).not.toHaveBeenCalled()
+  })
   it('preserves editable draft without a mail connection and disables sending', () => {
     render(<EmailComposeDrawer draft={draft} userEmail="owner@example.invalid" senders={[]} onDismiss={() => {}} />)
     expect(screen.getByDisplayValue('Fictional follow-up')).toBeTruthy()
