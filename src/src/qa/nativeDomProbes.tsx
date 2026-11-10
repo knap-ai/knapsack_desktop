@@ -25,9 +25,9 @@ function select(label:string,value:string){const el=document.querySelector<HTMLS
 
 export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)=>void){
  const root=createRoot(container)
- const state={clipboard:'',opens:[] as string[],forbidden:0,posts:[] as {requestId:string;teamId:string;channelId:string}[],notes:BASE,revision:1,revoked:false,sourceJump:'',transcripts:new Map<string,()=>Promise<Response>>()}
+ const state={clipboard:'',opens:[] as string[],forbidden:0,forbiddenOperations:[] as string[],posts:[] as {requestId:string;teamId:string;channelId:string}[],notes:BASE,revision:1,revoked:false,sourceJump:'',transcripts:new Map<string,()=>Promise<Response>>()}
  const target=window as NativeWindow
- const fail=()=>{state.forbidden++;throw new Error('qa_boundary_blocked')}
+ const fail=(operation='unrecognized')=>{state.forbidden++;state.forbiddenOperations.push(operation);throw new Error('qa_boundary_blocked')}
  // Forward only the nonce-bound result event to this owned native window.
  target.__knapsackQaTransport__=payload=>{
   const m=payload.message
@@ -35,7 +35,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    state.opens.push(String(m.path));(window as unknown as Record<string,(v?:unknown)=>void>)[`_${payload.callback}`]?.();return
   }
   if(payload.cmd==='tauri'&&payload.__tauriModule==='Event'&&m?.cmd==='emit'&&m.event==='knapsack-qa-dom-result'&&m.windowLabel==='main') {nativeIpc(payload);return}
-  fail()
+  fail(`IPC ${payload.cmd}/${payload.__tauriModule}/${m?.cmd}`)
  }
  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{state.clipboard=text}}})
  Object.defineProperty(navigator,'sendBeacon',{configurable:true,value:()=>{state.forbidden++;return false}})
@@ -46,7 +46,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
  globalThis.EventSource=window.EventSource=class {constructor(){fail()}} as unknown as typeof EventSource
  globalThis.fetch=window.fetch=async(input,init)=>{
   const u=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url,location.href)
-  if(u.origin!=='http://127.0.0.1:8897')return fail()
+  if(u.origin!=='http://127.0.0.1:8897')return fail(`fetch origin ${u.origin}`)
   if(u.pathname==='/api/knapsack/thread/transcript')return state.transcripts.get(u.searchParams.get('id')||'')?.()||json({data:false},404)
   if(u.pathname==='/api/knapsack/notes/900101')return json({success:true,data:{thread_id:900101,exists:true,notes:state.notes,revision:String(state.revision)}})
   if(u.pathname==='/api/knapsack/notes/revise'){
@@ -62,7 +62,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    check(b.blocks.some((block:{type:string})=>block.type==='table'));state.posts.push(b)
    return json({success:true,data:{state:'sent',channelId:b.channelId,teamId:b.teamId,ts:'qa-fictional'}})
   }
-  return fail() // Never forward an unrecognized request, even to the local API.
+  return fail(`fetch ${init?.method||'GET'} ${u.pathname}`) // Never forward an unrecognized request, even to the local API.
  }
  // Imports occur only after sealing all side-effect boundaries.
  const [{default:TranscriptView},{default:CalendarMeetingLink},links,{default:ChatSelectionActions},{default:QuotedChatContext},quotes,{useNotesEditReview},{default:SlackNotesShare},slack,format] = await Promise.all([
