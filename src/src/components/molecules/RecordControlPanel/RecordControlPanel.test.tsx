@@ -2,6 +2,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
+// Keep the real controls/tooltip behavior; the public icon is a browser asset,
+// not a Node module (root-relative file URLs are invalid on Windows runners).
+vi.mock('/assets/images/questionMark.svg', () => ({ default: '/synthetic-help.svg' }))
+
 import RecordControlPanel from './index'
 
 const defaults = {
@@ -41,4 +45,17 @@ it('only offers lifecycle actions during an active recording', () => {
   expect(screen.queryByRole('button', { name: 'Record' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
   expect(defaults.onClickEnd).toHaveBeenCalledOnce()
+})
+it('keeps pause, resume and end separate without starting another recording', () => {
+  const view = render(<RecordControlPanel {...defaults} isRecording />)
+  fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+  expect(defaults.onClickPause).toHaveBeenCalledOnce()
+  view.rerender(<RecordControlPanel {...defaults} isRecording isPaused />)
+  expect(screen.queryByRole('button', { name: 'Join & record' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
+  fireEvent.click(screen.getByRole('button', { name: 'End' }))
+  expect(defaults.onClickResume).toHaveBeenCalledOnce()
+  expect(defaults.onClickEnd).toHaveBeenCalledOnce()
+  expect(defaults.onClickRecord).not.toHaveBeenCalled()
+  expect(defaults.onClickJoin).not.toHaveBeenCalled()
 })
