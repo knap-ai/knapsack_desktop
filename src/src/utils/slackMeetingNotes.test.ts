@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { buildSlackNotesMessage, buildSlackClipboardPayload, copyMeetingNotesForSlack } from './slackMeetingNotes'
+import {
+  buildSlackClipboardPayload,
+  buildSlackNotesMessage,
+  copyMeetingNotesForSlack,
+} from './slackMeetingNotes'
 
 const syntheticNotes = `# Decisions
 
@@ -16,7 +20,7 @@ describe('Slack meeting-note clipboard payload', () => {
 
   it('uses rich HTML while keeping the plain fallback free of literal mrkdwn', () => {
     const payload = buildSlackClipboardPayload(syntheticNotes, 'Synthetic meeting')
-    expect(payload.html).toContain('<h3>Decisions</h3>')
+    expect(payload.html).toContain('<p><strong>Decisions</strong></p>')
     expect(payload.html).toContain('<strong>Owner:</strong>')
     expect(payload.html).toContain('<ul>')
     expect(payload.text).toContain('Owner: Ship the rich clipboard fix')
@@ -36,9 +40,7 @@ describe('Slack meeting-note clipboard payload', () => {
     const payload = buildSlackClipboardPayload(`![${maliciousAlt}](https://example.com/image.png)`)
 
     expect(payload.text).toContain(maliciousAlt)
-    expect(payload.html).toContain(
-      '&lt;/p&gt;&lt;img src=x onerror=&quot;synthetic()&quot;&gt;',
-    )
+    expect(payload.html).toContain('&lt;/p&gt;&lt;img src=x onerror=&quot;synthetic()&quot;&gt;')
     expect(payload.html).not.toContain('<img src=x')
     expect(payload.html).not.toContain('</p><img')
   })
@@ -64,7 +66,12 @@ describe('Slack meeting-note clipboard payload', () => {
     const write = vi.fn().mockRejectedValue(new Error('unsupported'))
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { clipboard: { write, writeText } })
-    vi.stubGlobal('ClipboardItem', class { constructor(_: Record<string, Blob>) {} })
+    vi.stubGlobal(
+      'ClipboardItem',
+      class {
+        constructor(_: Record<string, Blob>) {}
+      },
+    )
 
     await copyMeetingNotesForSlack(syntheticNotes)
 
@@ -73,23 +80,81 @@ describe('Slack meeting-note clipboard payload', () => {
   })
 })
 
-describe('native Slack tables and readable clipboard constraints',()=>{
- it('sends actual table blocks with original row/column order and inert cell text',()=>{
-  const message=buildSlackNotesMessage('# Summary\n\n| Owner | Task |\n| --- | --- |\n| Frida | Review <@U123> |','Fictional meeting')
-  const table=message.blocks.find(b=>b.type==='table');expect(table).toMatchObject({type:'table',rows:[[{type:'raw_text',text:'Owner'},{type:'raw_text',text:'Task'}],[{type:'raw_text',text:'Frida'},{type:'raw_text',text:'Review <@U123>'}]]})
-  expect(message.text).toContain('Frida');expect(buildSlackClipboardPayload('| A | B |\n| --- | --- |\n| 1 | 2 |').html).toContain('<li>A: 1</li>')
- })
- it('preserves escaped pipes and inline code pipes inside cells',()=>{const m=buildSlackNotesMessage('| A | B |\n| --- | --- |\n| one\\|two | `x|y` |');const t=m.blocks[0];expect(t.type==='table'&&t.rows[1].map(c=>c.text)).toEqual(['one|two','x|y'])})
- it('does not parse a code example as a real table',()=>{const md='```\n| A | B |\n| --- | --- |\n| 1 | 2 |\n```';expect(buildSlackNotesMessage(md).blocks.some(b=>b.type==='table')).toBe(false);expect(buildSlackClipboardPayload(md).text).toContain('| --- | --- |')})
- it('fails oversized tables explicitly without truncation or splitting into unexpected posts',()=>{expect(()=>buildSlackNotesMessage('| A |\n| --- |\n'+Array.from({length:100},()=> '| value |').join('\n'))).toThrow(/100 rows/);expect(()=>buildSlackNotesMessage('| A |\n| --- |\n| '+ 'x'.repeat(10001)+' |')).toThrow(/limits/);expect(()=>buildSlackNotesMessage('x'.repeat(40000))).toThrow(/limits/)})
- it('retains literal underscores and cell values instead of treating every underscore as markup',()=>{const m=buildSlackNotesMessage('| Key | Value |\n| --- | --- |\n| team_id | `a_b` |');const t=m.blocks[0];expect(t.type==='table'&&t.rows[1].map(c=>c.text)).toEqual(['team_id','a_b'])})
-
+describe('native Slack tables and readable clipboard constraints', () => {
+  it('sends actual table blocks with original row/column order and inert cell text', () => {
+    const message = buildSlackNotesMessage(
+      '# Summary\n\n| Owner | Task |\n| --- | --- |\n| Frida | Review <@U123> |',
+      'Fictional meeting',
+    )
+    const table = message.blocks.find(b => b.type === 'table')
+    expect(table).toMatchObject({
+      type: 'table',
+      rows: [
+        [
+          { type: 'raw_text', text: 'Owner' },
+          { type: 'raw_text', text: 'Task' },
+        ],
+        [
+          { type: 'raw_text', text: 'Frida' },
+          { type: 'raw_text', text: 'Review <@U123>' },
+        ],
+      ],
+    })
+    expect(message.text).toContain('Frida')
+    expect(buildSlackClipboardPayload('| A | B |\n| --- | --- |\n| 1 | 2 |').html).toContain(
+      '<strong>A:</strong> 1',
+    )
+  })
+  it('preserves escaped pipes and inline code pipes inside cells', () => {
+    const m = buildSlackNotesMessage('| A | B |\n| --- | --- |\n| one\\|two | `x|y` |')
+    const t = m.blocks[0]
+    expect(t.type === 'table' && t.rows[1].map(c => c.text)).toEqual(['one|two', 'x|y'])
+  })
+  it('does not parse a code example as a real table', () => {
+    const md = '```\n| A | B |\n| --- | --- |\n| 1 | 2 |\n```'
+    expect(buildSlackNotesMessage(md).blocks.some(b => b.type === 'table')).toBe(false)
+    expect(buildSlackClipboardPayload(md).text).toContain('| --- | --- |')
+  })
+  it('fails oversized tables explicitly without truncation or splitting into unexpected posts', () => {
+    expect(() =>
+      buildSlackNotesMessage(
+        '| A |\n| --- |\n' + Array.from({ length: 100 }, () => '| value |').join('\n'),
+      ),
+    ).toThrow(/100 rows/)
+    expect(() => buildSlackNotesMessage('| A |\n| --- |\n| ' + 'x'.repeat(10001) + ' |')).toThrow(
+      /limits/,
+    )
+    expect(() => buildSlackNotesMessage('x'.repeat(40000))).toThrow(/limits/)
+  })
+  it('retains literal underscores and cell values instead of treating every underscore as markup', () => {
+    const m = buildSlackNotesMessage('| Key | Value |\n| --- | --- |\n| team_id | `a_b` |')
+    const t = m.blocks[0]
+    expect(t.type === 'table' && t.rows[1].map(c => c.text)).toEqual(['team_id', 'a_b'])
+  })
 })
 
- it('uses labeled table values without padding wide cells', () => {
-   const payload = buildSlackClipboardPayload('| Owner | Task |\n| --- | --- |\n| Jo | '+ 'Long task '.repeat(60) +' |')
-   expect(payload.text).toContain('• Owner: Jo')
-   expect(payload.text).toContain('• Task: Long task')
-   expect(payload.text).not.toContain('─')
-   expect(payload.html).not.toContain('<pre>')
- })
+it('uses labeled table values without padding wide cells', () => {
+  const payload = buildSlackClipboardPayload(
+    '| Owner | Task |\n| --- | --- |\n| Jo | ' + 'Long task '.repeat(60) + ' |',
+  )
+  expect(payload.text).toContain('• Owner: Jo')
+  expect(payload.text).toContain('• Task: Long task')
+  expect(payload.text).not.toContain('─')
+  expect(payload.html).not.toContain('<pre>')
+})
+
+it('keeps each copied table record together with bold column labels and inert values', () => {
+  const payload = buildSlackClipboardPayload(
+    '| Person | Task |\n| --- | --- |\n| Ada | Review <script> |\n| Jo | Ship |',
+  )
+  expect(payload.html).toContain(
+    '<p><strong>Person:</strong> Ada<br><strong>Task:</strong> Review &lt;script&gt;</p><p><br></p><p><strong>Person:</strong> Jo',
+  )
+  expect(payload.text).toContain('Review <script>\n\n• Person: Jo')
+  expect(payload.html).not.toContain('<table')
+})
+it('distinguishes emphasis from bold in rich clipboard content', () => {
+  expect(buildSlackClipboardPayload('**Decision** and *emphasis*').html).toContain(
+    '<strong>Decision</strong> and <em>emphasis</em>',
+  )
+})

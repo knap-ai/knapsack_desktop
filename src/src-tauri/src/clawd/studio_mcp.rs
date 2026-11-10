@@ -119,7 +119,21 @@ async fn refresh_access_token(refresh_token: &str) -> Result<String, String> {
   Ok(token)
 }
 
-async fn request_studio(
+fn slack_notes_v1_error(value:&Value)->&'static str {
+  match value.pointer("/detail/code").and_then(Value::as_str) {
+    Some("unsupported_contract") => "Studio Slack notes sharing is not enabled or compatible yet. Copy the notes instead; nothing was sent.",
+    Some("connection_unavailable") => "The selected Studio Slack connection is unavailable. Reopen sharing; no alternate account was used.",
+    Some("workspace_changed") => "Slack workspace identity changed. Reopen sharing and review the exact destination.",
+    Some("channel_unavailable") => "The selected Slack channel is unavailable or this connection is not a member. No channel was joined.",
+    Some("missing_scope") => "Existing Slack permissions do not support this action. No permissions were changed.",
+    Some("request_conflict") => "This send identity conflicts with a different approved draft. Nothing was resent.",
+    Some("known_not_sent") => "Slack rejected the earlier send without delivering it. Nothing was automatically retried.",
+    Some("outcome_uncertain") => "Slack delivery is uncertain. Check the exact channel before starting another send.",
+    _ => "Studio could not confirm this Slack send. Check the exact channel before retrying.",
+  }
+}
+
+pub(super) async fn request_studio(
   method: reqwest::Method,
   path: &str,
   body: Option<Value>,
@@ -203,6 +217,9 @@ async fn request_studio(
       continue;
     }
     if !status.is_success() {
+      if path.ends_with("/slack-notes/v1/send") {
+        return Err(slack_notes_v1_error(&value).to_string());
+      }
       let detail = value
         .get("detail")
         .and_then(Value::as_str)
@@ -295,7 +312,7 @@ async fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
   }
 }
 
-async fn connected_connectors() -> Result<Vec<Value>, String> {
+pub(super) async fn connected_connectors() -> Result<Vec<Value>, String> {
   let body = request_studio(
     reqwest::Method::GET,
     "/desktop/integrations/connected",
@@ -431,6 +448,15 @@ fn is_gmail_connector(connector: &Value) -> bool {
     .map(|v| v.to_ascii_lowercase().contains("gmail")).unwrap_or(false))
 }
 
+fn bound_native_gmail_arguments(arguments: &Value, scope: &str, owner: &str) -> Value {
+  let mut bound = arguments.clone();
+  // Trusted runtime scope, never a model-provided capability flag. Remote
+  // Gmail retains its existing exact Studio-owner/sender authorization.
+  bound["desktop_mailboxes"] = json!(is_local_desktop_scope(scope));
+  bound["expected_studio_owner"] = json!(owner);
+  bound
+}
+
 async fn native_gmail_tool(arguments: &Value) -> Result<Value, String> {
   authorize_studio_request(arguments).await?;
   let tokens = read_tokens()?;
@@ -452,7 +478,7 @@ async fn native_gmail_tool(arguments: &Value) -> Result<Value, String> {
     .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?
     .post("http://127.0.0.1:8897/api/clawd/gmail/read")
     .header(crate::server::auth::DESKTOP_API_TOKEN_HEADER, token)
-    .json(arguments).send().await.map_err(|e| format!("Native Gmail desktop API unavailable: {e}"))?;
+    .json(&bound_native_gmail_arguments(arguments, scope, &owner)).send().await.map_err(|e| format!("Native Gmail desktop API unavailable: {e}"))?;
   let status = response.status();
   let value: Value = response.json().await.map_err(|e| e.to_string())?;
   if !status.is_success() { return Err(value.get("error").and_then(Value::as_str).unwrap_or("Native Gmail request failed").into()); }
@@ -714,10 +740,10 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
     }),
     json!({
       "name": "gmail_read",
-      "description": "Read Gmail using this desktop's native Google OAuth connection, never Composio. Use accounts first, select an exact account_email, then list messages and get individual messages. Read-only; does not mark mail read or send anything.",
+      "description": "Read Gmail through existing saved OAuth grants, never Composio. Local desktop chat can use the same connected Gmail inboxes as Email Autopilot; remote chat retains Studio-owner scope. Call accounts first; select exact account_email and connection_id from connections. For multiple inboxes call each distinct account_email explicitly and preserve identities; duplicate grants are not separate inboxes; a failure does not imply other inboxes failed. Saved grants are not fresh authentication proof. Read-only, no sending or marking read; never fall back to browser login automatically.",
       "inputSchema": {"type":"object", "properties": {
         "action":{"type":"string", "enum":["accounts","list","get"]},
-        "account_email":{"type":"string"}, "query":{"type":"string","description":"Gmail search query"},
+        "account_email":{"type":"string"}, "connection_id":{"type":"integer","minimum":1,"description":"Exact saved grant from accounts; required for duplicate mailbox grants"}, "query":{"type":"string","description":"Gmail search query"},
         "max_results":{"type":"integer","minimum":1,"maximum":20},
         "page_token":{"type":"string"}, "message_id":{"type":"string"}
       }, "required":["action"]}
@@ -891,6 +917,16 @@ pub async fn run_stdio_server() {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn native_mailbox_expansion_is_runtime_bound_not_model_selected() {
+    let remote = bound_native_gmail_arguments(&json!({"desktop_mailboxes":true,"expected_studio_owner":"attacker@example.invalid"}), "agent:main:slack:default:direct:test", "owner@example.invalid");
+    assert_eq!(remote["desktop_mailboxes"], false);
+    assert_eq!(remote["expected_studio_owner"], "owner@example.invalid");
+    let local = bound_native_gmail_arguments(&json!({"desktop_mailboxes":false}), "agent:main:knapsack:local", "owner@example.invalid");
+    assert_eq!(local["desktop_mailboxes"], true);
+    assert_eq!(bound_native_gmail_arguments(&json!({}), "", "owner@example.invalid")["desktop_mailboxes"], false);
+  }
+
   #[test]
   fn direct_tools_include_connectors_without_admin_privileges() {
     let tools = super::direct_tool_specs();
@@ -1192,5 +1228,18 @@ mod tests {
     }))
     .await
     .unwrap();
+  }
+}
+
+#[cfg(test)]
+mod slack_notes_v1_errors {
+  use super::*;
+  #[test]
+  fn slack_notes_v1_errors_are_actionable_and_never_echo_provider_details() {
+    assert!(slack_notes_v1_error(&json!({"detail":{"code":"missing_scope"}})).contains("No permissions were changed"));
+    assert!(slack_notes_v1_error(&json!({"detail":{"code":"outcome_uncertain"}})).contains("uncertain"));
+    let value=json!({"detail":{"code":"unknown","token":"synthetic-secret","text":"private note"}});
+    let message=slack_notes_v1_error(&value);assert!(!message.contains("synthetic-secret"));assert!(!message.contains("private note"));
+    assert!(!slack_notes_v1_error(&json!({"detail":{"code":"channel_unavailable"}})).contains("sign-in"));
   }
 }

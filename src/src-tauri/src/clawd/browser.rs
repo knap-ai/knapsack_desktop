@@ -35,6 +35,7 @@ struct ScheduledTaskSummary {
   agent_id: Option<String>,
   session_key: Option<String>,
   name: String,
+  description: Option<String>,
   enabled: bool,
   schedule: JsonValue,
   next_run_at_ms: Option<i64>,
@@ -63,6 +64,8 @@ fn scheduled_task_summaries(value: &JsonValue) -> Vec<ScheduledTaskSummary> {
           .and_then(JsonValue::as_str)
           .unwrap_or("Untitled scheduled task")
           .to_string(),
+        description: job.get("description").and_then(JsonValue::as_str)
+          .map(|text| text.chars().take(500).collect()),
         enabled: job
           .get("enabled")
           .and_then(JsonValue::as_bool)
@@ -137,6 +140,7 @@ mod scheduled_task_tests {
       "agentId": "main",
       "sessionKey": "agent:main:webchat:dm:ui-agent-polly",
       "name": "Daily report",
+      "description": "Summarize the fictional daily report.",
       "enabled": true,
       "schedule": {"kind": "cron", "expr": "0 8 * * *", "tz": "America/Los_Angeles"},
       "state": {"nextRunAtMs": 1_800_000_000_000_i64},
@@ -147,6 +151,7 @@ mod scheduled_task_tests {
     let summaries = scheduled_task_summaries(&tasks);
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].id, "daily-report");
+    assert_eq!(summaries[0].description.as_deref(), Some("Summarize the fictional daily report."));
     assert_eq!(summaries[0].agent_id.as_deref(), Some("main"));
     assert_eq!(summaries[0].session_key.as_deref(), Some("agent:main:webchat:dm:ui-agent-polly"));
     assert!(!serde_json::to_string(&summaries).unwrap().contains("private report instruction"));
@@ -1054,9 +1059,9 @@ fn connected_google_accounts(
 fn connected_google_accounts_for_context(
   preferred_user_email: &str,
 ) -> std::collections::BTreeMap<String, Vec<&'static str>> {
-  // Settings intentionally aggregates connections owned by every local
-  // identity. Chat must use the same inventory; returning early for the
-  // preferred identity hid other simultaneously connected Google accounts.
+  // Retain the existing local Calendar/Drive inventory. Gmail capabilities
+  // are additionally restricted below to the exact Studio-owned read-tool
+  // inventory; a connection under another local profile is not a tool grant.
   let mut combined = std::collections::BTreeMap::<String, Vec<&'static str>>::new();
   if let Ok(users) = User::find_all_with_email() {
     for user in users {
@@ -1072,10 +1077,13 @@ fn connected_google_accounts_for_context(
     }
   }
   if combined.is_empty() {
-    connected_google_accounts(preferred_user_email)
-  } else {
-    combined
+    combined = connected_google_accounts(preferred_user_email);
   }
+  let gmail_accounts = super::gmail::native_gmail_inventory()
+    .map(|(_, accounts)| accounts.into_iter().map(|(email, _)| email).collect::<Vec<_>>())
+    .unwrap_or_default();
+  super::google_capabilities::scope_gmail_capabilities(combined, &gmail_accounts)
+
 }
 
 fn connected_google_accounts_section(user_email: &str) -> String {
@@ -1090,7 +1098,7 @@ fn connected_google_accounts_section(user_email: &str) -> String {
     .collect::<Vec<_>>()
     .join("\n");
   format!(
-    "\n\n## CONNECTED GOOGLE ACCOUNTS — CAPABILITY TRUTH\n{}\nThese are authenticated native connections. An empty search or no recent Drive activity means no matching data was found; it does not mean the account lacks access. Never tell the user to reconnect a service listed here unless an actual native request returns an authentication error.\n",
+    "\n\n## SAVED GOOGLE CONNECTIONS — REFRESH GMAIL TOOL INVENTORY\n{}\nGmail entries shown here are the conservative Studio-owner inventory. Authenticated local desktop chat can discover additional saved Autopilot-connected Gmail inboxes using gmail_read action accounts; remote chat retains Studio-owner scope. The fresh tool inventory overrides earlier context. Other locally connected profiles may have different grants. Refresh gmail_read action accounts before querying a mailbox; do not switch to browser login or ask for pasted email because a different profile owns the desired connection. Report the account-scope mismatch instead. An empty search or no recent Drive activity means no matching data was found; it does not mean the account lacks access. Never tell the user to reconnect a service listed here unless an actual native request returns an authentication error.\n",
     rows
   )
 }
@@ -1110,6 +1118,10 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
     return None;
   }
 
+  // Gmail availability depends on the request's trusted local/remote scope.
+  // Let the agent enumerate fresh tool accounts rather than returning the
+  // narrower Studio-only snapshot as an exhaustive deterministic answer.
+  if normalized.contains("gmail") || normalized.contains("email") { return None; }
   let accounts = connected_google_accounts_for_context(user_email);
   if accounts.is_empty() {
     return None;
@@ -1120,7 +1132,7 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
     .collect::<Vec<_>>()
     .join("\n");
   Some(format!(
-    "Your native Google connections are:\n\n{}\n\nThese accounts are available simultaneously; no account switcher is required.",
+    "Your native Google connections are:\n\n{}\n\nGmail entries here show the conservative Studio-owner inventory. Local Scout chat can discover additional existing Autopilot-connected inboxes with gmail_read action accounts. A local profile row or browser session alone grants no access; the fresh tool inventory must contain a saved Gmail grant. Refresh gmail_read action accounts before a mailbox query.",
     rows
   ))
 }
@@ -8541,6 +8553,12 @@ fn strip_html_tags(html: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn gmail_availability_uses_fresh_scope_aware_tool_discovery() {
+    assert!(super::google_capability_reply("synthetic@example.invalid", "Which Gmail accounts are connected?").is_none());
+    assert!(super::google_capability_reply("synthetic@example.invalid", "Do you have access to my email account?").is_none());
+  }
+
   #[actix_web::test]
   async fn bedrock_context_overflow_tells_the_gateway_to_compact_instead_of_retry() {
     let response = super::knapsack_completion_error_response(

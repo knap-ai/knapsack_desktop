@@ -17,9 +17,10 @@ const DOC_SUMMARY_CACHE_PREFIX = 'knap.library.docsummary.'
 interface WorkspaceViewProps {
   workspace: Workspace
   onBack: () => void
+  onOpenPersonChat?: (workspace: Workspace) => void
 }
 
-function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
+function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewProps) {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>(workspace)
   const [documents, setDocuments] = useState<WorkspaceDocument[]>(workspace.documents ?? [])
   const [searchQuery, setSearchQuery] = useState('')
@@ -367,6 +368,13 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
               Edit
             </button>
           </div>
+          {currentWorkspace.entityType === 'person' && onOpenPersonChat && (
+            <div className="mt-4 flex flex-col items-start gap-1">
+              <button type="button" className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2"
+                onClick={() => onOpenPersonChat(currentWorkspace)}>Chat about {currentWorkspace.name}</button>
+              <p className="text-xs text-zinc-500">Ask about your meetings, conversations, and follow-ups. Nothing is sent until you submit a question.</p>
+            </div>
+          )}
           {currentWorkspace.entityType === 'person' && currentWorkspace.entityKey && (
             <p className="text-sm text-gray-400 mt-0.5 ml-10">
               {currentWorkspace.entityKey}
@@ -380,7 +388,7 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
           {aiSummary && !overallSummary && (
             <div className="ml-10 mt-2">
               <p className="text-sm text-gray-700">{aiSummary.summary}</p>
-              {aiSummary.nextAction && (
+              {aiSummary.nextAction && currentWorkspace.entityType !== 'person' && (
                 <button
                   className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1.5 transition-colors"
                   onClick={() => {
@@ -443,36 +451,29 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
         <div className="flex gap-2">
           <input
             type="text"
-            className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Search within this collection..."
+            className="min-w-0 flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            aria-label="Filter saved items"
+            placeholder="Filter by title, summary, or tag…"
             value={searchQuery}
             onChange={e => {
               setSearchQuery(e.target.value)
-              if (!e.target.value.trim()) setActiveSearchQuery('')
+              setActiveSearchQuery(e.target.value.trim())
             }}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
-          {activeSearchQuery ? (
+          {activeSearchQuery && (
             <button
               className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
               onClick={handleClearSearch}
             >
               Clear
             </button>
-          ) : (
-            <button
-              className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 transition-colors"
-              onClick={handleSearch}
-              disabled={!searchQuery.trim()}
-            >
-              Search
-            </button>
           )}
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <button
           className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           onClick={handleAddFiles}
@@ -497,10 +498,10 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
       {/* Document list with drop zone */}
       <div
         ref={dropRef}
-        className={`flex-1 border-2 rounded-lg p-4 transition-colors min-h-[200px] ${
+        className={`flex-1 rounded-lg py-4 transition-colors min-h-[200px] ${
           isDragging
             ? 'border-blue-400 bg-blue-50/50 border-dashed'
-            : 'border-gray-200 border-solid'
+            : 'border-transparent'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

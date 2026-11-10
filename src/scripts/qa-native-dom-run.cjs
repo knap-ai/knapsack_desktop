@@ -2,10 +2,10 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto')
 const {spawn,spawnSync}=require('node:child_process')
 const {performance}=require('node:perf_hooks')
-const PROBES=['transcript','meeting_link','chat_selection','notes_edit','slack_share','boundaries']
+const PROBES=['transcript','meeting_link','chat_selection','notes_edit','slack_share','person_scout','boundaries']
 function validateReport(value,runId,bundleId){
- if(!value||typeof value!=='object'||Object.keys(value).sort().join(',')!=='bundle_id,coverage,passed,probes,run_id,version,window'||typeof value.passed!=='boolean'||value.version!==1||value.run_id!==runId||value.bundle_id!==bundleId||value.window!=='main'||value.coverage!=='native_webview_real_components_with_synthetic_boundaries'||!Array.isArray(value.probes)||value.probes.length>6)return false
- return value.probes.every((row,i)=>row&&Object.keys(row).sort().join(',')==='probe,status'&&row.probe===PROBES[i]&&['passed','assertion_failed','timeout','evaluation_failed','watchdog'].includes(row.status))&&value.passed===(value.probes.length===6&&value.probes.every(row=>row.status==='passed'))
+ if(!value||typeof value!=='object'||Object.keys(value).sort().join(',')!=='bundle_id,coverage,passed,probes,run_id,version,window'||typeof value.passed!=='boolean'||value.version!==1||value.run_id!==runId||value.bundle_id!==bundleId||value.window!=='main'||value.coverage!=='native_webview_real_components_with_synthetic_boundaries'||!Array.isArray(value.probes)||value.probes.length>PROBES.length)return false
+ return value.probes.every((row,i)=>row&&Object.keys(row).sort().join(',')==='probe,status'&&row.probe===PROBES[i]&&['passed','assertion_failed','timeout','evaluation_failed','watchdog'].includes(row.status))&&value.passed===(value.probes.length===PROBES.length&&value.probes.every(row=>row.status==='passed'))
 }
 function validateCaptureReport(value,runId,bundleId){
  return value&&Object.keys(value).sort().join(',')==='bundle_id,coverage,passed,run_id,version'&&value.version===1&&value.run_id===runId&&value.bundle_id===bundleId&&value.coverage==='native_app_synthetic_callbacks_no_hardware'&&value.passed===true

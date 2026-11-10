@@ -1,12 +1,14 @@
-export const CONNECTIONS = "KN_CONNECTIONS";
-export const HAS_SHOWN_EA_INFO_MODAL = "EA_INFO_MODAL";
-export const EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS = "EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS";
-export const EMAIL_AUTOPILOT_SCHEDULING_LINKS = "EMAIL_AUTOPILOT_SCHEDULING_LINKS";
-export const RECONNECT_DISMISSED_AT = "KN_RECONNECT_DISMISSED_AT";
-export const EMAIL_NOTIFICATION_DRAWER_DISMISSED = "EMAIL_NOTIFICATION_DRAWER_DISMISSED";
-
 import { BaseDirectory, readTextFile, writeTextFile } from '@tauri-apps/api/fs'
 import { join } from '@tauri-apps/api/path'
+
+import { PROFILE_CHANGED_EVENT } from './profileScope'
+
+export const CONNECTIONS = 'KN_CONNECTIONS'
+export const HAS_SHOWN_EA_INFO_MODAL = 'EA_INFO_MODAL'
+export const EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS = 'EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS'
+export const EMAIL_AUTOPILOT_SCHEDULING_LINKS = 'EMAIL_AUTOPILOT_SCHEDULING_LINKS'
+export const RECONNECT_DISMISSED_AT = 'KN_RECONNECT_DISMISSED_AT'
+export const EMAIL_NOTIFICATION_DRAWER_DISMISSED = 'EMAIL_NOTIFICATION_DRAWER_DISMISSED'
 
 export class KNLocalStorage {
   private static data: Record<string, any> = {}
@@ -51,12 +53,24 @@ export class KNLocalStorage {
   static async setItem(key: string, value: unknown) {
     await this.initialize()
 
+    const previousProfile =
+      key === 'KN_PROFILE'
+        ? JSON.stringify([this.data[key]?.uuid, this.data[key]?.email, this.data[key]?.name])
+        : ''
     if (value === undefined) {
       delete this.data[key]
     } else {
       this.data[key] = value
     }
 
+    if (
+      key === 'KN_PROFILE' &&
+      typeof window !== 'undefined' &&
+      previousProfile !==
+        JSON.stringify([this.data[key]?.uuid, this.data[key]?.email, this.data[key]?.name])
+    ) {
+      window.dispatchEvent(new Event(PROFILE_CHANGED_EVENT))
+    }
     await this.saveToFile()
   }
 

@@ -1,6 +1,5 @@
 import { useMailSenders } from 'src/hooks/useMailSenders'
 import { ACCOUNT_CONTINUITY_ENABLED } from 'src/utils/releaseCapabilities'
-import { Link } from 'react-router-dom'
 import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
 import ComputerConnectionDialog from 'src/components/organisms/ComputerConnectionDialog'
 import '../../../main.css'
@@ -52,7 +51,7 @@ import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 import NotetakerSidebar from 'src/components/organisms/NotetakerSidebar'
 import { useMeetingChatRoute } from 'src/components/organisms/NotetakerSidebar/meetingChatRoute'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
-import WorkspaceView from 'src/components/organisms/WorkspaceView'
+import PersonWorkspace from 'src/components/organisms/PersonWorkspace'
 
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/shell'
@@ -152,6 +151,7 @@ function Home({
   const { meetingChatRequest, openMeetingChat, clearMeetingChat } = useMeetingChatRoute()
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [selectedWorkspaceOwner, setSelectedWorkspaceOwner] = useState('')
   const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => loadTeamRoster())
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>(() => loadTeamGroups())
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -194,6 +194,11 @@ function Home({
   // instead of silently switching to an empty agent-specific profile.
   const activeBrowserProfile = 'openclaw'
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
+  const ownedSelectedWorkspace = selectedWorkspaceOwner === userEmail.trim().toLowerCase() ? selectedWorkspace : null
+  const selectLibraryWorkspace = (workspace: Workspace) => {
+    setSelectedWorkspace(workspace)
+    setSelectedWorkspaceOwner(userEmail.trim().toLowerCase())
+  }
   const userEmails = useMemo(
     () => getConnectedIdentityEmails(connections, userEmail),
     [connections, userEmail],
@@ -624,14 +629,13 @@ function Home({
             />
           )
         }
+        centeredComponent={<PrivacyModeControl />}
         middleRightComponent={
           <div className="flex items-center gap-2">
-            <Link className="rounded-md px-2 py-1 text-xs underline" to="/follow-ups">Find follow-ups I owe</Link>
             {ACCOUNT_CONTINUITY_ENABLED && <button type="button" className="rounded-full bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
               title="Backups and account computers" onClick={() => setIsComputersDialogOpened(true)}>
               Computers
             </button>}
-            <PrivacyModeControl />
           </div>
         }
         rightComponent={
@@ -727,7 +731,7 @@ function Home({
             }}
             onLibraryWorkspaceOpen={ws => {
               setCurrentTab(TabChoices.Library)
-              setSelectedWorkspace(ws)
+              selectLibraryWorkspace(ws)
             }}
             onQuickNote={() => {
               const selected = feed.currentFeedItem()
@@ -844,7 +848,7 @@ function Home({
                     userImg={userImage}
                     onLibraryWorkspaceOpen={ws => {
                       setCurrentTab(TabChoices.Library)
-                      setSelectedWorkspace(ws)
+                      selectLibraryWorkspace(ws)
                     }}
                     updateAutomation={updateAutomation}
                     handleVote={handleVote}
@@ -928,6 +932,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                         >
                           <ClawdChat
                             active={isActiveChat}
+                            foregroundActive={isActiveChat && currentTab === TabChoices.Openclaw}
                             showActivityPanel={isActiveChat && showActivityPanel}
                             onToggleActivity={
                               isActiveChat ? () => setShowActivityPanel(prev => !prev) : undefined
@@ -1172,7 +1177,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                   }}
                   onLibraryWorkspaceOpen={ws => {
                     setCurrentTab(TabChoices.Library)
-                    setSelectedWorkspace(ws)
+                    selectLibraryWorkspace(ws)
                   }}
                   onEmailClick={(notesMarkdown, meeting) => {
                     const participants = meeting?.participants ?? []
@@ -1258,13 +1263,16 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
 
               {currentTab === TabChoices.Library && (
                 <div className="overflow-auto w-full h-full">
-                  {selectedWorkspace ? (
-                    <WorkspaceView
-                      workspace={selectedWorkspace}
+                  {ownedSelectedWorkspace ? (
+                    <PersonWorkspace
+                      key={`${userEmail.trim().toLowerCase()}:${ownedSelectedWorkspace.uuid}`}
+                      workspace={ownedSelectedWorkspace}
+                      userEmail={userEmail}
+                      userName={userName}
                       onBack={() => setSelectedWorkspace(null)}
                     />
                   ) : (
-                    <WorkspacesList onWorkspaceOpen={ws => setSelectedWorkspace(ws)} />
+                    <WorkspacesList onWorkspaceOpen={ws => selectLibraryWorkspace(ws)} />
                   )}
                 </div>
               )}
@@ -1285,7 +1293,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                     }}
                     onOpenWorkspace={ws => {
                       setCurrentTab(TabChoices.Library)
-                      setSelectedWorkspace(ws)
+                      selectLibraryWorkspace(ws)
                     }}
                   />
                 </div>

@@ -32,6 +32,7 @@ mod mcp;
 mod memory;
 mod privacy_mode;
 mod state_backup;
+mod shared_context;
 mod privileged_worker;
 mod pty;
 #[cfg(knapsack_synthetic_qa)]
@@ -1923,7 +1924,9 @@ async fn run_app() {
       let main_url: tauri::WindowUrl = Default::default();
       #[cfg(knapsack_synthetic_qa)]
       let main_url = if qa_dom_probes::enabled() {
-        let path = if std::env::var("KNAPSACK_QA_MANUAL_NOTES").as_deref() == Ok("1") {
+        let path = if std::env::var("KNAPSACK_QA_MANUAL_SLACK").as_deref() == Ok("1") {
+          "qa-fixtures/slack-picker.html"
+        } else if std::env::var("KNAPSACK_QA_MANUAL_NOTES").as_deref() == Ok("1") {
           "qa-fixtures/meeting-notes.html?nativeClipboard=1"
         } else { "qa-dom.html" };
         tauri::WindowUrl::App(path.into())
@@ -2236,6 +2239,7 @@ async fn run_app() {
       kn_get_openclaw_version,
       clawd::service::get_desktop_api_token,
       clawd::service::get_mobile_pairing_token,
+      shared_context::kn_shared_context_status,
       state_backup::imessage::kn_imessage_setup_create,
       state_backup::imessage::kn_imessage_setup_list,
       state_backup::imessage::kn_imessage_setup_readiness,

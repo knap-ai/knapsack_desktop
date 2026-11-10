@@ -1,10 +1,13 @@
-//! Explicit Desktop notes sharing using configured native Slack accounts.
-//! No gateway/model routing, implicit account fallback, OAuth changes, or POST retries.
+#[path = "slack_notes_studio.rs"]
+mod studio;
+// Explicit Desktop notes sharing using configured native Slack accounts.
+// No gateway/model routing, implicit account fallback, OAuth changes, or POST retries.
 use actix_web::{get, post, web, HttpResponse};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{io::Write, path::Path};
+pub(super) const MISSING_SCOPE: &str = "Existing Slack permissions do not support this action. No permissions were changed.";
 
 fn guard() -> Result<(), String> {
   if crate::qa_launch::is_synthetic_build() {
@@ -55,11 +58,13 @@ fn token_for(config: &Value, account: &str) -> Option<String> {
 }
 fn account_token(account: &str) -> Result<String, String> {
   guard()?;
+  if studio::is_studio(account) { studio::connector(account)?; return Ok(account.to_owned()); }
   let cfg = super::configured_gateway_config().ok_or("Slack configuration unavailable.")?;
   token_for(&cfg, account).ok_or_else(|| "This Slack account is disconnected, disabled, or its credential cannot be resolved. No alternate workspace was used.".into())
 }
 async fn slack(token: &str, method: &str, body: Value) -> Result<Value, String> {
   guard()?;
+  if studio::is_studio(token) { return studio::call(token,method,body).await; }
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(20))
     .build()
@@ -88,7 +93,7 @@ async fn slack(token: &str, method: &str, body: Value) -> Result<Value, String> 
     // Error codes only; never expose provider response/token material.
     let safe = match code {
       "missing_scope" => {
-        "Existing Slack permissions do not support this action. No permissions were changed."
+        MISSING_SCOPE
       }
       "invalid_auth" | "token_revoked" | "account_inactive" => {
         "Slack connection expired or was revoked."
@@ -155,16 +160,32 @@ pub async fn workspaces() -> HttpResponse {
       let mut accounts = Vec::new();
       for id in ids {
         if let Some(token) = token_for(&config, &id) {
-          match slack(&token, "auth.test", json!({})).await {
-            Ok(auth) => {
-              let (team, name) = identity(&auth)?;
-              accounts.push(json!({"accountId":id,"teamId":team,"name":name}));
+          match slack(&token, "auth.test", json!({})).await.and_then(|auth| {
+            let (team,name)=identity(&auth)?;Ok((team.to_owned(),name.to_owned()))
+          }) {
+            Ok((team,name)) => {
+              accounts.push(json!({"accountId":id,"teamId":team,"name":name,"source":"gateway"}));
             }
             Err(_) => accounts.push(json!({"accountId":id,"unavailable":true,"name":id})),
           }
         }
       }
-      Ok(json!({"owner":owner,"accounts":accounts}))
+      let mut warnings=Vec::new();
+      match studio::accounts().await {
+        Ok(oauth_accounts) => for mut account in oauth_accounts {
+          let id=account["accountId"].as_str().unwrap_or("").to_owned();
+          match slack(&id,"auth.test",json!({})).await.and_then(|auth| {
+            let (team,name)=identity(&auth)?;Ok((team.to_owned(),name.to_owned()))
+          }) {
+            Ok((team,name)) => {account["teamId"]=json!(team);account["name"]=json!(name);},
+            Err(_) => {account["unavailable"]=json!(true);}
+          }
+          accounts.push(account);
+        },
+        Err(_) => warnings.push("Studio Slack connections could not be loaded. Gateway bot connections are shown separately. Copying notes remains available."),
+      }
+      if self::owner()? != owner {return Err("Knapsack account changed. Reopen sharing.".into());}
+      Ok(json!({"owner":owner,"accounts":accounts,"warnings":warnings}))
     }
     .await,
   )
@@ -190,19 +211,47 @@ async fn verified(d: &Destination) -> Result<String, String> {
 }
 #[post("/api/clawd/slack-notes/channels")]
 pub async fn channels(d: web::Json<Destination>) -> HttpResponse {
-  response(async{
-  let token=verified(&d).await?;let mut cursor=String::new();let mut channels=Vec::new();
-  // Bound work. Never silently omit pages: refuse when the cap is exceeded.
-  for _ in 0..50 {
-    let page=slack(&token,"conversations.list",json!({"types":"public_channel,private_channel","exclude_archived":true,"limit":200,"cursor":cursor})).await?;
-    for c in page.get("channels").and_then(Value::as_array).ok_or("Slack channel list unavailable.")? {
-      if let Some(id)=c.get("id").and_then(Value::as_str){if let Ok(c)=channel(c,id){channels.push(c);}}
+  response(async {
+    let token = verified(&d).await?;
+    let result=discover_channels(|body| slack(&token, "conversations.list", body)).await?;
+    if owner()? != d.owner {return Err("Knapsack account changed. Reopen sharing.".into());}
+    Ok(result)
+  }.await)
+}
+
+async fn discover_channels<F, Fut>(mut call: F) -> Result<Value, String>
+where F: FnMut(Value) -> Fut, Fut: std::future::Future<Output = Result<Value, String>> {
+  let mut listed_channels = Vec::new();
+  let mut warnings = Vec::new();
+  let mut readable_classes = 0;
+  for (kind, label) in [("public_channel", "Public"), ("private_channel", "Private")] {
+    let mut cursor = String::new();
+    let mut complete = false;
+    for page_number in 0..50 {
+      let page = match call(json!({"types":kind,"exclude_archived":true,"limit":200,"cursor":cursor})).await {
+        Ok(page) => page,
+        Err(error) if page_number == 0 && error == MISSING_SCOPE => {
+          warnings.push(format!("{label} channels cannot be listed with this connection's existing permissions. No permissions were changed."));
+          complete = true;
+          break;
+        }
+        Err(error) => return Err(error),
+      };
+      if page_number == 0 { readable_classes += 1; }
+      for value in page.get("channels").and_then(Value::as_array).ok_or("Slack channel list unavailable.")? {
+        if let Some(id) = value.get("id").and_then(Value::as_str) {
+          if let Ok(value) = channel(value, id) {
+            if !listed_channels.iter().any(|existing: &Value| existing["id"] == value["id"]) { listed_channels.push(value); }
+          }
+        }
+      }
+      cursor = page.pointer("/response_metadata/next_cursor").and_then(Value::as_str).unwrap_or("").trim().into();
+      if cursor.is_empty() { complete = true; break; }
     }
-    cursor=page.pointer("/response_metadata/next_cursor").and_then(Value::as_str).unwrap_or("").trim().into();
-    if cursor.is_empty(){return Ok(json!({"channels":channels}));}
+    if !complete { return Err("Slack channel list is too large. No partial default was selected.".into()); }
   }
-  Err("Slack channel list is too large. No partial default was selected.".into())
-}.await)
+  if readable_classes == 0 { return Err("This connection cannot list public or private channels with its existing permissions. Copy notes instead; no permissions were changed.".into()); }
+  Ok(json!({"channels":listed_channels,"warnings":warnings}))
 }
 #[derive(Deserialize)]
 pub struct Send {
@@ -313,11 +362,13 @@ pub async fn send_notes(payload: web::Json<Send>) -> HttpResponse {
   response(async{
   guard()?;validate_message(&payload)?;let token=verified(&payload.destination).await?;
   let info=slack(&token,"conversations.info",json!({"channel":payload.channel_id})).await?;channel(&info,&payload.channel_id)?;
+  let arguments=json!({"channel":payload.channel_id,"text":payload.text.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;"),"blocks":inert_blocks(&payload.blocks),"parse":"none","mrkdwn":false,"unfurl_links":false,"unfurl_media":false});
+  let prepared=if studio::is_studio(&token) {Some(studio::prepare_send(&token,&payload.destination.team_id,&payload.request_id,arguments.clone()).await?)} else {None};
   // Recheck owner/config immediately before reserving; never reuse a stale token.
   if owner()?!=payload.destination.owner || account_token(&payload.destination.account_id)?!=token {return Err("Connection changed before sending. Reopen sharing.".into());}
   let home=dirs::home_dir().ok_or("Local receipt storage unavailable.")?;
   let receipt=reserve(&home,&payload)?;
-  let result=slack(&token,"chat.postMessage",json!({"channel":payload.channel_id,"text":payload.text.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;"),"blocks":inert_blocks(&payload.blocks),"parse":"none","mrkdwn":false,"unfurl_links":false,"unfurl_media":false})).await?;
+  let result=match prepared {Some(send)=>studio::send(send).await?,None=>slack(&token,"chat.postMessage",arguments).await?};
   if result.get("ts").and_then(Value::as_str).is_none() || result.get("channel").and_then(Value::as_str)!=Some(&payload.channel_id) {return Err("Unexpected Slack receipt. Verify the channel; do not resend.".into());}
   let data=json!({"state":"sent","channelId":payload.channel_id,"teamId":payload.destination.team_id,"ts":result.get("ts")});
   // A failed receipt update retains the pending reservation, preventing repeats.
@@ -337,6 +388,39 @@ mod tests {
     assert_eq!(token_for(&c, "missing"), None);
     assert_eq!(token_for(&c, "unresolved"), None);
     assert_eq!(token_for(&c, "disabled"), None);
+  }
+  #[actix_web::test]
+  async fn slack_notes_public_channels_survive_missing_private_scope() {
+    let result = discover_channels(|body| async move {
+      if body["types"] == "private_channel" { return Err(MISSING_SCOPE.into()); }
+      Ok(json!({"channels":[{"id":"C1","name":"fictional","is_member":true,"is_archived":false}]}))
+    }).await.unwrap();
+    assert_eq!(result["channels"].as_array().unwrap().len(), 1);
+    assert!(result["warnings"][0].as_str().unwrap().contains("Private channels"));
+  }
+  #[actix_web::test]
+  async fn slack_notes_private_channels_survive_missing_public_scope() {
+    let result = discover_channels(|body| async move {
+      if body["types"] == "public_channel" { return Err(MISSING_SCOPE.into()); }
+      Ok(json!({"channels":[{"id":"C1","is_private":true,"is_member":true,"is_archived":false}]}))
+    }).await.unwrap();
+    assert_eq!(result["channels"][0]["private"], true);
+    assert!(result["warnings"][0].as_str().unwrap().contains("Public channels"));
+  }
+  #[actix_web::test]
+  async fn slack_notes_discovery_fails_without_any_readable_class_or_on_auth_error() {
+    assert!(discover_channels(|_| async { Err(MISSING_SCOPE.into()) }).await.unwrap_err().contains("cannot list public or private"));
+    assert!(discover_channels(|_| async { Err("Slack connection expired or was revoked.".into()) }).await.unwrap_err().contains("expired"));
+  }
+  #[actix_web::test]
+  async fn slack_notes_discovery_paginates_empty_pages_and_filters_membership() {
+    let result = discover_channels(|body| async move {
+      if body["types"] == "private_channel" { return Ok(json!({"channels":[]})); }
+      if body["cursor"] == "" { return Ok(json!({"channels":[],"response_metadata":{"next_cursor":"page2"}})); }
+      Ok(json!({"channels":[{"id":"C1","is_member":true,"is_archived":false},{"id":"C2","is_member":false,"is_archived":false},{"id":"C1","is_member":true,"is_archived":false}]}))
+    }).await.unwrap();
+    assert_eq!(result["channels"].as_array().unwrap().len(), 1);
+    assert!(result["warnings"].as_array().unwrap().is_empty());
   }
   #[test]
   fn slack_notes_native_table_limits() {

@@ -14,7 +14,7 @@ const code = ts.transpileModule(source.slice(start, end) + '\n exports.fetchNote
 }).outputText
 
 function fixture(data, current = 44, responseOk = true) {
-  const state = { notes: 'stale previous notes', synthesis: 'stale synthesis notes', editor: 'stale editor', loading: true, writes: 0, gets: 0 }
+  const state = { notes: 'stale previous notes', synthesis: 'stale synthesis notes', editor: 'stale editor', loading: true, writes: 0, gets: 0, recordingMetadata: null }
   const exports = {}
   vm.runInNewContext(code, {
     localStorage: { getItem: () => null }, exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
@@ -29,6 +29,7 @@ function fixture(data, current = 44, responseOk = true) {
     normalizeMeetingNotesMarkdown: text => text,
     setNotesMarkdown: text => { state.notes = text }, setMarkdown: text => { state.synthesis = text },
     setIsInitialLoading: value => { state.loading = value },
+    setRecordingMetadata: value => { state.recordingMetadata = value },
     logError: () => { throw Error('unexpected fixture error') }, DOMException, Error,
   })
   return { state, read: exports.fetchNotes }
@@ -72,7 +73,7 @@ test('an aborted read cannot clear a newly selected meeting', async () => {
 test('failed synthesis rendering cannot enqueue an empty autosave after persistence', () => {
   const hook = fs.readFileSync(path.join(__dirname, '../src/hooks/useMeetingMode.tsx'), 'utf8').replace(/\r\n/g, '\n')
   const start = hook.indexOf('  const insertLLMResponse = ')
-  const end = hook.indexOf('\n\n  const saveNotes = ', start)
+  const end = hook.indexOf('\n\n  const bindNotesSave = ', start)
   assert.ok(start >= 0 && end > start)
   const code = ts.transpileModule(hook.slice(start, end) + '\n exports.render=insertLLMResponse;', {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -96,7 +97,7 @@ test('failed synthesis rendering cannot enqueue an empty autosave after persiste
 })
 
 function utility(name) {
- const out={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/utils/'+name+'.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:out,require:id=>notesUtility,Error,DOMException,AbortController,TextDecoder,setTimeout:(...args)=>setTimeout(...args),clearTimeout:(...args)=>clearTimeout(...args)});return out;
+ const out={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/utils/'+name+'.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:out,require:id=>id==='./profileScope'?{getProfileRevision:()=>0,PROFILE_CHANGED_EVENT:'fixture-profile-changed'}:notesUtility,Error,DOMException,AbortController,TextDecoder,setTimeout:(...args)=>setTimeout(...args),clearTimeout:(...args)=>clearTimeout(...args)});return out;
 }
 const notesUtility=utility('notesGeneration');
 const postMeetingUtility=utility('postMeetingSource');
@@ -105,10 +106,11 @@ function incidentHook(options = {}) {
   const states = []; let cursor = 0, queued; const refs=[]; let refCursor=0
   const effects = { writes: [], deleted: 0, finished: 0 }
   const modules = {
-    'src/utils/meetingSpeakerIdentity': utility('meetingSpeakerIdentity'),
+    'src/utils/profileScope':{getProfileRevision:()=>0,PROFILE_CHANGED_EVENT:'fixture-profile-changed'},'src/utils/nameCorrections':{readCorrections:()=>[],spellingContext:()=>'',CORRECTIONS_CHANGED:'fixture-spellings'},'src/utils/meetingSpeakerIdentity': utility('meetingSpeakerIdentity'),
+    'src/utils/notesSave':utility('notesSave'),
     'src/utils/notesGeneration': notesUtility,
     'src/utils/postMeetingSource': postMeetingUtility,
-    react: { useRef: initial => { const i=refCursor++; return refs[i] || (refs[i]={current:initial}) }, useState: initial => { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], v => { states[i] = v }] }, useCallback: cb => cb },
+    react: { useEffect:()=>{}, useRef: initial => { const i=refCursor++; return refs[i] || (refs[i]={current:initial}) }, useState: initial => { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], v => { states[i] = v }] }, useCallback: cb => cb },
     'src/api/connections': {},
     'src/api/transcripts': { getTranscript: async (_id, opts) => { assert.equal(opts.localOnly, true); return { content: 'Fictional transcript' } }, deleteTranscript: async () => { effects.deleted++ } },
     'src/prompts': { NOTES_SYNTHESIS_PROMPT: '{MEETING_INFO_PROMPT}' },
@@ -121,7 +123,7 @@ function incidentHook(options = {}) {
   const out = {}
   const source = fs.readFileSync(path.join(__dirname, '../src/hooks/useMeetingMode.tsx'), 'utf8').replace(/import\.meta\.env/g, '({})')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    exports: out, require: id => { assert.ok(modules[id], id); return modules[id] }, Error,
+    window:{addEventListener:()=>{},removeEventListener:()=>{}}, exports: out, require: id => { assert.ok(modules[id], id); return modules[id] }, Error,
     fetch: async (_url, init) => { effects.writes.push(JSON.parse(init.body)); if(options.save) return options.save(init); return { ok: true, json: async () => ({ success: true }) } },
   })
   return { effects, queue: () => queued, render: () => { cursor = 0; refCursor=0; return out.useMeetingSynthesis(null, item => { queued = item }, () => { effects.finished++ }, { key: 'fixture', prompt: 'fixture' }) } }
@@ -143,7 +145,7 @@ for (const failure of ['HTTP500', 'abort', 'failed-stream', 'onboarding', 'empty
   test(`${failure} settles generation without overwriting notes/deleting transcript, then retry succeeds`, async () => {
     const f = incidentHook(), pending = f.render().synthesizeContent(44, 'Existing notes', undefined)
     pending.catch(() => {})
-    for (let i = 0; i < 16 && !f.queue(); i++) await Promise.resolve()
+    for (let i = 0; i < 64 && !f.queue(); i++) await Promise.resolve()
     assert.ok(f.queue())
     if (failure === 'empty-response') await f.queue().messageFinishCallback('')
     else await incidentCompletion(failure)(f.queue())
@@ -153,7 +155,7 @@ for (const failure of ['HTTP500', 'abort', 'failed-stream', 'onboarding', 'empty
     assert.ok(failed.error); assert.equal(failed.errorThreadId, 44)
     assert.deepEqual(f.effects.writes, []); assert.equal(f.effects.deleted, 0); assert.equal(f.effects.finished, 0)
     const retry = failed.synthesizeContent(44, 'Existing notes', undefined)
-    for (let i = 0; i < 16; i++) await Promise.resolve()
+    for (let i = 0; i < 64; i++) await Promise.resolve()
     await f.queue().messageFinishCallback('Fictional retry notes'); await retry
     assert.equal(f.render().error, null); assert.equal(f.effects.writes.length, 1)
     assert.equal(f.effects.writes[0].notes, 'Fictional retry notes'); assert.equal(f.effects.finished, 1)
@@ -317,3 +319,17 @@ for(const latency of [106000,200000])test(`actual notes fetch and queue consumer
  if(latency===106000){await job;assert.equal(h.effects.writes.length,1);assert.equal(h.effects.finished,1)}else{await assert.rejects(job,/timed out/);t.mock.timers.tick(20000);await flush();assert.equal(backendFinished,1);assert.equal(h.effects.writes.length,0);assert.equal(h.effects.deleted,0);assert.equal(h.effects.finished,0)}
  assert.equal(requests,1);assert.equal(h.render().isLLMLoading,false);
 });
+
+// The notes text and transcript controls must be hydrated from the same thread.
+test('saved metadata restores a hidden transcript control without another content request', async () => {
+ const f=fixture({exists:true,notes:'Synthetic notes',recording:{recorded:true,transcriptAvailable:true}})
+ await f.read()
+ assert.equal(f.state.recordingMetadata.threadId,44)
+ assert.equal(f.state.recordingMetadata.recorded,true)
+ assert.equal(f.state.recordingMetadata.transcriptAvailable,true)
+ assert.equal(f.state.gets,1);assert.equal(f.state.writes,0)
+})
+test('late notes metadata cannot expose another meeting transcript control', async () => {
+ const f=fixture({exists:true,notes:'Old synthetic notes',recording:{recorded:true,transcriptAvailable:true}},45)
+ await f.read();assert.equal(f.state.recordingMetadata,null)
+})

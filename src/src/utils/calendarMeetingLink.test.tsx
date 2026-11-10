@@ -29,7 +29,7 @@ it('only opens on explicit click and deduplicates pending and repeated auto-open
   const m = meeting('duplicate')
   render(<CalendarMeetingLink meeting={m} />)
   expect(mocks.open).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('link', { name: 'Open Google Meet link' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Join Meet' }))
   const pending = openCalendarMeetingLink(m)
   await waitFor(() => expect(mocks.open).toHaveBeenCalledTimes(1))
   await act(async () => { complete(); await pending })
@@ -90,16 +90,16 @@ it('prefers the actual calendar conference entry point over a description-derive
 })
 
 it.each([
-  ['https://zoom.us/j/00000000000', 'Open Zoom link'],
-  ['https://fictional.zoom.us/j/00000000000', 'Open Zoom link'],
-  ['https://zoom.com/j/00000000000', 'Open Zoom link'],
-  ['https://meet.google.com/aaa-bbbb-ccc', 'Open Google Meet link'],
-  ['https://teams.microsoft.com/l/meetup-join/fictional', 'Open Teams link'],
-  ['https://teams.live.com/meet/fictional', 'Open Teams link'],
-  ['https://teams.cloud.microsoft/meet/fictional', 'Open Teams link'],
-  ['https://calls.example.test/fictional', 'Open meeting link'],
-  ['https://zoom.us.example.test/j/00000000000', 'Open meeting link'],
-  ['https://example.test/meet.google.com', 'Open meeting link'],
+  ['https://zoom.us/j/00000000000', 'Join Zoom'],
+  ['https://fictional.zoom.us/j/00000000000', 'Join Zoom'],
+  ['https://zoom.com/j/00000000000', 'Join Zoom'],
+  ['https://meet.google.com/aaa-bbbb-ccc', 'Join Meet'],
+  ['https://teams.microsoft.com/l/meetup-join/fictional', 'Join Teams'],
+  ['https://teams.live.com/meet/fictional', 'Join Teams'],
+  ['https://teams.cloud.microsoft/meet/fictional', 'Join Teams'],
+  ['https://calls.example.test/fictional', 'Join meeting'],
+  ['https://zoom.us.example.test/j/00000000000', 'Join meeting'],
+  ['https://example.test/meet.google.com', 'Join meeting'],
 ])('labels the actual calendar URL %s as %s, ignoring event display/provider guesses', (url, label) => {
   const m = { ...meeting(`label-${url}`, url), title: 'Zoom or Teams?', meeting_platform: 'zoom', zoom_url: 'https://zoom.us/j/11111111111' }
   render(<CalendarMeetingLink meeting={m} />)
@@ -109,8 +109,18 @@ it.each([
   expect(mocks.open).not.toHaveBeenCalled()
 })
 it.each(['javascript:alert(1)', 'https://zoom.us@example.test/call', 'not a URL', undefined])('invalid URLs get no provider claim or clickable link: %s', url => {
-  expect(calendarMeetingLinkLabel(url)).toBe('Open meeting link')
+  expect(calendarMeetingLinkLabel(url)).toBe('Join meeting')
   render(<CalendarMeetingLink meeting={meeting(`invalid-label-${url}`, url || '')} />)
   expect(screen.queryByRole('link')).toBeNull()
   expect(screen.getByRole('status').textContent).toContain('No video call link')
+})
+
+it('keeps a provider-specific open link available after recording starts', () => {
+ const {rerender} = render(<CalendarMeetingLink meeting={meeting('record-only','https://meet.google.com/aaa-bbbb-ccc')} recording />)
+ expect(screen.getByRole('link',{name:'Open Meet'})).toBeTruthy()
+ rerender(<CalendarMeetingLink meeting={meeting('record-zoom','https://zoom.us/j/00000000000')} recording />)
+ expect(screen.getByRole('link',{name:'Open Zoom'})).toBeTruthy()
+ rerender(<CalendarMeetingLink meeting={meeting('record-none','')} recording />)
+ expect(screen.queryByRole('link')).toBeNull()
+ expect(screen.getByRole('status').textContent).toContain('No video call link')
 })

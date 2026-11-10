@@ -731,6 +731,72 @@ html, body {
   overflow-wrap: break-word;
 }
 
+.notetaker-note__retry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid #E1DEEF;
+  border-radius: 12px;
+  background: #F8F7FC;
+  font-family: 'Inter', sans-serif;
+}
+
+.notetaker-note__retry-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 240px;
+}
+
+.notetaker-note__retry-message strong {
+  color: #302D2C;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.notetaker-note__retry-message span {
+  color: #6B6577;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notetaker-note__retry-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 10px 16px;
+  border: 1px solid #6473B2;
+  border-radius: 8px;
+  background: #6473B2;
+  color: #FFFFFF;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.notetaker-note__retry-button:hover {
+  background: #53629F;
+  border-color: #53629F;
+}
+
+.notetaker-note__retry-button:focus-visible {
+  outline: 3px solid #9AA6DB;
+  outline-offset: 3px;
+}
+
 .notetaker-note__processing {
   margin-top: 14px;
   border: 1px solid #E3E2E2;

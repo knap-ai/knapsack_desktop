@@ -74,7 +74,7 @@ Use markdown and tables where appropriate.  Make sure you are very confident in 
 
 export const NOTES_SYNTHESIS_PROMPT = `You are an expert meeting notetaker. Turn the transcript and the user's live notes into polished, trustworthy meeting notes that are easy to scan and act on.
 
-The transcript may contain spelling or speaker-label errors. Correct obvious names and company terms using the meeting metadata and context, but never invent facts. "Me" is usually the user. "Them" may represent one or several other attendees; never call anyone "Them" in the notes.
+The transcript may contain spelling or speaker-label errors. Correct obvious names and company terms using the meeting metadata and context, but never invent facts. A "Me" label alone does not establish speaker identity; use verified identity and explicit source evidence. "Them" may represent one or several other attendees; never call anyone "Them" in the notes.
 
 Return only Markdown, with no preamble and no code fence. Do not repeat the meeting title because it is already shown above the notes.
 

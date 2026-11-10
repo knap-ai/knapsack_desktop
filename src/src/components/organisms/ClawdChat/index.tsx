@@ -2063,6 +2063,7 @@ interface ClawdChatProps {
 
 export default function ClawdChat({ onNotesEditRequest, active = true, foregroundActive, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const ownsForeground = active && (foregroundActive ?? true)
+  const chatMountedRef = useRef(true)
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -2097,11 +2098,12 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   const providerSelectionRefreshRef = useRef<Promise<void> | null>(null)
   const [showCompactControls, setShowCompactControls] = useState(false)
   const compactControlsRef = useRef<HTMLDivElement | null>(null)
+  const compactControlsButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
   useEffect(() => {
-    if (!ownsForeground || !compact || !showCompactControls) return
+    if (!ownsForeground || !showCompactControls) return
     const closeCompactControls = (event: MouseEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent && event.key !== 'Escape') return
       if (
@@ -2110,7 +2112,10 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
       ) {
         return
       }
+      const restoreFocus = event instanceof KeyboardEvent
+        && compactControlsRef.current?.contains(document.activeElement)
       setShowCompactControls(false)
+      if (restoreFocus) compactControlsButtonRef.current?.focus()
     }
     document.addEventListener('mousedown', closeCompactControls)
     document.addEventListener('keydown', closeCompactControls)
@@ -2222,9 +2227,16 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
   const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Clean up thinking interval on unmount to prevent leaked intervals
+  // Retired owner/person chats cannot continue or retry work after unmount.
   useEffect(() => {
+    chatMountedRef.current = true
     return () => {
+      chatMountedRef.current = false
+      ++sharedChatEpoch.current
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+      queuedMessagesRef.current = []
+      steeringQueuedRef.current = false
       if (thinkingIntervalRef.current) {
         clearInterval(thinkingIntervalRef.current)
         thinkingIntervalRef.current = null
@@ -5238,6 +5250,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   }, [voiceEnabled, stopCurrentAudio])
 
   const doSend = async (text: string, attachmentOverride?: Attachment[], explicitComposerAction = false) => {
+    if (!chatMountedRef.current) return
     const quoteScopeAtSend = quoteConversationRef.current
     if (attachmentOverride?.some(file => file.chatQuote && file.chatQuote.conversationId !== quoteScopeAtSend)) return
     const currentAttachments = chatAttachmentsForSend(attachmentOverride ?? attachedFiles, quoteScopeAtSend, explicitComposerAction || !!attachmentOverride)
@@ -5306,6 +5319,9 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
         return
       }
     }
+
+    if (!chatMountedRef.current || executionEpoch !== sharedChatEpoch.current
+      || quoteScopeAtSend !== quoteConversationRef.current) return
 
     // Capture and clear reply context before any async work
     const currentReplyTo = replyToMsg
@@ -5873,6 +5889,11 @@ ${actualText}`
             content: f.content,
           }))
         }
+
+        // Async context preparation may have outlived the originating chat.
+        if (!chatMountedRef.current || controller.signal.aborted
+          || executionEpoch !== sharedChatEpoch.current
+          || quoteScopeAtSend !== quoteConversationRef.current) return
 
         // Try the configured agent harness first (OpenClaw by default), then
         // fall back to direct chat if the harness is unavailable.
@@ -6518,11 +6539,12 @@ ${actualText}`
             {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
-          {compact && (
+          {(
             <button
               type="button"
+              ref={compactControlsButtonRef}
               className="ClawdCompactControlsButton"
-              aria-label="Meeting chat settings"
+              aria-label={compact ? 'Meeting chat settings' : 'Scout options'}
               aria-expanded={showCompactControls}
               onMouseDown={event => event.stopPropagation()}
               onClick={() => setShowCompactControls(prev => !prev)}
@@ -6533,7 +6555,7 @@ ${actualText}`
         </div>
         <div
           ref={compactControlsRef}
-          className={`ClawdChatActions ${compact ? 'ClawdChatActions--compact' : ''} ${showCompactControls ? 'ClawdChatActions--open' : ''}`}
+          className={`ClawdChatActions ${compact ? 'ClawdChatActions--compact' : 'ClawdChatActions--responsive'} ${showCompactControls ? 'ClawdChatActions--open' : ''}`}
           onMouseDown={compact ? event => event.stopPropagation() : undefined}
           onClick={compact ? () => setShowCompactControls(false) : undefined}
         >

@@ -14,6 +14,12 @@ pub fn seal_conversation(plaintext:&[u8], key:&RecoveryKey, account:&str, conver
   if plaintext.len()+HEADER+16>MAX_CONVERSATION_BYTES {return Err(Error::Bounds)}
   secrets::check(std::str::from_utf8(plaintext).map_err(|_|Error::InvalidSchema)?)?;
   let aad=context(account,conversation,revision,version)?;
+  seal_with_aad(plaintext,key,&aad)
+}
+
+pub(crate) fn seal_with_aad(plaintext:&[u8],key:&RecoveryKey,aad:&[u8])->Result<Vec<u8>> {
+  if plaintext.len()>8*1024*1024 {return Err(Error::Bounds)}
+  secrets::check(std::str::from_utf8(plaintext).map_err(|_|Error::InvalidSchema)?)?;
   let mut nonce=[0u8;24];getrandom::getrandom(&mut nonce).map_err(|_|Error::Io("Secure randomness unavailable"))?;
   let cipher=XChaCha20Poly1305::new_from_slice(key.0.as_ref()).map_err(|_|Error::InvalidKey)?;
   let ciphertext=cipher.encrypt(XNonce::from_slice(&nonce),Payload{msg:plaintext,aad:&aad}).map_err(|_|Error::Authentication)?;
@@ -23,6 +29,11 @@ pub fn seal_conversation(plaintext:&[u8], key:&RecoveryKey, account:&str, conver
 pub fn open_conversation(envelope:&[u8],key:&RecoveryKey,account:&str,conversation:&str,revision:u64,version:&str)->Result<Zeroizing<Vec<u8>>> {
   if envelope.len()<HEADER+16 || envelope.len()>MAX_CONVERSATION_BYTES || &envelope[..8]!=MAGIC {return Err(Error::InvalidArchive)}
   let aad=context(account,conversation,revision,version)?;
+  open_with_aad(envelope,key,&aad)
+}
+
+pub(crate) fn open_with_aad(envelope:&[u8],key:&RecoveryKey,aad:&[u8])->Result<Zeroizing<Vec<u8>>> {
+  if envelope.len()<HEADER+16 || envelope.len()>8*1024*1024+HEADER+16 || &envelope[..8]!=MAGIC {return Err(Error::InvalidArchive)}
   let cipher=XChaCha20Poly1305::new_from_slice(key.0.as_ref()).map_err(|_|Error::InvalidKey)?;
   let bytes=Zeroizing::new(cipher.decrypt(XNonce::from_slice(&envelope[8..HEADER]),Payload{msg:&envelope[HEADER..],aad:&aad}).map_err(|_|Error::Authentication)?);
   secrets::check(std::str::from_utf8(&bytes).map_err(|_|Error::InvalidSchema)?)?;Ok(bytes)

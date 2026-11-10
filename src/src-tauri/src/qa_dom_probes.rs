@@ -18,14 +18,16 @@ enum Probe {
   ChatSelection,
   NotesEdit,
   SlackShare,
+  PersonScout,
   Boundaries,
 }
-const PROBES: [Probe; 6] = [
+const PROBES: [Probe; 7] = [
   Probe::Transcript,
   Probe::MeetingLink,
   Probe::ChatSelection,
   Probe::NotesEdit,
   Probe::SlackShare,
+  Probe::PersonScout,
   Probe::Boundaries,
 ];
 #[derive(Deserialize)]
@@ -152,10 +154,17 @@ fn save(rows: Vec<Row>) -> bool {
   false
 }
 pub(crate) fn start(window: Window) {
-  if !enabled() || window.label() != "main" || std::env::var("KNAPSACK_QA_MANUAL_NOTES").as_deref() == Ok("1") {
+  if !enabled() || window.label() != "main" || std::env::var("KNAPSACK_QA_MANUAL_NOTES").as_deref() == Ok("1") || std::env::var("KNAPSACK_QA_MANUAL_SLACK").as_deref() == Ok("1") {
     return;
   }
   // The handle is created by this process, never selected by app name or AX.
+  // Fixed enum-only diagnostic on this compiled synthetic window; never accepts code or user data.
+  window.listen("knapsack-qa-bootstrap", |event| {
+    let phase = event.payload().and_then(|text| serde_json::from_str::<String>(text).ok());
+    if let Some(phase) = phase.filter(|value| matches!(value.as_str(), "entry_loaded" | "module_loaded" | "harness_ready" | "bootstrap_failed" | "dispatch_received")) {
+      eprintln!("[qa-bootstrap] {}", phase);
+    }
+  });
   let slot: Arc<Mutex<Option<Ticket>>> = Arc::new(Mutex::new(None));
   let incoming = slot.clone();
   let listener = window.listen(EVENT, move |event| {
@@ -305,7 +314,7 @@ mod tests {
     let s = script(Probe::MeetingLink, "fictional\";alert(1)//");
     assert!(s.contains("__knapsackNativeQaProbe(\"meeting_link\",\"fictional\\\";alert(1)//\")"));
     assert!(!s.contains("fetch("));
-    assert_eq!(PROBES.len(), 6);
+    assert_eq!(PROBES.len(), 7);
     assert_eq!(PROBE_LIMIT.as_secs(), 5);
     assert_eq!(SUITE_LIMIT.as_secs(), 30);
   }

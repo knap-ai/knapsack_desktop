@@ -20,10 +20,10 @@ export const getEventUrl = (meeting: Meeting | undefined): string | undefined =>
 
 export function calendarMeetingLinkLabel(value: string | undefined): string {
   const verified = verifiedCalendarVideoUrl(value)
-  if (!verified) return 'Open meeting link'
+  if (!verified) return 'Join meeting'
   const host = new URL(verified).hostname.toLowerCase()
-  if (host === 'meet.google.com') return 'Open Google Meet link'
-  if (['zoom.us', 'zoom.com'].some(domain => host === domain || host.endsWith(`.${domain}`))) return 'Open Zoom link'
-  if (['teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft'].includes(host)) return 'Open Teams link'
-  return 'Open meeting link'
+  if (host === 'meet.google.com') return 'Join Meet'
+  if (['zoom.us', 'zoom.com'].some(domain => host === domain || host.endsWith(`.${domain}`))) return 'Join Zoom'
+  if (['teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft'].includes(host)) return 'Join Teams'
+  return 'Join meeting'
 }

@@ -26,15 +26,24 @@ const protectMarkdownLinks = (
     )
   return {
     value: protectedText,
-    restore: (rendered: string) => rendered.replace(/\u0000KNAPSACKLINK(\d+)\u0000/g, (_, index: string) =>
-      protectedValues[Number(index)] || '',
-    ),
+    restore: (rendered: string) =>
+      rendered.replace(
+        /\u0000KNAPSACKLINK(\d+)\u0000/g,
+        (_, index: string) => protectedValues[Number(index)] || '',
+      ),
   }
 }
 
 const stripInlineMarkdown = (value: string) => {
   const protectedLinks = protectMarkdownLinks(value, (label, url) => `${label} (${url})`)
-  return protectedLinks.restore(protectedLinks.value.replace(/(\*\*|__|~~)([\s\S]+?)\1/g, '$2').replace(/(?<!\w)([*_])([^*_]+?)\1(?!\w)/g, '$2').replace(/`+([^`]*?)`+/g, '$1')).trim()
+  return protectedLinks
+    .restore(
+      protectedLinks.value
+        .replace(/(\*\*|__|~~)([\s\S]+?)\1/g, '$2')
+        .replace(/(?<!\w)([*_])([^*_]+?)\1(?!\w)/g, '$2')
+        .replace(/`+([^`]*?)`+/g, '$1'),
+    )
+    .trim()
 }
 
 const renderInlineHtml = (value: string) => {
@@ -46,20 +55,30 @@ const renderInlineHtml = (value: string) => {
   const rendered = escapeHtml(protectedLinks.value)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/__([^_]+)__/g, '<strong>$1</strong>')
-    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
   return protectedLinks.restore(rendered)
 }
 
 const tableCells = (line: string) => {
-  const cells:string[]=[];let cell='',code=false
-  const source=line.trim().replace(/^\||(?<!\\)\|$/g,'')
-  for(let i=0;i<source.length;i++){
-    if(source[i]==='\\' && source[i+1]==='|'){cell+='|';i++;continue}
-    if(source[i]==='`')code=!code
-    if(source[i]==='|' && !code){cells.push(stripInlineMarkdown(cell));cell=''}else cell+=source[i]
+  const cells: string[] = []
+  let cell = '',
+    code = false
+  const source = line.trim().replace(/^\||(?<!\\)\|$/g, '')
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '\\' && source[i + 1] === '|') {
+      cell += '|'
+      i++
+      continue
+    }
+    if (source[i] === '`') code = !code
+    if (source[i] === '|' && !code) {
+      cells.push(stripInlineMarkdown(cell))
+      cell = ''
+    } else cell += source[i]
   }
-  cells.push(stripInlineMarkdown(cell));return cells
+  cells.push(stripInlineMarkdown(cell))
+  return cells
 }
 
 const isTableDivider = (line = '') => {
@@ -69,11 +88,31 @@ const isTableDivider = (line = '') => {
 
 const renderPlainTable = (rows: string[][]) => {
   const headers = rows[0]
-  return rows.slice(1).flatMap((row, index) => [
-    ...(index ? [''] : []),
-    ...row.map((cell, column) => `• ${headers[column] || `Column ${column + 1}`}: ${cell}`),
-  ])
+  return rows
+    .slice(1)
+    .flatMap((row, index) => [
+      ...(index ? [''] : []),
+      ...row.map((cell, column) => `• ${headers[column] || `Column ${column + 1}`}: ${cell}`),
+    ])
 }
+
+// Slack's composer flattens table markup. Keep each record together instead
+// of merging every cell into one uninterrupted list. Values remain inert text.
+const renderHtmlTable = (rows: string[][]) =>
+  rows
+    .slice(1)
+    .map(
+      row =>
+        '<p>' +
+        row
+          .map(
+            (cell, column) =>
+              `<strong>${escapeHtml(rows[0][column] || `Column ${column + 1}`)}:</strong> ${escapeHtml(cell)}`,
+          )
+          .join('<br>') +
+        '</p>',
+    )
+    .join('<p><br></p>')
 
 export type SlackClipboardPayload = {
   text: string
@@ -85,7 +124,10 @@ export type SlackClipboardPayload = {
  * readable marker-free fallback and put the formatting in text/html, which
  * may preserve some formatting when pasted. Native table blocks require the API.
  */
-export const buildSlackClipboardPayload = (markdown: string, title?: string): SlackClipboardPayload => {
+export const buildSlackClipboardPayload = (
+  markdown: string,
+  title?: string,
+): SlackClipboardPayload => {
   const htmlTables = extractSlackHtmlTables(markdown)
   const sourceLines = htmlTables.source.replace(/\r\n?/g, '\n').split('\n')
   const plain: string[] = []
@@ -100,15 +142,20 @@ export const buildSlackClipboardPayload = (markdown: string, title?: string): Sl
   if (title?.trim()) {
     const cleanTitle = stripInlineMarkdown(title)
     plain.push(cleanTitle, '')
-    html.push(`<h2>${escapeHtml(cleanTitle)}</h2>`)
+    html.push(`<p><strong>${escapeHtml(cleanTitle)}</strong></p>`)
   }
 
   for (let index = 0; index < sourceLines.length; index += 1) {
     const line = sourceLines[index]
     const fenceMarker = line.match(/^\s*(`{3,}|~{3,})/)
     if (fenceMarker || codeFence) {
-      closeList(); plain.push(line); html.push(`<pre>${escapeHtml(line)}</pre>`)
-      if(fenceMarker){if(!codeFence)codeFence=fenceMarker[1][0];else if(fenceMarker[1][0]===codeFence)codeFence=''}
+      closeList()
+      plain.push(line)
+      html.push(`<pre>${escapeHtml(line)}</pre>`)
+      if (fenceMarker) {
+        if (!codeFence) codeFence = fenceMarker[1][0]
+        else if (fenceMarker[1][0] === codeFence) codeFence = ''
+      }
       continue
     }
     const htmlRows = htmlTables.tables.get(line.trim())
@@ -116,7 +163,7 @@ export const buildSlackClipboardPayload = (markdown: string, title?: string): Sl
       closeList()
       const rendered = renderPlainTable(htmlRows)
       plain.push(...rendered)
-      html.push(`<ul>${rendered.filter(Boolean).map(value => `<li>${escapeHtml(value.slice(2))}</li>`).join('')}</ul>`)
+      html.push(renderHtmlTable(htmlRows))
       continue
     }
     if (line.includes('|') && isTableDivider(sourceLines[index + 1])) {
@@ -130,7 +177,7 @@ export const buildSlackClipboardPayload = (markdown: string, title?: string): Sl
       index -= 1
       const rendered = renderPlainTable(rows)
       plain.push(...rendered)
-      html.push(`<ul>${rendered.filter(Boolean).map(line => `<li>${escapeHtml(line.slice(2))}</li>`).join('')}</ul>`)
+      html.push(renderHtmlTable(rows))
       continue
     }
 
@@ -138,7 +185,7 @@ export const buildSlackClipboardPayload = (markdown: string, title?: string): Sl
     if (heading) {
       closeList()
       plain.push(stripInlineMarkdown(heading[1]))
-      html.push(`<h3>${renderInlineHtml(heading[1])}</h3>`)
+      html.push(`<p><strong>${renderInlineHtml(heading[1])}</strong></p>`)
       continue
     }
 
@@ -150,7 +197,9 @@ export const buildSlackClipboardPayload = (markdown: string, title?: string): Sl
       const content = task ? task[2] : bullet![1]
       const prefix = task ? (/[xX]/.test(task[1]) ? '☑ ' : '☐ ') : '• '
       plain.push(prefix + stripInlineMarkdown(content))
-      html.push(`<li>${task ? escapeHtml(prefix.trim() + ' ') : ''}${renderInlineHtml(content)}</li>`)
+      html.push(
+        `<li>${task ? escapeHtml(prefix.trim() + ' ') : ''}${renderInlineHtml(content)}</li>`,
+      )
       continue
     }
 
@@ -169,7 +218,10 @@ export const buildSlackClipboardPayload = (markdown: string, title?: string): Sl
   closeList()
 
   return {
-    text: plain.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
+    text: plain
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
     html: `<div>${html.join('')}</div>`,
   }
 }
@@ -196,34 +248,106 @@ export async function copyMeetingNotesForSlack(markdown: string, title?: string)
   await clipboard.writeText(payload.text)
 }
 
-export type SlackNotesBlock = { type: 'section'; text: { type:'plain_text'; text:string; emoji:false } } | { type:'table'; rows:{ type:'raw_text'; text:string }[][]; column_settings:{ is_wrapped:true }[] }
+export type SlackNotesBlock =
+  | { type: 'section'; text: { type: 'plain_text'; text: string; emoji: false } }
+  | {
+      type: 'table'
+      rows: { type: 'raw_text'; text: string }[][]
+      column_settings: { is_wrapped: true }[]
+    }
 /** Native table blocks are API-only. Never advertise the clipboard as Block Kit. */
-export function buildSlackNotesMessage(markdown:string,title?:string):{text:string;blocks:SlackNotesBlock[]} {
-  const blocks:SlackNotesBlock[]=[]
-  const htmlTables=extractSlackHtmlTables(markdown)
-  const lines=htmlTables.source.replace(/\r\n?/g,'\n').split('\n')
-  let pending:string[]=[], fence=''
-  const flush=()=>{const text=buildSlackClipboardPayload(pending.join('\n')).text;pending=[];const characters=Array.from(text);for(let start=0;start<characters.length;start+=2900){blocks.push({type:'section',text:{type:'plain_text',text:characters.slice(start,start+2900).join(''),emoji:false}})}}
-  if(title?.trim())pending.push(title,'')
-  for(let i=0;i<lines.length;i++){
-    const marker=lines[i].match(/^\s*(`{3,}|~{3,})/)
-    if(marker){if(!fence)fence=marker[1][0];else if(marker[1][0]===fence)fence='';pending.push(lines[i]);continue}
-    const htmlRows=!fence && htmlTables.tables.get(lines[i].trim())
-    if(htmlRows){
-      flush();const columns=Math.max(...htmlRows.map(row=>row.length))
-      if(htmlRows.length>100 || columns>20)throw new Error('Native Slack tables support at most 100 rows and 20 columns. Copy these notes instead.')
-      blocks.push({type:'table',rows:htmlRows.map(row=>Array.from({length:columns},(_,column)=>({type:'raw_text' as const,text:row[column]||''}))),column_settings:Array.from({length:columns},()=>({is_wrapped:true as const}))})
-    }else if(!fence && lines[i].includes('|') && isTableDivider(lines[i+1])){
-      flush();const rows=[tableCells(lines[i])];i+=2
-      while(i<lines.length && lines[i].includes('|') && lines[i].trim()){rows.push(tableCells(lines[i]));i++}i--
-      const columns=Math.max(...rows.map(row=>row.length))
-      if(rows.length>100 || columns>20)throw new Error('Native Slack tables support at most 100 rows and 20 columns. Copy these notes instead.')
-      blocks.push({type:'table',rows:rows.map(row=>Array.from({length:columns},(_,column)=>({type:'raw_text' as const,text:row[column]||''}))),column_settings:Array.from({length:columns},()=>({is_wrapped:true as const}))})
-    }else pending.push(lines[i])
+export function buildSlackNotesMessage(
+  markdown: string,
+  title?: string,
+): { text: string; blocks: SlackNotesBlock[] } {
+  const blocks: SlackNotesBlock[] = []
+  const htmlTables = extractSlackHtmlTables(markdown)
+  const lines = htmlTables.source.replace(/\r\n?/g, '\n').split('\n')
+  let pending: string[] = [],
+    fence = ''
+  const flush = () => {
+    const text = buildSlackClipboardPayload(pending.join('\n')).text
+    pending = []
+    const characters = Array.from(text)
+    for (let start = 0; start < characters.length; start += 2900) {
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'plain_text',
+          text: characters.slice(start, start + 2900).join(''),
+          emoji: false,
+        },
+      })
+    }
+  }
+  if (title?.trim()) pending.push(title, '')
+  for (let i = 0; i < lines.length; i++) {
+    const marker = lines[i].match(/^\s*(`{3,}|~{3,})/)
+    if (marker) {
+      if (!fence) fence = marker[1][0]
+      else if (marker[1][0] === fence) fence = ''
+      pending.push(lines[i])
+      continue
+    }
+    const htmlRows = !fence && htmlTables.tables.get(lines[i].trim())
+    if (htmlRows) {
+      flush()
+      const columns = Math.max(...htmlRows.map(row => row.length))
+      if (htmlRows.length > 100 || columns > 20)
+        throw new Error(
+          'Native Slack tables support at most 100 rows and 20 columns. Copy these notes instead.',
+        )
+      blocks.push({
+        type: 'table',
+        rows: htmlRows.map(row =>
+          Array.from({ length: columns }, (_, column) => ({
+            type: 'raw_text' as const,
+            text: row[column] || '',
+          })),
+        ),
+        column_settings: Array.from({ length: columns }, () => ({ is_wrapped: true as const })),
+      })
+    } else if (!fence && lines[i].includes('|') && isTableDivider(lines[i + 1])) {
+      flush()
+      const rows = [tableCells(lines[i])]
+      i += 2
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+        rows.push(tableCells(lines[i]))
+        i++
+      }
+      i--
+      const columns = Math.max(...rows.map(row => row.length))
+      if (rows.length > 100 || columns > 20)
+        throw new Error(
+          'Native Slack tables support at most 100 rows and 20 columns. Copy these notes instead.',
+        )
+      blocks.push({
+        type: 'table',
+        rows: rows.map(row =>
+          Array.from({ length: columns }, (_, column) => ({
+            type: 'raw_text' as const,
+            text: row[column] || '',
+          })),
+        ),
+        column_settings: Array.from({ length: columns }, () => ({ is_wrapped: true as const })),
+      })
+    } else pending.push(lines[i])
   }
   flush()
-  const text=buildSlackClipboardPayload(markdown,title).text
-  const cellCharacters=blocks.reduce((sum,b)=>sum+(b.type==='table'?b.rows.flat().reduce((n,c)=>n+Array.from(c.text).length,0):0),0)
-  if(!text || Array.from(text).length>39000 || !blocks.length || blocks.length>50 || cellCharacters>10000)throw new Error('Notes exceed Slack message limits. Copy them instead; nothing was truncated.')
-  return {text,blocks}
+  const text = buildSlackClipboardPayload(markdown, title).text
+  const cellCharacters = blocks.reduce(
+    (sum, b) =>
+      sum +
+      (b.type === 'table' ? b.rows.flat().reduce((n, c) => n + Array.from(c.text).length, 0) : 0),
+    0,
+  )
+  if (
+    !text ||
+    Array.from(text).length > 39000 ||
+    !blocks.length ||
+    blocks.length > 50 ||
+    cellCharacters > 10000
+  )
+    throw new Error('Notes exceed Slack message limits. Copy them instead; nothing was truncated.')
+  return { text, blocks }
 }

@@ -1,10 +1,13 @@
+import { bindNotesSave as bindProfileNotesSave, BoundNotesSave } from 'src/utils/notesSave'
+import { getProfileRevision, PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
+import { CORRECTIONS_CHANGED, readCorrections, spellingContext } from 'src/utils/nameCorrections'
 import { meetingSpeakerIdentityPrompt, MeetingSpeakerIdentity } from 'src/utils/meetingSpeakerIdentity'
 import { capturePostMeetingSource } from 'src/utils/postMeetingSource'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Editor } from '@tiptap/react'
 import { getApiToken } from 'src/api/connections'
-import { deleteTranscript, getTranscript, ITranscript } from 'src/api/transcripts'
+import { deleteTranscript, getTranscript } from 'src/api/transcripts'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { NOTES_SYNTHESIS_PROMPT } from 'src/prompts'
 import { KN_API_GET_TRANSCRIPT, KN_API_NOTES } from 'src/utils/constants'
@@ -15,7 +18,7 @@ import { isSharingEnabled, shouldSaveTranscript } from 'src/utils/settings'
 import { MeetingTemplatePrompt } from 'src/utils/template_prompts'
 import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 
-import { NotesGeneration, cancelNotesGeneration, serializeNotesWrite, waitForAbort } from 'src/utils/notesGeneration'
+import { NotesGeneration, cancelNotesGeneration, waitForAbort } from 'src/utils/notesGeneration'
 
 import { PROFILE_KEY } from './auth/useAuth'
 
@@ -47,6 +50,7 @@ interface IMeetingSynthesis {
     meeting: Meeting | undefined,
   ) => Promise<void>
   saveNotes: (threadId: number, notes: string) => Promise<void>
+  bindNotesSave: () => BoundNotesSave
   setContent: (content: string) => void
   setMarkdown: (markdown: string) => void
 }
@@ -57,6 +61,7 @@ export const useMeetingSynthesis = (
   onSynthesisFinish: () => void,
   templatePrompt: MeetingTemplatePrompt,
   speakerIdentity?: MeetingSpeakerIdentity,
+  accountEmail?: string,
 ): IMeetingSynthesis => {
   const speakerIdentityRules = meetingSpeakerIdentityPrompt(speakerIdentity)
   const [content, setContent] = useState<string>('')
@@ -67,7 +72,18 @@ export const useMeetingSynthesis = (
   const [error, setError] = useState<Error | null>(null)
   const [errorThreadId, setErrorThreadId] = useState<number | null>(null)
 
+  const displayIdentity = JSON.stringify([accountEmail ?? speakerIdentity?.email ?? '', speakerIdentity?.name ?? ''])
+  const generationIdentity = useRef(displayIdentity)
   const activeGeneration = useRef<NotesGeneration | null>(null)
+
+  const generationSaves = useRef(new WeakMap<NotesGeneration, BoundNotesSave>())
+  const bindingIdentity = useRef({identity:displayIdentity,revision:0})
+  if(bindingIdentity.current.identity!==displayIdentity){bindingIdentity.current.identity=displayIdentity;bindingIdentity.current.revision++}
+  const frameBindingRevision=bindingIdentity.current.revision
+  const frameProfileRevision=getProfileRevision()
+  useEffect(() => () => {
+    activeGeneration.current?.cancel(new Error('Account or meeting view changed. Generate notes again.'))
+  }, [displayIdentity])
 
   const renderingGeneration = useRef(false)
 
@@ -92,112 +108,29 @@ export const useMeetingSynthesis = (
     setMarkdown(newMarkdownContent)
   }
 
-  const saveNotes = async (threadId: number, notes: string, generation?: NotesGeneration) => {
-    try {
-      if (!generation && !renderingGeneration.current) {
-        cancelNotesGeneration(threadId, new Error('Note generation stopped because your notes were edited.'))
-      }
-      const localSave = async () => {
-        generation?.check()
-        const localResponse = await fetch(KN_API_NOTES, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            thread_id: threadId,
-            notes: notes,
-          }),
-        })
-
-        const localData = await localResponse.json()
-
-        if (!localResponse.ok || localData?.success !== true) {
-          logError(new Error('Failed saving notes locally'), {
-            additionalInfo: 'Failed saving notes to local backend',
-            error: localData.error,
-          })
-          throw new Error('Failed saving notes locally')
-        }
-
-        return localData
-      }
-      const localData = generation ? await generation.write(localSave) : await serializeNotesWrite(threadId, localSave)
-      generation?.check()
-
-      const profile = await KNLocalStorage.getItem(PROFILE_KEY)
-      generation?.check()
-
-      if (!profile || !profile.uuid || !notes) {
-        return localData
-      }
-
-      // using the endpoint to get the metadata
-      const response = await fetch(`${KN_API_GET_TRANSCRIPT}/${threadId}`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      })
-
-      const data = await response.json()
-      generation?.check()
-
-      if (!data || data['success'] !== true) {
-        return
-      }
-
-      const transcript = data.data as ITranscript
-
-      if (isSharingEnabled('notes', 'knapsack', profile.sharing_permission)) {
-        const serverRequestBody = {
-          thread_id: threadId,
-          notes: notes,
-          uuid: profile.uuid,
-          metadata: transcript.filename
-            ? {
-                uuid: profile.uuid,
-                participants: transcript.participants ? String(transcript.participants) : '[]',
-                start_time: transcript.startTime ? String(transcript.startTime) : '',
-                end_time: transcript.endTime ? String(transcript.endTime) : '',
-                filename: transcript.filename,
-                thread_id: String(threadId),
-              }
-            : {},
-        }
-
-        const email = profile.email
-        const token = await getApiToken(email)
-        generation?.check()
-        const serverUrl = import.meta.env.VITE_KN_API_SERVER || 'http://localhost:8000'
-
-        const serverResponse = await fetch(`${serverUrl}/api/files/notes`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(serverRequestBody),
-        })
-
-        if (!serverResponse.ok) {
-          const serverData = await serverResponse.json().catch(() => ({}))
-          logError(new Error('Failed saving notes to server'), {
-            additionalInfo: 'Failed saving notes to server with UUID',
-            error: serverData.error || serverResponse.statusText,
-          })
-        }
-      }
-
-      return localData
-    } catch (error) {
-      logError(error instanceof Error ? error : new Error('Unknown error occurred'), {
-        additionalInfo: 'Error in saveNotes',
-        error: String(error),
-      })
-      throw error
+  const bindNotesSave = ():BoundNotesSave => {
+    const bound=bindProfileNotesSave({
+      readProfile:()=>KNLocalStorage.getItem(PROFILE_KEY),
+      tokenForEmail:getApiToken,
+      reportCloudFailure:error=>logError(error,{additionalInfo:'Failed saving notes to server with UUID'}),
+      canShare:permission=>isSharingEnabled('notes','knapsack',permission),
+      fetcher:(input,init)=>fetch(input,init),
+      localUrl:KN_API_NOTES,metadataUrl:KN_API_GET_TRANSCRIPT,
+      serverUrl:import.meta.env.VITE_KN_API_SERVER || 'http://localhost:8000',
+      bindingCurrent:()=>frameBindingRevision===bindingIdentity.current.revision && frameProfileRevision===getProfileRevision(),
+      expectedEmail:accountEmail ?? speakerIdentity?.email,
+    })
+    const save=(threadId:number,notes:string,generation?:NotesGeneration)=>{
+      if(!generation && !renderingGeneration.current && bound.isCurrent())cancelNotesGeneration(threadId,new Error('Note generation stopped because your notes were edited.'))
+      return bound(threadId,notes,generation)
     }
+    return Object.assign(save,{isCurrent:bound.isCurrent})
+  }
+  const saveNotes = async (threadId:number,notes:string,generation?:NotesGeneration) => {
+    const save=generation ? generationSaves.current.get(generation) : bindNotesSave()
+    if(!save)throw new Error('This note generation is no longer current.')
+    try {await save(threadId,notes,generation)}
+    catch(error){logError(error instanceof Error?error:new Error('Note save failed'),{additionalInfo:'Error in saveNotes'});throw error}
   }
 
   const constructTemplatePrompt = async (meetingTemplate: MeetingTemplatePrompt) => {
@@ -209,7 +142,7 @@ export const useMeetingSynthesis = (
     return finalPrompt
   }
 
-  const customizeNotesSynthesisPrompt = async (meeting: Meeting | undefined) => {
+  const customizeNotesSynthesisPrompt = async (meeting: Meeting | undefined, identityRules = speakerIdentityRules) => {
     let notesSynthesisPrompt = NOTES_SYNTHESIS_PROMPT
     if (meeting !== undefined) {
       const meetingInfo = meeting ? meeting.getReadableFormat() : ''
@@ -231,16 +164,30 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
     }
 
     notesSynthesisPrompt =
-      notesSynthesisPrompt + '\n\n' + (await constructTemplatePrompt(templatePrompt)) + '\n\n' + speakerIdentityRules
+      notesSynthesisPrompt + '\n\n' + (await constructTemplatePrompt(templatePrompt)) + '\n\n' + identityRules
 
     return notesSynthesisPrompt
   }
 
   const synthesizeContent = useCallback(
     async (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
+      const saveBinding=bindNotesSave()
+      if(!saveBinding.isCurrent())throw new Error('Account changed before note generation was admitted.')
       activeGeneration.current?.cancel(new Error('Note generation replaced by a newer attempt.'))
       const generation = new NotesGeneration(threadId)
       activeGeneration.current = generation
+      generationSaves.current.set(generation,saveBinding)
+      generationIdentity.current=displayIdentity
+      setContent('')
+      const cancelForSpellings = () => generation.cancel(new Error('Spellings changed. Generate notes again to use current settings.'))
+      window.addEventListener(CORRECTIONS_CHANGED, cancelForSpellings)
+      const cancelForProfile = () => {
+        generationIdentity.current='';setContent('');setStreamingMarkdown('');setIsLLMLoading(false);setSynthesisPhase('idle')
+        generation.cancel(new Error('Account changed. Generate notes again.'))
+      }
+      window.addEventListener(PROFILE_CHANGED_EVENT, cancelForProfile)
+      const storageChanged = (event: StorageEvent) => { if (event.key?.startsWith('kn-meeting-spellings-v1:')) cancelForSpellings() }
+      window.addEventListener('storage', storageChanged)
       const current = () => activeGeneration.current === generation && generation.current()
       setIsLLMLoading(true)
       setStreamingMarkdown('')
@@ -250,6 +197,19 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
 
       try {
         await waitForAbort((async () => {
+          const startingProfile = await KNLocalStorage.getItem(PROFILE_KEY)
+          generation.check()
+          if (accountEmail !== undefined && (!accountEmail || !startingProfile?.uuid || startingProfile?.email?.toLowerCase() !== accountEmail.toLowerCase())) {
+            throw new Error('Sign in to this account before generating meeting notes.')
+          }
+          const scope = JSON.stringify([startingProfile?.uuid || '', startingProfile?.email || '', startingProfile?.name || ''])
+          const checkProfile = async () => {
+            const profile = await KNLocalStorage.getItem(PROFILE_KEY)
+            generation.check()
+            if (scope !== JSON.stringify([profile?.uuid || '', profile?.email || '', profile?.name || ''])) {
+              cancelForProfile(); generation.check()
+            }
+          }
           const transcript = await getTranscript(threadId, { localOnly: true })
           if (!transcript) {
             logError(new Error('Transcript is undefined or null.'), {
@@ -267,7 +227,10 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
           const shouldSave = await shouldSaveTranscript()
           KNAnalytics.trackEvent('Synthesize: user notes stats', { length: userNotes.length })
 
-          const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting)
+          await checkProfile()
+          const profile = startingProfile
+          const identityRules = startingProfile?.name !== undefined || startingProfile?.email !== undefined ? meetingSpeakerIdentityPrompt({name:startingProfile.name,email:startingProfile.email}) : speakerIdentityRules
+          const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting, identityRules) + spellingContext(transcript.content + '\n' + userNotes, readCorrections(profile?.uuid || ''))
 
           generation.check()
           setSynthesisPhase('writing')
@@ -368,21 +331,27 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
         setStreamingMarkdown('')
         throw err
       } finally {
+        window.removeEventListener(CORRECTIONS_CHANGED, cancelForSpellings)
+        window.removeEventListener(PROFILE_CHANGED_EVENT, cancelForProfile)
+        generationSaves.current.delete(generation)
+        window.removeEventListener('storage', storageChanged)
         generation.finish()
       }
     },
-    [markdown, speakerIdentityRules],
+    [markdown, speakerIdentityRules, accountEmail, displayIdentity, frameProfileRevision],
   )
 
+  const sameIdentity=generationIdentity.current===displayIdentity
   return {
-    content,
-    isLLMLoading,
-    streamingMarkdown,
-    synthesisPhase,
-    error,
-    errorThreadId,
+    content: sameIdentity ? content : '',
+    isLLMLoading: sameIdentity && isLLMLoading,
+    streamingMarkdown: sameIdentity ? streamingMarkdown : '',
+    synthesisPhase: sameIdentity ? synthesisPhase : 'idle',
+    error: sameIdentity ? error : null,
+    errorThreadId: sameIdentity ? errorThreadId : null,
     synthesizeContent,
     saveNotes,
+    bindNotesSave,
     setContent,
     setMarkdown,
   }

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import {afterAll,beforeAll,describe,it,expect,vi} from 'vitest'
 import {webcrypto} from 'node:crypto'
+vi.mock('@tauri-apps/api/tauri',()=>import('./qaTauriFacade'))
+vi.mock('@tauri-apps/api/event',async()=>{
+ const {invoke,transformCallback}=await import('./qaTauriFacade')
+ const listen=async(event:string,handler:(value:unknown)=>void)=>{const id=await invoke<number>('tauri',{__tauriModule:'Event',message:{cmd:'listen',event,handler:transformCallback(handler)}});return()=>invoke('tauri',{__tauriModule:'Event',message:{cmd:'unlisten',event,eventId:id}})}
+ return {listen,once:listen,emit:(event:string,payload:unknown)=>invoke('tauri',{__tauriModule:'Event',message:{cmd:'emit',event,payload}})}
+})
 vi.mock('@tauri-apps/api/shell',async()=>{const {invoke}=await import('./qaTauriFacade');return {open:(path:string)=>invoke('tauri',{__tauriModule:'Shell',message:{cmd:'open',path}})}})
 import {createProbeHarness,PROBES} from './nativeDomProbes'
 let harness:Awaited<ReturnType<typeof createProbeHarness>>

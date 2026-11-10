@@ -43,6 +43,7 @@ interface TranscriptState {
   isOpen: boolean
   threadId?: number
   participantNames?: string[]
+  remoteParticipantName?: string
 }
 
 interface TasksState {
@@ -204,7 +205,7 @@ const MeetingsTabView = ({
     }))
   }
 
-  const handleOpenTranscript = async (threadId: number | undefined, participantNames?: string[]) => {
+  const handleOpenTranscript = async (threadId: number | undefined, participantNames?: string[], remoteParticipantName?: string) => {
     if (!threadId) return
     if (templatesState.isOpen) {
       setTemplatesState(prev => ({ ...prev, isOpen: false }))
@@ -219,6 +220,7 @@ const MeetingsTabView = ({
       isOpen: !prev.isOpen || prev.threadId !== threadId,
       threadId: threadId,
       participantNames,
+      remoteParticipantName,
     }))
   }
 
@@ -471,6 +473,7 @@ const MeetingsTabView = ({
             <TranscriptView
               threadId={transcriptState.threadId}
               participantNames={transcriptState.participantNames}
+              remoteParticipantName={transcriptState.remoteParticipantName}
               onClose={closeTranscript}
             />
           )}

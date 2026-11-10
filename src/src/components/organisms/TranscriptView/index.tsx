@@ -10,6 +10,7 @@ interface TranscriptViewProps {
   threadId: number
   onClose: () => void
   participantNames?: string[]
+  remoteParticipantName?: string
 }
 
 // A thread owns all transcript, translation, and clipboard state from its first render.
@@ -21,6 +22,7 @@ const ThreadTranscriptView: React.FC<TranscriptViewProps> = ({
   threadId,
   onClose,
   participantNames = [],
+  remoteParticipantName,
 }) => {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +89,12 @@ const ThreadTranscriptView: React.FC<TranscriptViewProps> = ({
 
   const displayedContent = isTranslated ? translatedContent : content;
   const turns = useMemo(
-    () => formatTranscriptTurns(displayedContent ?? '', participantNames),
-    [displayedContent, participantNames],
+    () => formatTranscriptTurns(displayedContent ?? '', participantNames).map(turn => ({
+      ...turn,
+      speaker: !turn.inferred && /^them$/i.test(turn.speaker) && remoteParticipantName
+        ? remoteParticipantName : turn.speaker,
+    })),
+    [displayedContent, participantNames, remoteParticipantName],
   );
 
   const handleCopy = async () => {

@@ -232,21 +232,89 @@ pub async fn send_gmail_email_from_account(
 pub struct NativeGmailRead {
   pub action: String,
   pub account_email: Option<String>,
+  pub connection_id: Option<u64>,
+  pub expected_studio_owner: Option<String>,
+  #[serde(default)]
+  pub desktop_mailboxes: bool,
   pub query: Option<String>,
   pub max_results: Option<u32>,
   pub page_token: Option<String>,
   pub message_id: Option<String>,
 }
 
+struct NativeGmailMailbox {
+  account: String,
+  owner: String,
+  connection: UserConnection,
+}
+
 fn select_native_gmail_account<'a>(
-  accounts: &'a [(String, UserConnection)], requested: Option<&str>,
-) -> Result<&'a (String, UserConnection), String> {
-  if let Some(requested) = requested.filter(|s| !s.trim().is_empty()) {
-    return accounts.iter().find(|(email, _)| email.eq_ignore_ascii_case(requested.trim()))
-      .ok_or_else(|| "That Gmail account is not connected on this desktop. Use action accounts.".into());
+  accounts: &'a [NativeGmailMailbox], requested: Option<&str>, connection_id: Option<u64>, desktop: bool,
+) -> Result<&'a NativeGmailMailbox, String> {
+  let identities = accounts.iter().map(|mailbox| super::google_capabilities::MailboxIdentity {
+    email: mailbox.account.clone(), id: mailbox.connection.id.unwrap_or(0),
+  }).collect::<Vec<_>>();
+  let index = super::google_capabilities::select_mailbox(&identities, requested, connection_id, desktop)?;
+  Ok(&accounts[index])
+}
+
+fn selected_grant_is_current(selected: &UserConnection, current: &[UserConnection]) -> bool {
+  current.iter().any(|row| row.id == selected.id && row.user_id == selected.user_id
+    && row.connection_id == selected.connection_id
+    && row.connection.as_ref().map(|c| c.scope.as_str()) == Some(GOOGLE_GMAIL_SCOPE)
+    && row.calendar_account_email == selected.calendar_account_email
+    && row.token == selected.token && row.refresh_token == selected.refresh_token)
+}
+
+async fn mailbox_access_token<F, Fut>(mailbox: &NativeGmailMailbox, refresh: F) -> Result<String, String>
+where F: FnOnce(String, String) -> Fut, Fut: std::future::Future<Output = Result<String, String>> {
+  if mailbox.connection.token.trim().is_empty() {
+    return Err(format!("Gmail credentials unavailable for {}, connection {:?}. No other inbox was read.", mailbox.account, mailbox.connection.id));
   }
-  if accounts.len() == 1 { return Ok(&accounts[0]); }
-  Err("Choose account_email from action accounts; no account is selected implicitly when multiple Gmail accounts are connected.".into())
+  refresh(mailbox.account.clone(), mailbox.connection.token.clone()).await.map_err(|reason| {
+    let kind = if reason.contains("invalid_grant") || reason.contains("Invalid refresh token") { "authentication expired" } else { "token refresh temporarily unavailable" };
+    format!("Gmail {kind} for {}, connection {:?}. No saved grant was changed and no other inbox was read.", mailbox.account, mailbox.connection.id)
+  })
+}
+
+// Same saved-connection boundary as get_connections(all_users=true) and
+// Autopilot's connectedEmailAccountEmails. A local user row alone is not a grant.
+fn desktop_gmail_mailboxes() -> Result<(Vec<NativeGmailMailbox>, Vec<String>), String> {
+  use crate::db::models::user::User;
+  let users = User::find_all_with_email().map_err(|_| "Could not enumerate saved mailbox profiles.")?;
+  let mut mailboxes = Vec::new();
+  let mut unavailable = Vec::new();
+  for user in users {
+    match UserConnection::find_by_user_email(user.email.clone()) {
+      Ok(connections) => for connection in connections {
+        if connection.connection.as_ref().map(|c| c.scope.as_str()) != Some(GOOGLE_GMAIL_SCOPE) { continue; }
+        if connection.id.is_none() { continue; }
+        let account = if connection.calendar_account_email.trim().is_empty() {
+          user.email.clone()
+        } else { connection.calendar_account_email.trim().to_string() };
+        mailboxes.push(NativeGmailMailbox { account, owner: user.email.clone(), connection });
+      },
+      Err(_) => unavailable.push(user.email),
+    }
+  }
+  Ok((mailboxes, unavailable))
+}
+
+/// Exact capability inventory shared by prompt construction and the read tool.
+/// Never union grants belonging to unrelated local profile owners.
+pub(super) fn native_gmail_inventory() -> Result<(String, Vec<(String, UserConnection)>), String> {
+  use serde_json::Value;
+  let home = super::service::clawdbot_home_headless()?;
+  let tokens: Value = serde_json::from_slice(&std::fs::read(home.join("tokens.json"))
+    .map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+  let owner = tokens.get("knapsack_email").and_then(Value::as_str)
+    .map(str::trim).filter(|v| !v.is_empty()).ok_or("Sign in to Knapsack to access connected Gmail accounts.")?;
+  let accounts: Vec<_> = UserConnection::find_by_user_email(owner.to_string())
+    .map_err(|e| e.to_string())?.into_iter()
+    .filter(|c| c.connection.as_ref().map(|v| v.scope == GOOGLE_GMAIL_SCOPE).unwrap_or(false))
+    .map(|c| (if c.calendar_account_email.is_empty() { owner.to_string() } else { c.calendar_account_email.clone() }, c))
+    .collect();
+  Ok((owner.to_string(), accounts))
 }
 
 pub(super) async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<serde_json::Value, String> {
@@ -254,27 +322,69 @@ pub(super) async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<s
   if !matches!(params.action.as_str(), "accounts" | "list" | "get" | "thread") {
     return Err("Native Gmail supports read-only actions: accounts, list, get.".into());
   }
-  let home = super::service::clawdbot_home_headless()?;
-  let tokens: Value = serde_json::from_slice(&std::fs::read(home.join("tokens.json"))
-    .map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-  let owner = tokens.get("knapsack_email").and_then(Value::as_str)
-    .filter(|v| !v.is_empty()).ok_or("Sign in to Knapsack to access connected Gmail accounts.")?;
-  let accounts: Vec<_> = UserConnection::find_by_user_email(owner.to_string())
-    .map_err(|e| e.to_string())?.into_iter()
-    .filter(|c| c.connection.as_ref().map(|v| v.scope == GOOGLE_GMAIL_SCOPE).unwrap_or(false))
-    .map(|c| (if c.calendar_account_email.is_empty() { owner.to_string() } else { c.calendar_account_email.clone() }, c))
-    .collect();
-  if params.action == "accounts" {
-    return Ok(json!({"provider":"native_google", "accounts":accounts.iter().map(|(email,_)| email).collect::<Vec<_>>()}));
+  let (studio_owner, studio_accounts) = native_gmail_inventory()?;
+  if params.expected_studio_owner.as_deref().is_some_and(|expected| !expected.eq_ignore_ascii_case(&studio_owner)) {
+    return Err("Studio identity changed during this request. Refresh accounts; no inbox was read.".into());
   }
-  let (account, connection) = select_native_gmail_account(&accounts, params.account_email.as_deref())?;
+  let (accounts, unavailable_profiles) = if params.desktop_mailboxes {
+    desktop_gmail_mailboxes()?
+  } else {
+    (studio_accounts.into_iter().map(|(account, connection)| NativeGmailMailbox {
+      account, owner: studio_owner.clone(), connection,
+    }).collect(), Vec::new())
+  };
+  if params.action == "accounts" {
+    let mut available = accounts.iter().filter(|m| !m.connection.token.trim().is_empty())
+      .map(|m| m.account.clone()).collect::<Vec<_>>();
+    available.sort(); available.dedup();
+    return Ok(json!({"provider":"native_google", "studio_owner_email":studio_owner,
+      "access_scope":if params.desktop_mailboxes {"desktop_autopilot_connections"} else {"studio_owner"},
+      "authentication":"saved_grants_not_freshly_validated", "accounts":available,
+      "unavailable_profiles":unavailable_profiles,
+      "connections":accounts.iter().map(|m| json!({"account_email":m.account,
+        "owner_email":m.owner,"connection_id":m.connection.id,
+        "available":!m.connection.token.trim().is_empty(),
+        "credential_state":if m.connection.token.trim().is_empty() {"missing"} else {"saved_not_validated"}})).collect::<Vec<_>>() }));
+  }
+  let mailbox = select_native_gmail_account(&accounts, params.account_email.as_deref(), params.connection_id, params.desktop_mailboxes)?;
+  let account = &mailbox.account;
+  let connection = &mailbox.connection;
   let message_id = if matches!(params.action.as_str(), "get" | "thread") {
     Some(params.message_id.as_deref().filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric()))
       .ok_or("message_id must be the exact Gmail message ID returned by list.")?)
   } else { None };
-  let token = refresh_connection_token(owner.to_string(), connection.clone()).await.map_err(|e| e.to_string())?;
-  let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30))
+  // Read-only refresh: the shared refresh_connection_token helper deletes
+  // invalid grants. A Scout read must preserve the saved connection instead.
+  let token = mailbox_access_token(mailbox, |account, token| async move {
+    crate::connections::google::auth::google_refresh_token(account, token).await.map_err(|e| e.to_string())
+  }).await?;
+  let current = UserConnection::find_by_user_email(mailbox.owner.clone()).map_err(|_| "Could not revalidate the selected saved grant.")?;
+  let still_authorized = selected_grant_is_current(connection, &current);
+  if !still_authorized { return Err("The selected Gmail grant changed or was removed. Refresh accounts; no inbox was read.".into()); }
+  if let Some(expected) = params.expected_studio_owner.as_deref() {
+    let (current_owner, _) = native_gmail_inventory()?;
+    if !expected.eq_ignore_ascii_case(&current_owner) { return Err("Studio identity changed during authentication. No inbox was read.".into()); }
+  }
+  let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20))
     .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
+  // Saved labels are not proof of the OAuth token's mailbox identity. Verify
+  // read-only account metadata before any message-content request.
+  let profile_response = client.get("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+    .bearer_auth(&token).timeout(std::time::Duration::from_secs(8)).send().await
+    .map_err(|_| format!("Could not verify the selected Gmail mailbox {account}. No messages were read."))?;
+  if !profile_response.status().is_success() {
+    return Err(format!("Gmail identity verification returned {} for {account}. No messages were read.", profile_response.status()));
+  }
+  let profile: Value = profile_response.json().await.map_err(|_| "Invalid Gmail identity response; no messages were read.")?;
+  super::google_capabilities::verify_mailbox_identity(profile.get("emailAddress").and_then(Value::as_str), account)?;
+  // Recheck after the identity request as well; saved-grant revocation or a
+  // Studio sign-in change during the await cannot authorize a content read.
+  let current = UserConnection::find_by_user_email(mailbox.owner.clone()).map_err(|_| "Could not revalidate the selected grant.")?;
+  if !selected_grant_is_current(connection, &current) { return Err("Selected Gmail grant was removed or replaced. No messages were read.".into()); }
+  if let Some(expected) = params.expected_studio_owner.as_deref() {
+    let (current_owner, _) = native_gmail_inventory()?;
+    if !expected.eq_ignore_ascii_case(&current_owner) { return Err("Studio identity changed. No messages were read.".into()); }
+  }
   let url = match message_id {
     Some(id) if params.action == "thread" => format!("https://gmail.googleapis.com/gmail/v1/users/me/threads/{id}"),
     Some(id) => format!("https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"),
@@ -291,9 +401,9 @@ pub(super) async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<s
   let status = response.status();
   let body: Value = response.json().await.map_err(|e| e.to_string())?;
   if !status.is_success() {
-    return Err(format!("Native Gmail API returned {status}: {}", body.pointer("/error/message").and_then(Value::as_str).unwrap_or("request failed")));
+    return Err(format!("Native Gmail API returned {status} for {account}, connection {:?}. No other inbox was read.", connection.id));
   }
-  Ok(json!({"provider":"native_google", "account_email":account, "result":body}))
+  Ok(json!({"provider":"native_google", "account_email":account, "owner_email":mailbox.owner, "connection_id":connection.id, "result":body}))
 }
 
 #[actix_web::post("/api/clawd/gmail/read")]
@@ -307,23 +417,62 @@ pub async fn native_gmail_read(params: web::Json<NativeGmailRead>) -> impl Respo
 #[cfg(test)]
 mod native_gmail_tests {
   use super::*;
-  fn account(email: &str) -> (String, UserConnection) {
-    (email.into(), UserConnection { id: None, user_id: 1, connection_id: 1,
+  fn account(email: &str) -> NativeGmailMailbox {
+    NativeGmailMailbox { account: email.into(), owner: email.into(), connection: UserConnection { id: None, user_id: 1, connection_id: 1,
       token: String::new(), refresh_token: None, connection: None, last_synced: None,
-      calendar_account_email: email.into() })
+      calendar_account_email: email.into() }}
   }
   #[test]
   fn native_gmail_requires_an_explicit_account_when_ambiguous() {
     let accounts = vec![account("a@example.com"), account("b@example.com")];
-    assert!(select_native_gmail_account(&accounts, None).is_err());
-    assert!(select_native_gmail_account(&accounts, Some("stranger@example.com")).is_err());
-    assert_eq!(select_native_gmail_account(&accounts, Some("B@example.com")).unwrap().0, "b@example.com");
-    assert_eq!(select_native_gmail_account(&accounts[..1], None).unwrap().0, "a@example.com");
-    assert!(select_native_gmail_account(&[], None).is_err());
+    assert!(select_native_gmail_account(&accounts, None, None, false).is_err());
+    assert!(select_native_gmail_account(&accounts, Some("stranger@example.com"), None, false).is_err());
+    assert_eq!(select_native_gmail_account(&accounts, Some("B@example.com"), None, false).unwrap().account, "b@example.com");
+    assert_eq!(select_native_gmail_account(&accounts[..1], None, None, false).unwrap().account, "a@example.com");
+    assert!(select_native_gmail_account(&[], None, None, false).is_err());
   }
   #[tokio::test]
   async fn native_gmail_refuses_writes_before_accessing_credentials() {
     let request: NativeGmailRead = serde_json::from_value(serde_json::json!({"action":"send"})).unwrap();
     assert!(native_gmail_read_impl(&request).await.unwrap_err().contains("read-only"));
   }
+  #[test]
+  fn revoked_or_replaced_saved_grants_cannot_reuse_an_old_selection() {
+    use crate::db::models::connection::Connection;
+    let mut mailbox = account("a@example.invalid");
+    mailbox.connection.id = Some(17);
+    mailbox.connection.token = "synthetic-old".into();
+    mailbox.connection.connection = Some(Connection { id: Some(1), scope: GOOGLE_GMAIL_SCOPE.into(), provider: "google".into() });
+    assert!(selected_grant_is_current(&mailbox.connection, &[mailbox.connection.clone()]));
+    assert!(!selected_grant_is_current(&mailbox.connection, &[]));
+    let mut replaced = mailbox.connection.clone(); replaced.token = "synthetic-new".into();
+    assert!(!selected_grant_is_current(&mailbox.connection, &[replaced]));
+    let mut other = mailbox.connection.clone(); other.user_id += 1;
+    assert!(!selected_grant_is_current(&mailbox.connection, &[other]));
+  }
+  #[tokio::test]
+  async fn expired_account_does_not_delete_grants_or_fall_back_to_another_inbox() {
+    let mut first = account("a@example.invalid"); first.connection.token = "synthetic-a".into();
+    let mut second = account("b@example.invalid"); second.connection.token = "synthetic-b".into();
+    let failed = mailbox_access_token(&first, |email, token| async move {
+      assert_eq!(email, "a@example.invalid"); assert_eq!(token, "synthetic-a");
+      Err("invalid_grant; secret diagnostic must not escape".into())
+    }).await.unwrap_err();
+    assert!(failed.contains("authentication expired for a@example.invalid"));
+    assert!(!failed.contains("secret diagnostic"));
+    assert_eq!(first.connection.token, "synthetic-a");
+    let success = mailbox_access_token(&second, |email, token| async move {
+      assert_eq!(email, "b@example.invalid"); assert_eq!(token, "synthetic-b"); Ok("synthetic-access".into())
+    }).await.unwrap();
+    assert_eq!(success, "synthetic-access");
+  }
+  #[tokio::test]
+  async fn missing_credentials_do_not_attempt_refresh_and_transient_failure_is_not_expiry() {
+    let mut mailbox = account("a@example.invalid");
+    assert!(mailbox_access_token(&mailbox, |_, _| async { panic!("No refresh without a saved credential") }).await.unwrap_err().contains("credentials unavailable"));
+    mailbox.connection.token = "synthetic".into();
+    let error = mailbox_access_token(&mailbox, |_, _| async { Err("network timeout".into()) }).await.unwrap_err();
+    assert!(error.contains("temporarily unavailable")); assert!(!error.contains("expired"));
+  }
+
 }

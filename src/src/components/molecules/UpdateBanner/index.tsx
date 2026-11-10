@@ -2,14 +2,17 @@ import { useEffect } from 'react'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
 
 export function UpdateBanner() {
-  const {
+  return <UpdateBannerContent {...useAppUpdate()} />
+}
+
+export function UpdateBannerContent({
     updateState: state,
     autoInstallEnabled,
     countdownRemainingSec,
     restartApp,
     dismiss,
     dismissed,
-  } = useAppUpdate()
+  }: Pick<ReturnType<typeof useAppUpdate>, 'updateState' | 'autoInstallEnabled' | 'countdownRemainingSec' | 'restartApp' | 'dismiss' | 'dismissed'>) {
 
   useEffect(() => {
     if (state.status !== 'up-to-date' || state.source !== 'user') return
@@ -32,8 +35,8 @@ export function UpdateBanner() {
   if (!visible) return null
 
   return (
-    <div className="flex items-center justify-center px-4 py-2 text-sm bg-red-600 text-white z-50">
-      <div className="flex items-center gap-2">
+    <div role="status" className="relative z-[5] shrink-0 flex items-center justify-center px-4 py-2 text-sm bg-red-600 text-white">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         {state.status === 'checking' && <span>Checking for Knapsack updates…</span>}
 
         {state.status === 'up-to-date' && (

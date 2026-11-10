@@ -10,6 +10,7 @@ interface MeetingNotesTabBarProps {
   thread: IThread
   feedItemId?: number,
   feed: IFeed,
+  transcriptAvailable?: boolean
   templateLabel: string
   hasActionItems: boolean
   onOpenTemplatesClick: (thread: IThread) => Promise<void>
@@ -26,6 +27,7 @@ interface MeetingNotesTabBarProps {
 
 const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
   thread,
+  transcriptAvailable = !!thread.savedTranscript,
   templateLabel,
   hasActionItems,
   onOpenTemplatesClick,
@@ -54,16 +56,17 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
           }
         }}
       />
-      {thread.savedTranscript && (
+      <span title={transcriptAvailable ? "Open saved transcript" : "No saved transcript is available for this meeting."}>
         <Button
           label="Transcript"
+          disabled={!transcriptAvailable}
           variant={ButtonVariant.regular}
           size={ButtonSize.medium}
           icon={<img className="mr-1.5" src="/assets/images/icons/TranscriptIcon.svg" />}
           className="h-fit py-0 px-0 bg-transparent text-xxs uppercase font-semibold hover:underline font-InterTight tracking-[0.08em] text-ks-warm-grey-800 transition-all duration-150 rounded-sm"
           onClick={() => onViewTranscriptClick(thread.id)}
         />
-      )}
+      </span>
       {hasActionItems && (
         <Button
           label="Tasks"

@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom'
 import type { ChatAttachment, ChatQuote } from 'src/utils/selectedChatContext'
 import type { Meeting } from 'src/hooks/dataSources/useCalendar'
 
-export const PROBES = ['transcript','meeting_link','chat_selection','notes_edit','slack_share','boundaries'] as const
+export const PROBES = ['transcript','meeting_link','chat_selection','notes_edit','slack_share','person_scout','boundaries'] as const
 export type Probe = typeof PROBES[number]
 type Ipc = { cmd?:string; callback:number; error:number; __tauriModule?:string; message?:{cmd?:string;event?:string;windowLabel?:string;payload?:unknown;path?:string} }
 type NativeWindow = Window & { __TAURI_IPC__?:(payload:Ipc)=>void; __knapsackQaTransport__?:(payload:Ipc)=>void; __knapsackNativeQaProbe?:(probe:Probe,nonce:string)=>Promise<void> }
@@ -80,7 +80,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
  }
  function Notes(){
   const [notes,setNotes]=useState(BASE)
-  const review=useNotesEditReview({threadId:900101,completed:true,notes,context:'Authenticated user Mark. Frida represents Visa. Mark owns Knapsack pricing. Alex owns legal review.',flush:async()=>{},saved:setNotes,queue:params=>queueMicrotask(()=>params.messageFinishCallback?.(JSON.stringify({edits:[{before:'You represent Visa and will send the Visa criteria.',after:'Frida represents Visa and will send the Visa criteria.',reason:'Fictional transcript identifies Frida.'}],ambiguities:[]})))})
+  const review=useNotesEditReview({accountScope:'synthetic-qa',threadId:900101,completed:true,notes,context:'Authenticated user Mark. Frida represents Visa. Mark owns Knapsack pricing. Alex owns legal review.',flush:async()=>{},saved:setNotes,queue:params=>queueMicrotask(()=>params.messageFinishCallback?.(JSON.stringify({edits:[{before:'You represent Visa and will send the Visa criteria.',after:'Frida represents Visa and will send the Visa criteria.',reason:'Fictional transcript identifies Frida.'}],ambiguities:[]})))})
   return <><button onClick={()=>void review.request('You swapped me and Frida')}>Correct attribution</button>{review.review}<output data-qa="notes">{notes}</output></>
  }
  const meeting=(id:string,url:string)=>({id,event_id:id,start:1,calendar_account_email:'qa@example.invalid',google_meet_url:url}) as Meeting
@@ -97,7 +97,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    render(<TranscriptView threadId={900104} onClose={()=>{}}/>);await until(()=>container.textContent?.includes('Failed to fetch transcript')===true||container.textContent?.includes('Transcript not found')===true);check(button('Copy transcript').disabled)
   }
   if(probe==='meeting_link'){
-   const cases=[['zoom','https://zoom.us/j/00000000000','Open Zoom link'],['meet','https://meet.google.com/aaa-bbbb-ccc','Open Google Meet link'],['teams','https://teams.microsoft.com/l/meetup-join/fictional','Open Teams link'],['other','https://example.invalid/call','Open meeting link']]
+   const cases=[['zoom','https://zoom.us/j/00000000000','Join Zoom'],['meet','https://meet.google.com/aaa-bbbb-ccc','Join Meet'],['teams','https://teams.microsoft.com/l/meetup-join/fictional','Join Teams'],['other','https://example.invalid/call','Join meeting']]
    const before=state.opens.length;render(<>{cases.map(([id,url])=><CalendarMeetingLink key={id} meeting={meeting(id,url)}/>)}</>);await tick();check(state.opens.length===before)
    for(const [,url,label]of cases){const a=container.querySelector<HTMLAnchorElement>(`a[aria-label="${label}"]`);check(a);a.click();a.click();await until(()=>state.opens.includes(url))}
    check(state.opens.length===before+4)
@@ -122,7 +122,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    const clipboard=format.buildSlackClipboardPayload(saved);check(clipboard.text.includes('one|two')&&clipboard.text.includes('Second paragraph'))
    let toggles=0;render(<EditToggle isEditing onClick={()=>toggles++}/>);click('Done');check(toggles===1);edited.destroy();reopened.destroy()
 
-   state.notes=BASE;state.revision=1;localStorage.removeItem('meeting-notes-edit:900101');render(<Notes/>);await tick()
+   state.notes=BASE;state.revision=1;localStorage.removeItem('meeting-notes-edit:synthetic-qa:900101');render(<Notes/>);await tick()
    click('Correct attribution');await readyButton('Apply to saved notes');check(!!container.querySelector('ins')&&state.notes===BASE)
    click('Apply to saved notes');await readyButton('Undo notes edit');await until(()=>container.querySelector('[data-qa="notes"]')?.textContent===AFTER)
    check(state.notes===AFTER&&state.notes.includes('Alex owns legal review.')&&state.notes.includes('> Frida: I represent Visa.'))
@@ -135,23 +135,34 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    select('Slack workspace','qa-work');await until(()=>!!container.querySelector('option[value="C-QA1"]'));select('Slack channel','C-QA1');click('Preview send to channel');await until(()=>!!container.querySelector('table'));check(!state.posts.length);click('Send these notes to #same-name');await until(()=>container.textContent?.includes('Sent to Fictional workspace')===true);check(state.posts.length===1)
    render(null);render(share());await until(()=>container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.value==='C-QA1');check(state.posts.length===1)
    const d={owner:'qa-user',accountId:'qa-work',teamId:'T-QA1',channelId:'C-QA1'},m=format.buildSlackNotesMessage(TABLE);check(await slack.slackNotesSendId(d,m)===await slack.slackNotesSendId(d,m))
-   render(null);state.revoked=true;render(share());await until(()=>container.textContent?.includes('Synthetic revoked connection')===true);check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.value==='');check(state.posts.length===1)
+   render(null);state.revoked=true;render(share());await until(()=>container.textContent?.includes('Synthetic revoked connection')===true);check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.value==='');check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.disabled===true);check(container.textContent?.includes('No channels available')===true);state.clipboard='';click('Copy for Slack');await until(()=>state.clipboard.includes('Visa review'));check(!button('Close').disabled);check(state.posts.length===1)
   }
+  if(probe==='person_scout'){const {runPersonScoutProbe}=await import('./personScoutProbe');await runPersonScoutProbe(container)}
   if(probe==='boundaries'){check(state.forbidden===0);check(state.posts.length===1);check(state.opens.length===4);check(state.sourceJump==='qa-message')}
   render(null);await tick()
  }
  return {run,state,dispose:()=>{flushSync(()=>root.unmount())}}
 }
 
+function bootstrapStage(native:(payload:Ipc)=>void,phase:string){
+ const callback=crypto.getRandomValues(new Uint32Array(1))[0]
+ const key=`_${callback}`
+ Object.defineProperty(window,key,{configurable:true,value:()=>Reflect.deleteProperty(window,key)})
+ native({cmd:'tauri',callback,error:callback,__tauriModule:'Event',message:{cmd:'emit',event:'knapsack-qa-bootstrap',windowLabel:'main',payload:phase}})
+}
 async function bootstrap(){
  const target=window as NativeWindow
+ const bridge=target.__TAURI_IPC__
+ if(typeof bridge==='function')bootstrapStage(bridge,'entry_loaded')
  if(import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE!=='1'||window!==window.top||location.origin!=='http://127.0.0.1:1420'||location.pathname!=='/qa-dom.html'||typeof target.__TAURI_IPC__!=='function')return
  const container=document.getElementById('qa-root');if(!container)return
- const native=target.__TAURI_IPC__;const harness=await createProbeHarness(container,native)
+ const native=target.__TAURI_IPC__;bootstrapStage(native,'module_loaded');
+ let harness:Awaited<ReturnType<typeof createProbeHarness>>
+ try{harness=await createProbeHarness(container,native);bootstrapStage(native,'harness_ready')}catch{bootstrapStage(native,'bootstrap_failed');return}
  const used=new Set<string>();let busy=false
  target.__knapsackNativeQaProbe=async(probe,nonce)=>{
   if(busy||!PROBES.includes(probe)||!/^[0-9a-f-]{36}$/.test(nonce)||used.has(nonce))return
-  used.add(nonce);busy=true;let passed=false
+  bootstrapStage(native,'dispatch_received');used.add(nonce);busy=true;let passed=false
   try{await harness.run(probe);passed=true}catch{container.textContent='Synthetic QA assertion failed.'}
   finally{busy=false;const {appWindow}=await import('@tauri-apps/api/window');await appWindow.emit('knapsack-qa-dom-result',{nonce,probe,passed})}
  }

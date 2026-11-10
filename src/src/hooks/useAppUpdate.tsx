@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { isRecordingStatus } from 'src/api/recording'
 import {
   getAutoInstallAppUpdatesEnabled,
   setAutoInstallAppUpdatesEnabled,
@@ -9,12 +10,13 @@ import {
 import { invoke } from '@tauri-apps/api'
 import { platform } from '@tauri-apps/api/os'
 import { relaunch } from '@tauri-apps/api/process'
-import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/updater'
-import { listen } from '@tauri-apps/api/event'
+import { checkUpdate, onUpdaterEvent } from '@tauri-apps/api/updater'
+import { emit, listen, TauriEvent } from '@tauri-apps/api/event'
 import { getAppVersion } from 'src/utils/app'
 import {
   checkAppUpdateStatus,
   installAppUpdate,
+  installNativeAppUpdate,
   normalizeAppVersion,
 } from 'src/utils/appUpdate'
 
@@ -134,6 +136,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const installInFlightRef = useRef(false)
   const checkInFlightRef = useRef(false)
   const checkSourceRef = useRef<'automatic' | 'user'>('automatic')
+  const lastCheckRef = useRef(0)
 
   // Listen to updater events
   useEffect(() => {
@@ -173,6 +176,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
 
   const checkForUpdates = useCallback(async (source: 'automatic' | 'user' = 'user') => {
     if (LOCAL_QA_SAFE) return
+    if (installInFlightRef.current) return
     if (checkInFlightRef.current) {
       // A tray/settings click during the startup check must still surface the
       // in-flight check and its final up-to-date result to the user.
@@ -186,6 +190,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       return
     }
     checkInFlightRef.current = true
+    lastCheckRef.current = Date.now()
     checkSourceRef.current = source
     setState({ status: 'checking', source })
     setDismissed(false)
@@ -231,12 +236,18 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     setState({ status: 'downloading' })
 
     try {
+      const capture = await isRecordingStatus()
+      if (!capture || capture.isRecording || capture.isStarting || capture.isStopping) {
+        throw new Error('Finish recording before installing an update. If recording has stopped, check the connection to Knapsack and try again.')
+      }
       // Do not impose a JavaScript timeout here. Tauri's native updater cannot
       // be cancelled by abandoning this promise, and large signed macOS builds
       // can legitimately take several minutes to download, verify, and replace.
       // A timeout would leave the native install running while skipping the
       // relaunch below, so the old version would remain open indefinitely.
-      await installAppUpdate(prepareNativeUpdateInstall, installUpdate)
+      await installAppUpdate(prepareNativeUpdateInstall, () => installNativeAppUpdate(
+        onUpdaterEvent, () => emit(TauriEvent.INSTALL_UPDATE),
+      ))
     } catch (err) {
       if (targetVersion) {
         writeAutoInstallSnooze(targetVersion)
@@ -249,6 +260,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
 
   // startInstall is kept for explicit user-initiated installs (without relaunch)
   const startInstall = useCallback(async () => {
+    if (installInFlightRef.current) return
     try {
       const targetVersion = state.status === 'available' ? state.version : undefined
       await runInstall(targetVersion)
@@ -264,6 +276,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   // delay causes "No such file or directory" on macOS because the old binary
   // path is gone.  Doing both in one atomic sequence avoids that race.
   const restartApp = useCallback(async () => {
+    if (installInFlightRef.current) return
     const targetVersion = state.status === 'available' ? state.version : undefined
     KNAnalytics.trackEvent('update_install_initiated', {
       from_version: KNAnalytics.APP_VERSION,
@@ -336,6 +349,19 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (LOCAL_QA_SAFE) return
     void checkForUpdates('automatic')
+    const recheck = () => {
+      if (Date.now() - lastCheckRef.current >= 60 * 60 * 1000) {
+        void checkForUpdates('automatic')
+      }
+    }
+    const timer = window.setInterval(recheck, 60 * 60 * 1000)
+    window.addEventListener('focus', recheck)
+    window.addEventListener('online', recheck)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', recheck)
+      window.removeEventListener('online', recheck)
+    }
   }, [])
 
   return (
