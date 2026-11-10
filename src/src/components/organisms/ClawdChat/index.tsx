@@ -4307,8 +4307,10 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+            if (cancelled) return
             break
           } catch {
+            if (cancelled) return
             // Backend not ready yet — wait and retry
             await delay(1000 * (attempt + 1))
           }
@@ -4317,16 +4319,21 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
           // All retries failed — try one last time without catching
           s = await apiGet<ServiceStatus>('/api/clawd/service/status')
         }
+        if (cancelled) return
         setStatus(s)
 
         if (!s.running) {
           // Service is not running — start it (retry once on failure)
           try {
             await apiPost('/api/clawd/service/enable', { enabled: true })
+            if (cancelled) return
           } catch {
+            if (cancelled) return
             // First enable attempt failed — wait and retry
             await delay(2000)
+            if (cancelled) return
             await apiPost('/api/clawd/service/enable', { enabled: true })
+            if (cancelled) return
           }
           // Wait for gateway to become healthy (with exponential backoff on backend).
           // The startup-ready endpoint polls until the gateway responds or 30s elapses.
@@ -4339,7 +4346,8 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
         }
 
         // Refresh status after enabling
-        await refreshStatus()
+        await refreshStatus(() => !cancelled)
+        if (cancelled) return
 
         // Poll for gateway/browser health — update the status indicators.
         // The LaunchAgent has KeepAlive=true so macOS restarts clawdbot
@@ -4631,16 +4639,20 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   }, [chatHistoryStorage, msgs, sharedScope])
 
 
-  const refreshStatus = async () => {
+  const refreshStatus = async (isCurrent: () => boolean = () => true) => {
+    if (!isCurrent()) return
     try {
       const s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+      if (!isCurrent()) return
       setStatus(s)
     } catch {
       // ignore
     }
 
+    if (!isCurrent()) return
     try {
       const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
+      if (!isCurrent()) return
       setHealth(h)
     } catch {
       // ignore

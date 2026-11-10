@@ -24,6 +24,29 @@ beforeAll(async()=>{
 afterAll(()=>{harness?.dispose();globalThis.fetch=window.fetch=saved.fetch;window.open=saved.open;globalThis.XMLHttpRequest=window.XMLHttpRequest=saved.xhr;globalThis.WebSocket=window.WebSocket=saved.websocket;globalThis.EventSource=window.EventSource=saved.eventSource;for(const[key,value]of[['clipboard',saved.clipboard],['mediaDevices',saved.media],['sendBeacon',saved.beacon]] as const){if(value)Object.defineProperty(navigator,key,value);else Reflect.deleteProperty(navigator,key)}vi.restoreAllMocks();vi.unstubAllGlobals();vi.unstubAllEnvs()})
 describe('fixed native DOM probe scenarios (JS DOM transport validation only)',()=>{
  for(const probe of PROBES)it(probe,async()=>{await harness.run(probe);expect(harness.state.forbidden,harness.state.forbiddenOperations.join('; ')).toBe(0)})
+ it.each([{statusRead:1,running:true},{statusRead:1,running:false},{statusRead:2,running:true}])('does not continue service startup after disposal: %s',async({statusRead,running})=>{
+  const {createPersonScoutFixture}=await import('../../qa-fixtures/person-chat-native')
+  const host=document.createElement('div');document.body.append(host)
+  const fixture=await createPersonScoutFixture(host)
+  const fixtureFetch=globalThis.fetch
+  let release:(()=>void)|undefined,disposed=false,statusReads=0
+  globalThis.fetch=window.fetch=async(input,init)=>{
+   const response=await fixtureFetch(input,init)
+   if(String(input).endsWith('/api/clawd/service/status')&&++statusReads===statusRead){
+    const read=response.json.bind(response)
+    response.json=async()=>{await new Promise<void>(resolve=>{release=resolve});return {...await read(),running}}
+   }
+   return response
+  }
+  try{
+   const deadline=Date.now()+1500
+   while(!release&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,5))
+   expect(release).toBeTypeOf('function')
+   fixture.dispose();disposed=true;release!()
+   await new Promise(resolve=>setTimeout(resolve,100))
+   expect(harness.state.forbidden,harness.state.forbiddenOperations.join('; ')).toBe(0)
+  }finally{release?.();if(!disposed)fixture.dispose();host.remove()}
+ })
  it('preserves the immutable native bridge',()=>{expect(Object.getOwnPropertyDescriptor(window,'__TAURI_IPC__')?.writable).toBe(false);expect(()=>((window as unknown as {__TAURI_IPC__:()=>void}).__TAURI_IPC__)()).toThrow('native_bridge_must_remain_untouched')})
  it('never forwards unrecognized fetch, IPC, opener, or microphone calls',async()=>{await expect(fetch('https://example.invalid/not-allowed')).rejects.toThrow('qa_boundary_blocked');expect(()=>window.open('https://example.invalid')).toThrow('qa_boundary_blocked');await expect(navigator.mediaDevices.getUserMedia({audio:true})).rejects.toThrow('qa_boundary_blocked');expect(()=>new WebSocket('ws://127.0.0.1:18789')).toThrow('qa_boundary_blocked');expect(()=>new XMLHttpRequest()).toThrow('qa_boundary_blocked');expect(()=>new EventSource('https://example.invalid')).toThrow('qa_boundary_blocked');expect(navigator.sendBeacon('https://example.invalid')).toBe(false);expect(()=>((window as unknown as {__knapsackQaTransport__:(p:unknown)=>void}).__knapsackQaTransport__)({cmd:'privacy_provider_candidates',callback:0,error:0})).toThrow('qa_boundary_blocked');expect(harness.state.forbidden).toBe(8)})
 })
