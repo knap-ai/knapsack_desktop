@@ -47,6 +47,31 @@ describe('fixed native DOM probe scenarios (JS DOM transport validation only)',(
    expect(harness.state.forbidden,harness.state.forbiddenOperations.join('; ')).toBe(0)
   }finally{release?.();if(!disposed)fixture.dispose();host.remove()}
  })
+ it.each([1,2])('does not fetch keys or persist stale provider state after disposal during key setup read %s',async(statusRead)=>{
+  const {createPersonScoutFixture}=await import('../../qa-fixtures/person-chat-native')
+  const host=document.createElement('div');document.body.append(host)
+  const readJson=Response.prototype.json
+  let release:(()=>void)|undefined,disposed=false,keyStatusReads=0
+  Response.prototype.json=async function(this:Response){
+   const data=await readJson.call(this)
+   if(data?.has_key===true&&++keyStatusReads===statusRead){
+    await new Promise<void>(resolve=>{release=resolve})
+    return {...data,active_provider:'anthropic',model:'synthetic-stale-model'}
+   }
+   return data
+  }
+  const fixture=await createPersonScoutFixture(host)
+  try{
+   const deadline=Date.now()+2000
+   while(!release&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,5))
+   expect(release, JSON.stringify({keyStatusReads,calls:fixture.state.calls})).toBeTypeOf('function')
+   const providerBefore=localStorage.getItem('moltbot_active_provider')
+   fixture.dispose();disposed=true;release!()
+   await new Promise(resolve=>setTimeout(resolve,100))
+   expect(harness.state.forbidden,harness.state.forbiddenOperations.join('; ')).toBe(0)
+   expect(localStorage.getItem('moltbot_active_provider')).toBe(providerBefore)
+  }finally{release?.();if(!disposed)fixture.dispose();Response.prototype.json=readJson;host.remove()}
+ })
  it('preserves the immutable native bridge',()=>{expect(Object.getOwnPropertyDescriptor(window,'__TAURI_IPC__')?.writable).toBe(false);expect(()=>((window as unknown as {__TAURI_IPC__:()=>void}).__TAURI_IPC__)()).toThrow('native_bridge_must_remain_untouched')})
  it('never forwards unrecognized fetch, IPC, opener, or microphone calls',async()=>{await expect(fetch('https://example.invalid/not-allowed')).rejects.toThrow('qa_boundary_blocked');expect(()=>window.open('https://example.invalid')).toThrow('qa_boundary_blocked');await expect(navigator.mediaDevices.getUserMedia({audio:true})).rejects.toThrow('qa_boundary_blocked');expect(()=>new WebSocket('ws://127.0.0.1:18789')).toThrow('qa_boundary_blocked');expect(()=>new XMLHttpRequest()).toThrow('qa_boundary_blocked');expect(()=>new EventSource('https://example.invalid')).toThrow('qa_boundary_blocked');expect(navigator.sendBeacon('https://example.invalid')).toBe(false);expect(()=>((window as unknown as {__knapsackQaTransport__:(p:unknown)=>void}).__knapsackQaTransport__)({cmd:'privacy_provider_candidates',callback:0,error:0})).toThrow('qa_boundary_blocked');expect(harness.state.forbidden).toBe(8)})
 })

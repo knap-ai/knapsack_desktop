@@ -156,7 +156,21 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const genericChannelsRef = useRef(genericChannels)
   genericChannelsRef.current = genericChannels
 
+  const refreshLifetimeRef = useRef({ mounted: true, generation: 0 })
+  useEffect(() => {
+    refreshLifetimeRef.current.mounted = true
+    ++refreshLifetimeRef.current.generation
+    return () => {
+      refreshLifetimeRef.current.mounted = false
+      ++refreshLifetimeRef.current.generation
+    }
+  }, [])
+
   const refresh = useCallback(async () => {
+    const generation = refreshLifetimeRef.current.generation
+    const isCurrent = () => refreshLifetimeRef.current.mounted
+      && refreshLifetimeRef.current.generation === generation
+    if (!isCurrent()) return
     // Only show loading indicator on the very first fetch, not background polls.
     // Toggling loading on every poll caused 2 extra parent re-renders per cycle.
     const isFirstLoad = prevJsonRef.current._initialized !== 'true'
@@ -169,8 +183,10 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       let gwOk = false
       try {
         const hRes = await fetchGatewayHealthWithTimeout()
+        if (!isCurrent()) return
         if (hRes.ok) {
           const hData = await hRes.json()
+          if (!isCurrent()) return
           gwOk = !!hData.gateway_ok
           setGatewayHealthy(gwOk)
         } else {
@@ -178,6 +194,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
           setGatewayHealthy(false)
         }
       } catch {
+        if (!isCurrent()) return
         // Rust backend itself is unreachable — gateway definitely not ok
         setGatewayHealthy(false)
       }
@@ -209,6 +226,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
           fetchGatewayHealthWithTimeout()
             .then(r => r.json())
             .then((data: { message?: string; diagnostic_type?: string }) => {
+              if (!isCurrent()) return
               const diagType = data.diagnostic_type ?? 'unknown'
               const snippet = (data.message ?? '').slice(0, 500)
               Sentry.withScope(scope => {
@@ -227,6 +245,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
               })
             })
             .catch(() => {
+              if (!isCurrent()) return
               // Backend itself unreachable — fire a generic alert
               Sentry.captureException(new Error('Gateway unreachable — Tauri backend also not responding'))
               KNAnalytics.trackEvent('gateway_startup_failed', {
@@ -284,6 +303,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       })
 
       const [wa, im, tg, ...genericResults] = await Promise.all([...promises, ...genericPromises])
+      if (!isCurrent()) return
 
       // Only update state when data actually changed (compare JSON snapshots).
       // This avoids re-rendering the parent on every poll when nothing changed.
@@ -356,6 +376,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
           diagRanRef.current = true
           // Fire-and-forget — don't block the poll cycle
           runChannelDiagnostics().then(diag => {
+            if (!isCurrent()) return
             if (diag.repairs.length > 0) {
               console.info('[useChannelStatus] Auto-repaired on startup:', diag.repairs)
             }
@@ -380,10 +401,13 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         }
       }
     } catch (e: any) {
+      if (!isCurrent()) return
       setError(e?.message ?? 'Failed to fetch channel status')
     } finally {
-      if (isFirstLoad) setLoading(false)
-      prevJsonRef.current._initialized = 'true'
+      if (isCurrent()) {
+        if (isFirstLoad) setLoading(false)
+        prevJsonRef.current._initialized = 'true'
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
