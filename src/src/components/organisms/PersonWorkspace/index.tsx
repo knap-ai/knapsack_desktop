@@ -8,10 +8,20 @@ import WorkspaceView from '../WorkspaceView'
 
 type Props = { workspace: Workspace; userEmail: string; userName?: string; onBack: () => void }
 /** Owned, visible person chat; opening the view never sends a prompt. */
-export default function PersonWorkspace({ workspace, userEmail, userName, onBack }: Props) {
+export default function PersonWorkspace(props: Props) {
+  const scope = JSON.stringify([
+    props.userEmail.trim().toLowerCase(), props.workspace.uuid, props.workspace.entityType,
+  ])
+  // Reset cached identity, visibility and draft ownership synchronously on a
+  // scope change. A name edit keeps this key stable and preserves the draft.
+  return <ScopedPersonWorkspace key={scope} {...props} />
+}
+
+function ScopedPersonWorkspace({ workspace, userEmail, userName, onBack }: Props) {
   const [opened, setOpened] = useState(false),
     [showChat, setShowChat] = useState(false)
-  const context = personChatContext(workspace, userEmail)
+  const [selectedWorkspace, setSelectedWorkspace] = useState(workspace)
+  const context = personChatContext(selectedWorkspace, userEmail)
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className={showChat ? 'hidden' : 'contents'}>
@@ -20,7 +30,11 @@ export default function PersonWorkspace({ workspace, userEmail, userName, onBack
           onBack={onBack}
           onOpenPersonChat={
             context
-              ? () => {
+              ? currentWorkspace => {
+                  // Accept only this selected person's saved snapshot. Do not
+                  // carry an old account/person's cached identity into a new scope.
+                  if (currentWorkspace.uuid !== workspace.uuid || !personChatContext(currentWorkspace, userEmail)) return
+                  setSelectedWorkspace(currentWorkspace)
                   setOpened(true)
                   setShowChat(true)
                 }
@@ -38,7 +52,7 @@ export default function PersonWorkspace({ workspace, userEmail, userName, onBack
             className="self-start px-4 py-2 text-sm underline"
             onClick={() => setShowChat(false)}
           >
-            Back to {workspace.name}
+            Back to {selectedWorkspace.name}
           </button>
           <div className="min-h-0 flex-1">
             <ClawdChat

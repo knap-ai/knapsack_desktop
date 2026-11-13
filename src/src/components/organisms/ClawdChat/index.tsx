@@ -634,7 +634,8 @@ type GetApiKeyPayload = {
   groq_key?: string
 }
 
-async function getOpenAIKey(): Promise<string | null> {
+async function getOpenAIKey(isCurrent: () => boolean = () => true): Promise<string | null> {
+  if (!isCurrent()) return null
   if (_cachedApiKey) return _cachedApiKey
   // Migrate: if there's a legacy localStorage key, push it to backend and clear it
   const legacyKey = localStorage.getItem('moltbot_openai_key')
@@ -642,10 +643,13 @@ async function getOpenAIKey(): Promise<string | null> {
     try {
       await apiPost('/api/clawd/service/set-api-key', { key: legacyKey })
     } catch { /* backend might already have it */ }
+    if (!isCurrent()) return null
     localStorage.removeItem('moltbot_openai_key')
   }
+  if (!isCurrent()) return null
   try {
     const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
+    if (!isCurrent()) return null
     if (resp.openai_key) {
       _cachedApiKey = resp.openai_key
       return resp.openai_key
@@ -2650,7 +2654,8 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
     [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData, paidStarterData],
   )
 
-  const checkAndPromptForKey = useCallback(async () => {
+  const checkAndPromptForKey = useCallback(async (isCurrent: () => boolean = () => chatMountedRef.current) => {
+    if (!isCurrent()) return false
     // Check if user already completed onboarding for THIS version
     const onboardedVersion = localStorage.getItem(ONBOARDING_VERSION_STORAGE)
 
@@ -2659,6 +2664,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
         timeoutMs: 4000,
       })
+      if (!isCurrent()) return false
       setHasCompletedOnboarding(Boolean(keyStatus.has_key))
       setKeyHints({
         openai: keyStatus.openai_key_hint,
@@ -2813,6 +2819,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
             openrouter_model?: string
             trustedrouter_model?: string
           }>('/api/clawd/service/get-api-key')
+          if (!isCurrent()) return false
           if (fullKeys.anthropic_model) {
             setSelectedAnthropicModel(fullKeys.anthropic_model)
             localStorage.setItem(ANTHROPIC_MODEL_STORAGE, fullKeys.anthropic_model)
@@ -2838,6 +2845,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
             localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, fullKeys.trustedrouter_model)
           }
         } catch { /* ignore */ }
+        if (!isCurrent()) return false
         // If this version was already onboarded, skip the prompt
         if (onboardedVersion === APP_VERSION) {
           return true
@@ -2850,7 +2858,9 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
     } catch { /* backend not reachable, fall through */ }
 
     // Legacy check
-    const key = await getOpenAIKey()
+    if (!isCurrent()) return false
+    const key = await getOpenAIKey(isCurrent)
+    if (!isCurrent()) return false
     if (key) {
       setHasCompletedOnboarding(true)
       if (onboardedVersion === APP_VERSION) return true
@@ -3903,12 +3913,13 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
 
   const providerSyncSequence = useRef(0)
   const syncProviderSelectionFromBackend = useCallback(async () => {
+    if (!chatMountedRef.current) return
     const sequence = ++providerSyncSequence.current
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
         timeoutMs: 4000,
       })
-      if (sequence !== providerSyncSequence.current) return
+      if (sequence !== providerSyncSequence.current || !chatMountedRef.current) return
       setHasCompletedOnboarding(Boolean(keyStatus.has_key))
       setKeyHints({
         openai: keyStatus.openai_key_hint,
@@ -4476,7 +4487,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
 
       // Check for API key after a short delay to let status load
       schedule(() => {
-        checkAndPromptForKey()
+        void checkAndPromptForKey(() => !cancelled && chatMountedRef.current)
       }, 500)
 
       // Fetch skills status after gateway has time to connect
@@ -4684,6 +4695,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   }, [])
 
   const pushAssistant = useCallback(async (text: string) => {
+    if (!chatMountedRef.current) return
     surfaceMissingStudioConnector(text)
     setMsgs(prev => [
       ...prev,
@@ -4853,6 +4865,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   }, [developerMode, ownsForeground])
 
   const pushUser = (text: string, replyToId?: string) => {
+    if (!chatMountedRef.current) return
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
     const connectIntent = isStudioConnectIntent(text)
     const connectorSuggestion =
@@ -5324,7 +5337,10 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
 
     // Check if we need to prompt for API key first
     if (!hasCompletedOnboarding) {
-      const hasKey = await checkAndPromptForKey()
+      const isCurrent = () => chatMountedRef.current && executionEpoch === sharedChatEpoch.current
+        && quoteScopeAtSend === quoteConversationRef.current
+      const hasKey = await checkAndPromptForKey(isCurrent)
+      if (!isCurrent()) return
       if (!hasKey) {
         pushUser(text || '(files attached)')
         pushAssistant('Please set up an AI provider first. Add an API key or enable Ollama in Settings to get started.')
