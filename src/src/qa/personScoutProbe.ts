@@ -65,6 +65,15 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     [...fixture.state.listeners.values()].filter(
       (row) => row.event === 'tauri://file-drop',
     ).length
+  const openScopedPerson = async (name: string, expectedRequests: number) => {
+    await until(() => fileListeners() === 0, 'scope_listener_cleanup')
+    assert(!Array.from(host.querySelectorAll('textarea')).some(visible), 'scope_requires_explicit_open')
+    assert(Number(fixture.state.requests.length) === expectedRequests, 'scope_no_automatic_send')
+    click('Chat about ' + name)
+    await ready()
+    await until(() => fileListeners() === 1, 'scope_single_foreground')
+    assert(Number(fixture.state.requests.length) === expectedRequests, 'scope_open_does_not_send')
+  }
   try {
     await until(
       () => host.textContent?.includes('Chat about Alex Example') === true,
@@ -157,7 +166,7 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     )
     click('Switch synthetic owner')
     await pause()
-    await ready()
+    await openScopedPerson('Alex Example', 1)
     assert(
       !visibleText().includes('Native A Alex question') && draft().value === '',
       'owner_history_isolated',
@@ -174,14 +183,14 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     )
     click('Switch synthetic person')
     await pause()
-    await ready()
+    await openScopedPerson('Jo Example', 2)
     assert(
       !visibleText().includes('Native B Alex question') && draft().value === '',
       'person_history_isolated',
     )
     click('Switch synthetic person')
     await pause()
-    await ready()
+    await openScopedPerson('Alex Example', 2)
     assert(
       visibleText().includes('Native B Alex question') &&
         !visibleText().includes('Native A Alex question'),
@@ -194,7 +203,7 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     await until(() => fixture.state.pending === 1, 'pending_request')
     click('Switch synthetic owner')
     await pause()
-    await ready()
+    await openScopedPerson('Alex Example', 3)
     await until(
       () => fixture.state.pending === 0 && fixture.state.aborted === 1,
       'old_owner_request_cancelled',

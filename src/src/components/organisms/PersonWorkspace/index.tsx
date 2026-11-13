@@ -8,18 +8,24 @@ import WorkspaceView from '../WorkspaceView'
 
 type Props = { workspace: Workspace; userEmail: string; userName?: string; onBack: () => void }
 /** Owned, visible person chat; opening the view never sends a prompt. */
-export default function PersonWorkspace({ workspace, userEmail, userName, onBack }: Props) {
+export default function PersonWorkspace(props: Props) {
+  const scope = JSON.stringify([
+    props.userEmail.trim().toLowerCase(), props.workspace.uuid, props.workspace.entityType,
+  ])
+  // Reset cached identity, visibility and draft ownership synchronously on a
+  // scope change. A name edit keeps this key stable and preserves the draft.
+  return <ScopedPersonWorkspace key={scope} {...props} />
+}
+
+function ScopedPersonWorkspace({ workspace, userEmail, userName, onBack }: Props) {
   const [opened, setOpened] = useState(false),
     [showChat, setShowChat] = useState(false)
-  const scope = JSON.stringify([userEmail.trim().toLowerCase(), workspace.uuid])
-  const [chatTarget, setChatTarget] = useState<{ scope: string; workspace: Workspace }>()
-  const selectedWorkspace = chatTarget?.scope === scope ? chatTarget.workspace : workspace
+  const [selectedWorkspace, setSelectedWorkspace] = useState(workspace)
   const context = personChatContext(selectedWorkspace, userEmail)
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className={showChat ? 'hidden' : 'contents'}>
         <WorkspaceView
-          key={scope}
           workspace={workspace}
           onBack={onBack}
           onOpenPersonChat={
@@ -28,7 +34,7 @@ export default function PersonWorkspace({ workspace, userEmail, userName, onBack
                   // Accept only this selected person's saved snapshot. Do not
                   // carry an old account/person's cached identity into a new scope.
                   if (currentWorkspace.uuid !== workspace.uuid || !personChatContext(currentWorkspace, userEmail)) return
-                  setChatTarget({ scope, workspace: currentWorkspace })
+                  setSelectedWorkspace(currentWorkspace)
                   setOpened(true)
                   setShowChat(true)
                 }
