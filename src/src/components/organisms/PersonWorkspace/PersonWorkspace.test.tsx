@@ -114,4 +114,7 @@ it('uses the saved corrected person snapshot for title and identity without losi
   expect(other.chatId).toBe('person:other%40example.test:person-a')
   expect(other.contextPrefix).toContain('"name":"Alex"')
   expect(other.contextPrefix).not.toContain('Alexa Corrected')
+  fireEvent.click(screen.getByRole('button', { name: 'Back to Alex' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
+  expect(mocks.chat.mock.calls[mocks.chat.mock.calls.length - 1][0].contextPrefix).not.toContain('Alexa Corrected')
 })

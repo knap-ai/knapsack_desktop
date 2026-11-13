@@ -19,6 +19,7 @@ export default function PersonWorkspace({ workspace, userEmail, userName, onBack
     <div className="flex h-full min-h-0 flex-col">
       <div className={showChat ? 'hidden' : 'contents'}>
         <WorkspaceView
+          key={scope}
           workspace={workspace}
           onBack={onBack}
           onOpenPersonChat={
