@@ -11,7 +11,10 @@ type Props = { workspace: Workspace; userEmail: string; userName?: string; onBac
 export default function PersonWorkspace({ workspace, userEmail, userName, onBack }: Props) {
   const [opened, setOpened] = useState(false),
     [showChat, setShowChat] = useState(false)
-  const context = personChatContext(workspace, userEmail)
+  const scope = JSON.stringify([userEmail.trim().toLowerCase(), workspace.uuid])
+  const [chatTarget, setChatTarget] = useState<{ scope: string; workspace: Workspace }>()
+  const selectedWorkspace = chatTarget?.scope === scope ? chatTarget.workspace : workspace
+  const context = personChatContext(selectedWorkspace, userEmail)
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className={showChat ? 'hidden' : 'contents'}>
@@ -20,7 +23,11 @@ export default function PersonWorkspace({ workspace, userEmail, userName, onBack
           onBack={onBack}
           onOpenPersonChat={
             context
-              ? () => {
+              ? currentWorkspace => {
+                  // Accept only this selected person's saved snapshot. Do not
+                  // carry an old account/person's cached identity into a new scope.
+                  if (currentWorkspace.uuid !== workspace.uuid || !personChatContext(currentWorkspace, userEmail)) return
+                  setChatTarget({ scope, workspace: currentWorkspace })
                   setOpened(true)
                   setShowChat(true)
                 }
@@ -38,7 +45,7 @@ export default function PersonWorkspace({ workspace, userEmail, userName, onBack
             className="self-start px-4 py-2 text-sm underline"
             onClick={() => setShowChat(false)}
           >
-            Back to {workspace.name}
+            Back to {selectedWorkspace.name}
           </button>
           <div className="min-h-0 flex-1">
             <ClawdChat
