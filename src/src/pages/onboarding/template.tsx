@@ -1,3 +1,4 @@
+import InferenceSetup from './InferenceSetup'
 import { ChangeEvent, ReactNode } from 'react'
 
 import cn from 'classnames'
@@ -374,6 +375,8 @@ type OnboardingTemplateProps = {
   onMicrosoftGrantClick: (index: number) => void
   isLoading: boolean
   error: string
+  onInferenceContinue: () => void
+  onInferenceBack: () => void
   onChromeExtensionInstallClick: (index: number) => void
   onChromeExtensionSkipClick: (index: number) => void
   connectedProvider: 'google' | 'microsoft' | null
@@ -402,6 +405,8 @@ export const OnboardingTemplate = ({
   onMicrosoftGrantClick,
   isLoading,
   error,
+  onInferenceContinue,
+  onInferenceBack,
   onChromeExtensionInstallClick,
   onChromeExtensionSkipClick,
   connectedProvider,
@@ -450,17 +455,18 @@ export const OnboardingTemplate = ({
           isLoading={isLoading}
           error={error}
         />
+        {currentSlideInScreen === 3 && <InferenceSetup onContinue={onInferenceContinue} onBack={onInferenceBack} />}
         <ChromeExtensionScreen
           currentSlideInScreen={currentSlideInScreen}
           currentSlideOutScreen={currentSlideOutScreen}
-          index={3}
+          index={4}
           onInstallClick={onChromeExtensionInstallClick}
           onSkipClick={onChromeExtensionSkipClick}
         />
         <AgentPickerScreen
           currentSlideInScreen={currentSlideInScreen}
           currentSlideOutScreen={currentSlideOutScreen}
-          index={4}
+          index={5}
           connectedProvider={connectedProvider}
           onActivate={onAgentPickerActivate}
           onSkip={onAgentPickerSkip}
@@ -468,7 +474,7 @@ export const OnboardingTemplate = ({
         <TelegramAccountsScreen
           currentSlideInScreen={currentSlideInScreen}
           currentSlideOutScreen={currentSlideOutScreen}
-          index={5}
+          index={6}
           agents={activatedAgents}
           userSlug={userSlug}
           accountEmail={accountEmail}
@@ -478,7 +484,7 @@ export const OnboardingTemplate = ({
         {/*<AudioPermissionsScreen
           currentSlideInScreen={currentSlideInScreen}
           currentSlideOutScreen={currentSlideOutScreen}
-          index={4}
+          index={5}
           onGrantClick={onAudioGrantClick}
         />*/}
       </div>

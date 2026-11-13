@@ -1,3 +1,10 @@
+import { createNotesAutosave } from 'src/utils/notesAutosave'
+import { PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
+import { readCorrections } from 'src/utils/nameCorrections'
+import { KNLocalStorage } from 'src/utils/KNLocalStorage'
+import { NameSpellingReview } from './NameSpellingReview'
+import { oneToOneParticipantName } from 'src/utils/oneToOneParticipant'
+import NotesGenerationRetry from './NotesGenerationRetry'
 import { useNotesEditReview } from './useNotesEditReview'
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import dayjs from 'dayjs'
@@ -17,7 +24,6 @@ import TextStyle from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import debounce from 'lodash/debounce'
 import { getDocumentInfos, getDriveDocumentsIds, getGoogleDriveFileText } from 'src/api/data_source'
 import { FeedItem } from 'src/api/feed_items'
 import { getLiveTranscript, isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
@@ -213,7 +219,7 @@ interface MeetingNotesModeProps {
   synthesisState: boolean
   onSynthesisFinish: () => void
   handleOpenTemplates: (thread: IThread) => Promise<void>
-  handleOpenTranscript: (FeedItemId: number | undefined, participantNames?: string[]) => void
+  handleOpenTranscript: (FeedItemId: number | undefined, participantNames?: string[], remoteParticipantName?: string) => void
   handleErrorContact: (message: string) => void
   closeTranscript: () => void
   closeTasks: () => void
@@ -260,7 +266,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   userEmails = [],
   userName,
   onMeetingChatMinimizedChange,
-}) => {
+} ) => {
+  const [recordingMetadata,setRecordingMetadata]=useState<{threadId:number;recorded:boolean;transcriptAvailable:boolean}|null>(null)
+  const currentRecordingMetadata=recordingMetadata?.threadId===thread.id?recordingMetadata:null
+  const wasRecorded=!!thread.recorded || currentRecordingMetadata?.recorded===true
+  const transcriptAvailable=currentRecordingMetadata?.transcriptAvailable ?? !!thread.savedTranscript
   const isMeetingRecording = recordingHandlers.isRecording(thread.id)
   useEffect(() => {
     if (!isMeetingRecording) return
@@ -427,7 +437,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [showLiveBanner, setShowLiveBanner] = useState(false)
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
   const [isEditingTitle, setIsEditingTitle] = useState(
-    !thread.recorded && thread.subtitle === 'Untitled Meeting',
+    !wasRecorded && thread.subtitle === 'Untitled Meeting',
   )
   const [editableTitle, setEditableTitle] = useState(thread.subtitle || '')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -626,7 +636,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   // Completed meetings should open as polished notes. Editing is opt-in so the
   // document doesn't flash a toolbar or flatten rich Markdown on first render.
-  const [isEditing, setIsEditing] = useState(!thread.recorded)
+  const [isEditing, setIsEditing] = useState(!wasRecorded)
   const [prepContent, setPrepContent] = useState('')
   const [isPrepGenerating, setIsPrepGenerating] = useState(false)
   const [suggestedCalendarEvent, setSuggestedCalendarEvent] = useState<Meeting | null>(null)
@@ -981,7 +991,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       setSaveState('Saving…')
 
       if (thread.id) {
-        void debouncedSave(thread.id, markdownContent)?.catch(() => {})
+        void debouncedSave(thread.id, markdownContent, bindNotesSave())?.catch(() => {})
       }
     },
     editorProps: {
@@ -1013,6 +1023,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     },
   })
 
+  React.useLayoutEffect(()=>{
+    finishingEdit.current=false
+    if(editor && !editor.isDestroyed)editor.setEditable(true,false)
+  },[editor,userEmail,thread.id])
+
   const {
     isLLMLoading,
     streamingMarkdown,
@@ -1021,29 +1036,22 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     errorThreadId,
     synthesizeContent,
     saveNotes,
+    bindNotesSave,
     setContent,
     setMarkdown,
   } =
-    useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) })
+    useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) }, userEmail || '')
 
   const [saveState, setSaveState] = useState('')
-  const saveNotesRef = useRef(saveNotes)
-  saveNotesRef.current = saveNotes
-  const debouncedSave = useMemo(
-    () =>
-      debounce(async (threadId: number, markdownContent: string) => {
-        try {
-          await saveNotesRef.current(threadId, markdownContent)
-          if (localStorage.getItem(`meeting-notes-draft:${threadId}`) === markdownContent) {
-            localStorage.removeItem(`meeting-notes-draft:${threadId}`)
-            if (activeNotesThreadIdRef.current === threadId) setSaveState('Saved')
-          }
-        } catch (error) {
-          if (activeNotesThreadIdRef.current === threadId) setSaveState('Could not save. Your draft is kept on this device.')
-        }
-      }, 500),
-    [],
-  )
+  const debouncedSave = useMemo(() => createNotesAutosave({
+    saved:(threadId,markdownContent)=>{
+      if(localStorage.getItem(`meeting-notes-draft:${threadId}`)===markdownContent){
+        localStorage.removeItem(`meeting-notes-draft:${threadId}`)
+        if(activeNotesThreadIdRef.current===threadId)setSaveState('Saved')
+      }
+    },
+    failed:threadId=>{if(activeNotesThreadIdRef.current===threadId)setSaveState('Could not save. Your draft is kept on this device.')},
+  }),[])
   useEffect(() => {
     return () => {
       void debouncedSave.flush()?.catch(() => {})
@@ -1052,8 +1060,22 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const [slackShareOpen, setSlackShareOpen] = useState(false)
   useEffect(() => setSlackShareOpen(false), [thread.id, userEmail])
+  const [spellingUser, setSpellingUser] = useState('')
+  const [spellingEmail, setSpellingEmail] = useState('')
+  useEffect(() => {
+    let active = true
+    setSpellingUser('')
+    const refresh=()=>{setSpellingUser('');setSpellingEmail('');void KNLocalStorage.getItem('KN_PROFILE').then(profile=>{
+      if(active && userEmail && profile?.email?.toLowerCase()===userEmail.toLowerCase()){setSpellingUser(profile?.uuid || '');setSpellingEmail(userEmail.toLowerCase())}
+    }).catch(()=>{})}
+    refresh();window.addEventListener(PROFILE_CHANGED_EVENT,refresh)
+    return () => { active = false;window.removeEventListener(PROFILE_CHANGED_EVENT,refresh) }
+  }, [userEmail])
+  const activeSpellingUser=userEmail && spellingEmail===userEmail.toLowerCase() ? spellingUser : ''
   const notesEdit = useNotesEditReview({
-    threadId: thread.id, completed: !!thread.recorded && !recordingHandlers.isRecording(thread.id),
+    accountScope: activeSpellingUser,
+    spellings: () => JSON.stringify(readCorrections(activeSpellingUser)),
+    threadId: thread.id, completed: !!wasRecorded && !recordingHandlers.isRecording(thread.id),
     notes: notesMarkdown, context: meetingChatContext.replace(`Current notes:\n${notesMarkdown || 'No notes yet.'}\n`, ''), queue: addToLLMQueue,
     flush: async () => { await debouncedSave.flush() },
     saved: value => {
@@ -1164,7 +1186,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     if (
       previousPromptTemplateRef.current !== thread.promptTemplate &&
       thread.id &&
-      thread.recorded
+      wasRecorded
     ) {
       recordingHandlers.generateNotes(
         thread.id,
@@ -1179,7 +1201,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }, [thread.promptTemplate])
 
   useEffect(() => {
-    setIsEditing(!thread.recorded)
+    setIsEditing(!wasRecorded)
   }, [recordingHandlers.hasSynthesized])
 
   // Auto-generate title for ad hoc / untitled meetings after notes are synthesized
@@ -1239,7 +1261,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   // Auto-generate brief meeting prep when a calendar meeting opens for the first time
   useEffect(() => {
-    if (!meeting?.event_id || thread.recorded || briefPrepTriggeredRef.current) return
+    if (!meeting?.event_id || wasRecorded || briefPrepTriggeredRef.current) return
     briefPrepTriggeredRef.current = true
     setIsBriefPrepGenerating(true)
     setBriefPrepSources(['Calendar'])
@@ -1343,7 +1365,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     buildBriefPrepDocuments,
     externalDomains,
     otherParticipants,
-    thread.recorded,
+    wasRecorded,
     thread.subtitle,
     userEmail,
     userEmailSet,
@@ -1380,6 +1402,10 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         // behind", that can expose another meeting's private notes.
         if (signal?.aborted || activeNotesThreadIdRef.current !== requestedThreadId) {
           return null
+        }
+        const recording=data?.data?.recording
+        if (typeof recording?.recorded==='boolean' && typeof recording?.transcriptAvailable==='boolean') {
+          setRecordingMetadata({threadId:requestedThreadId,recorded:recording.recorded,transcriptAvailable:recording.transcriptAvailable})
         }
         const notesExist = data?.data?.exists === true
         if (notesExist || localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`) !== null) {
@@ -1427,6 +1453,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
 
   const checkTranscriptSaved = async () => {
     thread.recorded = true
+    setRecordingMetadata(null)
 
     if (await shouldSaveTranscript()) {
       thread.savedTranscript = '/placeholder/transcript'
@@ -1578,7 +1605,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
   }, [recordingHandlers, thread.id, isLLMLoading])
 
   const isEndingMeetingState = isEndingMeeting || (
-    recordingHandlers.isLoadingNotes(thread.id) && !recordingHandlers.isRecording(thread.id) && !thread.recorded
+    recordingHandlers.isLoadingNotes(thread.id) && !recordingHandlers.isRecording(thread.id) && !wasRecorded
   )
   const endingMeetingStatusText = synthesisPhase === 'saving'
     ? 'Saving your notes…'
@@ -1659,7 +1686,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                     </svg>
                     {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
                   </span>
-                  {thread.recorded && !meeting && sameDayMeetings.length > 0 && (
+                  {wasRecorded && !meeting && sameDayMeetings.length > 0 && (
                     <div className="notetaker-note__link-event-wrap" ref={calendarPickerRef}>
                       <button
                         className="notetaker-note__link-event-btn"
@@ -1703,10 +1730,11 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
-                <CalendarMeetingLink meeting={meeting} />
-                {!thread.recorded && !isEndingMeetingState && (
+                <CalendarMeetingLink meeting={meeting} recording={isMeetingRecording} />
+                {!wasRecorded && !isEndingMeetingState && (
                   <RecordControlPanel
                     onClickJoin={() => handleRecordClick(true)}
+                    onClickRecord={() => handleRecordClick(false)}
                     onClickEnd={() => requestStopRecording('Manually')}
                     onClickPause={() => recordingHandlers.pauseRecording()}
                     onClickResume={() => handleRecordClick(false)}
@@ -1821,18 +1849,20 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
   const onEditClick = async () => {
     if (finishingEdit.current) return
     const editingThreadId = thread.id
+    const save = bindNotesSave()
     if (isEditing) {
       finishingEdit.current = true
       editor?.setEditable(false, false)
       try {
         await debouncedSave.flush()
         // Retry the current draft even when a previous autosave failed.
-        await saveNotes(thread.id, notesMarkdown)
-        localStorage.removeItem(`meeting-notes-draft:${thread.id}`)
+        await save(editingThreadId, notesMarkdown)
+        if(!save.isCurrent())return
+        if(localStorage.getItem(`meeting-notes-draft:${editingThreadId}`)===notesMarkdown)localStorage.removeItem(`meeting-notes-draft:${editingThreadId}`)
         if (activeNotesThreadIdRef.current !== editingThreadId) return
         setSaveState('Saved')
-      } catch { setSaveState('Could not save. Your draft is kept on this device.'); return }
-      finally { finishingEdit.current = false; editor?.setEditable(true, false) }
+      } catch { if(save.isCurrent() && activeNotesThreadIdRef.current===editingThreadId)setSaveState('Could not save. Your draft is kept on this device.'); return }
+      finally { if(save.isCurrent() && activeNotesThreadIdRef.current===editingThreadId){finishingEdit.current = false;if(editor && !editor.isDestroyed)editor.setEditable(true, false)} }
     }
     if (activeNotesThreadIdRef.current === editingThreadId) setIsEditing(value => !value)
   }
@@ -2027,7 +2057,7 @@ Be direct, specific, and concise. No filler text.`
                     )}
                   </div>
                 )}
-                {thread.recorded && !meeting && sameDayMeetings.length > 0 && (
+                {wasRecorded && !meeting && sameDayMeetings.length > 0 && (
                   <div className="notetaker-note__link-event-wrap" ref={calendarPickerRef}>
                     <button
                       className="notetaker-note__link-event-btn"
@@ -2071,10 +2101,11 @@ Be direct, specific, and concise. No filler text.`
               </div>
             </div>
             <div className="flex-shrink-0 flex items-center gap-2">
-              <CalendarMeetingLink meeting={meeting} />
-              {!thread.recorded && !isEndingMeetingState && (
+              <CalendarMeetingLink meeting={meeting} recording={isMeetingRecording} />
+              {!wasRecorded && !isEndingMeetingState && (
                 <RecordControlPanel
                   onClickJoin={() => handleRecordClick(true)}
+                    onClickRecord={() => handleRecordClick(false)}
                   onClickEnd={() => requestStopRecording('Manually')}
                   onClickPause={() => recordingHandlers.pauseRecording()}
                   onClickResume={() => handleRecordClick(false)}
@@ -2216,11 +2247,13 @@ Be direct, specific, and concise. No filler text.`
             feedItemId={feedItemId}
             feed={feed}
             templateLabel={templatePrompt.title}
+            transcriptAvailable={transcriptAvailable}
             hasActionItems={hasActionItems()}
             onOpenTemplatesClick={handleOpenTemplates}
             onViewTranscriptClick={() => handleOpenTranscript(
               thread.id,
               meeting?.participants?.map(p => p.name || p.email).filter(Boolean),
+              oneToOneParticipantName(meeting?.participants, userEmailSet),
             )}
             onTasksButtonClick={handleTasksButtonClick}
             onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
@@ -2239,7 +2272,7 @@ Be direct, specific, and concise. No filler text.`
         {slackShareOpen && <SlackNotesShare key={`${thread.id}:${userEmail}`} threadId={thread.id} userEmail={userEmail} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle})} onClose={()=>setSlackShareOpen(false)}/>}
 
         {/* Meeting brief drawer — auto-generated on open and kept available while recording */}
-        {meeting && !thread.recorded && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating) && (
+        {meeting && !wasRecorded && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating) && (
           <div className={`notetaker-note__brief-drawer ${briefPrepExpanded ? 'notetaker-note__brief-drawer--expanded' : 'notetaker-note__brief-drawer--collapsed'}`}>
             <div className="notetaker-note__brief-drawer-header">
               <button
@@ -2353,17 +2386,9 @@ Be direct, specific, and concise. No filler text.`
         )}
 
         {synthesisError && errorThreadId === thread.id && !isSynthesizing() && (
-          <section role="alert" className="notetaker-note__processing">
-            <span>Note generation didn’t finish. Retry from this saved meeting.</span>
-            <button
-              type="button"
-              onClick={() => void recordingHandlers.generateNotes(
-                thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
-              )}
-            >
-              Retry notes
-            </button>
-          </section>
+          <NotesGenerationRetry onRetry={() => void recordingHandlers.generateNotes(
+            thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
+          )} />
         )}
 
         {/* Stream synthesized notes into the page as they arrive. */}
@@ -2469,10 +2494,13 @@ Be direct, specific, and concise. No filler text.`
               </div>
             )}
             <div className="notetaker-note__document notetaker-note__document--editing text-left text-wrap min-h-[320px]">
+              <NameSpellingReview key={`${thread.id}:${userEmail || ''}`} editor={editor} text={notesMarkdown} accountEmail={userEmail || ''} onPreview={() => { expandMeetingChat(); dispatchMeetingChatLifecycle({ type: 'open' }); void notesEdit.prepareSpellings(readCorrections(activeSpellingUser)) }} />
               <EditorContent editor={editor} />
             </div>
           </div>
         ) : (
+          <div>
+          <NameSpellingReview key={`${thread.id}:${userEmail || ''}`} editor={null} text={notesMarkdown} accountEmail={userEmail || ''} onPreview={() => { expandMeetingChat(); dispatchMeetingChatLifecycle({ type: 'open' }); void notesEdit.prepareSpellings(readCorrections(activeSpellingUser)) }} />
           <MarkdownDisplay
             markdown={notesMarkdown}
             className="notetaker-note__document notetaker-note__document--display"
@@ -2484,6 +2512,7 @@ Be direct, specific, and concise. No filler text.`
               saveNotes(thread.id, updatedMarkdown)
             }}
           />
+          </div>
         )}
 
         {/* Meeting prep: shown when notes are empty and not recording */}
@@ -2659,7 +2688,7 @@ Be direct, specific, and concise. No filler text.`
                 {isMeetingChatMounted ? meetingChatLauncherLabel(meetingChatLifecycle) : hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
               </span>
             </button>}
-            {onEmailClick && (thread.recorded || notesMarkdown.trim()) && (
+            {onEmailClick && (wasRecorded || notesMarkdown.trim()) && (
               <button
                 className="notetaker-note__bottom-action"
                 onClick={() => onEmailClick?.(notesMarkdown, meeting)}

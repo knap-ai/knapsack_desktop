@@ -44,7 +44,14 @@ const qaSdkFacade = (): Plugin => ({
   },
 })
 export default defineConfig(async () => ({
-  optimizeDeps: { exclude: qaDomSdkMock ? ['@tauri-apps/api'] : [] },
+  optimizeDeps: {
+    exclude: qaDomSdkMock ? ['@tauri-apps/api'] : [],
+    // Build inputs omit the synthetic pages. Scan their graph before native
+    // probes start so discovering a late dependency cannot reload the WebView.
+    entries: qaDomSdkMock
+      ? ['index.html', 'notification.html', 'overlay.html', 'recording-indicator.html', 'qa-dom.html', 'qa-fixtures/*.html']
+      : undefined,
+  },
   build: {
     sourcemap: true, // Source map generation must be turned on
     rollupOptions: {

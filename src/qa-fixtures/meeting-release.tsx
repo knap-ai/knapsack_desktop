@@ -4,6 +4,17 @@ import 'src/main.css'
 if (import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE !== '1') throw new Error('Synthetic QA requires the isolated server')
 const state = { sends: [] as unknown[], removals: [] as number[], chats: [] as string[], failMail: false, failRemoval: false }
 ;(window as any).releaseQA = state
+// Synthetic-only hotkey allows the same open modal to recover from rejection.
+// No real provider is imported: all sends still terminate in the fixture IPC above.
+window.addEventListener('keydown', event => {
+  if (event.altKey && event.shiftKey && event.code === 'KeyF') {
+    event.preventDefault()
+    state.failMail = !state.failMail
+    state.failRemoval = state.failMail
+    const status = document.getElementById('synthetic-failure-status')
+    if (status) status.textContent = `Synthetic failures: ${state.failMail ? 'on' : 'off'}`
+  }
+})
 ;(window as any).__knapsackQaTransport__ = ({ cmd, callback, error }: any) => {
   if (cmd === 'kn_send_composed_email') {
     state.sends.push(cmd)
@@ -33,6 +44,7 @@ function App() {
     onRemoved: row => setGrants(all => all.filter(item => item.id !== row.id)), refreshApp: async () => {}, refreshSettings: async () => {},
   })
   return <main style={{ padding: 12, color: '#222' }}>
+    <output id="synthetic-failure-status" aria-live="polite">Synthetic failures: off (Option+Shift+F toggles while a modal is open)</output>
     <nav>{['Composer', 'Connections', 'Email'].map(name => <button key={name} onClick={() => { setTab(name); setShowEmail(true) }}>{name}</button>)}
       {[560, 760, 1200].map(value => <button key={value} onClick={() => setWidth(value)}>{value}px</button>)}
       <button onClick={() => { state.failRemoval = !state.failRemoval; state.failMail = !state.failMail }}>Toggle synthetic failures</button>

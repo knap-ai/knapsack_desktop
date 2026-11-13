@@ -70,6 +70,34 @@ test("native updater never starts installation when preparation fails", async ()
   assert.equal(installed, false);
 });
 
+test('native update subscribes before emit and observes immediate completion', async () => {
+  const { installNativeAppUpdate } = await loadAppUpdateModule();
+  const calls = []; let handler;
+  await installNativeAppUpdate(async next => {
+    calls.push('subscribe'); handler = next; return () => calls.push('cleanup');
+  }, async () => { calls.push('emit'); handler({ status: 'DONE' }); });
+  assert.deepEqual(calls, ['subscribe', 'emit', 'cleanup']);
+});
+
+test('native updater setup and emit failures reject rather than leave installation pending', async () => {
+  const { installNativeAppUpdate } = await loadAppUpdateModule();
+  let emitted = false, cleaned = false;
+  await assert.rejects(installNativeAppUpdate(async () => { throw Error('listener failed'); }, async () => { emitted = true; }), /listener failed/);
+  assert.equal(emitted, false);
+  await assert.rejects(installNativeAppUpdate(async () => () => { cleaned = true; }, async () => { throw Error('emit failed'); }), /emit failed/);
+  assert.equal(cleaned, true);
+});
+
+test('native update errors settle once and clean up without a duplicate install request', async () => {
+  const { installNativeAppUpdate } = await loadAppUpdateModule();
+  let requests = 0, cleaned = 0;
+  let handler;
+  await assert.rejects(installNativeAppUpdate(async next => {
+    handler = next; return () => cleaned++;
+  }, async () => { requests++; handler({status: 'ERROR', error: 'Synthetic install rejection'}); }), /Synthetic install rejection/);
+  assert.equal(requests, 1); assert.equal(cleaned, 1);
+});
+
 test("stubbed updater check reports availability without install or relaunch capability", async () => {
   const { checkAppUpdateStatus } = await loadAppUpdateModule();
   const calls = [];
@@ -104,4 +132,18 @@ test("tray update action reaches the updater hook with visible user feedback and
   assert.match(hook, /status: 'up-to-date', source: checkSourceRef\.current/);
   assert.match(banner, /Checking for Knapsack updates/);
   assert.match(banner, /Knapsack is up to date/);
+});
+
+test('ignores completion from before this request and does not mask a request failure', async () => {
+  const { installNativeAppUpdate } = await loadAppUpdateModule();
+  let handler, resolved = false;
+  const update = installNativeAppUpdate(async next => {
+    handler = next; next({status:'DONE'}); return () => {};
+  }, async () => {}).then(() => { resolved = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(resolved, false);
+  handler({status:'DONE'}); await update;
+  await assert.rejects(installNativeAppUpdate(async next => {
+    handler = next; return () => {};
+  }, async () => { handler({status:'DONE'}); throw Error('request failed'); }), /request failed/);
 });

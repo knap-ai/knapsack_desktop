@@ -155,7 +155,7 @@ connected Studio API. Do not ask for the desktop API token or infer browser logi
 - `http://127.0.0.1:8897/api/knapsack/meeting_insights/<thread_id>`
 
 **Preferred order for Knapsack-specific questions:**
-1. Supplied native context. For Gmail, use `studio__gmail_read` with action `accounts`, then `list`/`get` and the exact `account_email`. This uses native Google OAuth; never route Gmail through Composio. Other connected services may use authenticated Studio connector tools.
+1. Supplied native context. For Gmail, use `studio__gmail_read` with action `accounts`, then `list`/`get` and the exact `account_email`. Local desktop requests use the same saved Gmail connection boundary as Email Autopilot. The accounts result labels each grant with account_email, owner_email and connection_id; choose the exact grant, never infer one from Studio inference identity. Remote chat remains Studio-owner scoped. Cached grants are not fresh authentication proof. For a multi-inbox request, query each selected inbox separately and preserve attribution and per-account failures. If the requested account/grant is absent, report the scope mismatch; do not switch identities, reconnect, open browser login, or request pasted email as an automatic workaround. This uses native Google OAuth; never route Gmail through Composio. Other connected services may use authenticated Studio connector tools.
 2. Local Knapsack API via `exec` and `curl`, if authorized in this runtime
 3. Browser only for an explicit web UI request or an operation unsupported by connected APIs
 

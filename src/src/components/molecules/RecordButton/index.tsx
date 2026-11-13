@@ -40,17 +40,10 @@ const RecordButton: React.FC<RecordButtonProps> = ({
   variant = RecordButtonVariant.regular,
 }) => {
   return (
-    <div className="flex flex-row items-center gap-2">
-      <div className="justify-end items-center inline-flex">
-        <div className="justify-end items-center flex">
-          <div onClick={onClick} className={buttonVariants({ variant })}>
-            <div>
-              <button disabled={isDisabled}>{text}</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <button type="button" onClick={onClick} disabled={isDisabled}
+      className={buttonVariants({ variant })}>
+      {text}
+    </button>
   )
 }
 

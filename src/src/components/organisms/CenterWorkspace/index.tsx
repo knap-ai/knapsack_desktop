@@ -81,6 +81,7 @@ interface TranscriptState {
   isOpen: boolean
   threadId?: number
   participantNames?: string[]
+  remoteParticipantName?: string
 }
 
 export interface TaskItem {
@@ -294,7 +295,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
     checkPermissions()
   }, [])
 
-  const handleOpenTranscript = async (threadId: number | undefined, participantNames?: string[]) => {
+  const handleOpenTranscript = async (threadId: number | undefined, participantNames?: string[], remoteParticipantName?: string) => {
     if (!threadId) return
 
     if (templatesState.isOpen) {
@@ -314,6 +315,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
       isOpen: !prev.isOpen || prev.threadId !== threadId,
       threadId: threadId,
       participantNames,
+      remoteParticipantName,
     }))
   }
 
@@ -662,6 +664,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
           <TranscriptView
             threadId={transcriptState.threadId}
             participantNames={transcriptState.participantNames}
+              remoteParticipantName={transcriptState.remoteParticipantName}
             onClose={() => closeTranscript()}
           />
         )}

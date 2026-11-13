@@ -128,11 +128,35 @@ async fn save_notes(data: Json<SaveNotesRequest>) -> impl Responder {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MeetingRecordingMetadata {
+  recorded: bool,
+  transcript_available: bool,
+}
+// Inspect only the explicitly linked saved file. Never guess a transcript from
+// a same-day title, which could belong to another meeting, or read its content.
+pub(crate) fn linked_saved_transcript_path(home: &Path, saved: Option<&str>) -> Option<PathBuf> {
+  let saved=saved.filter(|path|!path.is_empty())?;
+  let allowed=home.join(".transcripts");
+  let file=Path::new(saved);
+  if !file.starts_with(&allowed) {return None;}
+  let metadata=std::fs::symlink_metadata(file).ok()?;
+  if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len()==0 {return None;}
+  let allowed=allowed.canonicalize().ok()?;
+  let file=file.canonicalize().ok()?;
+  file.starts_with(allowed).then_some(file)
+}
+fn saved_transcript_available(home:&Path,saved:Option<&str>)->bool {
+  linked_saved_transcript_path(home,saved).is_some()
+}
+
+#[derive(Serialize)]
 struct GetNotesResponse {
   notes: Option<String>,
   exists: bool,
   thread_id: u64,
   revision: String,
+  recording: Option<MeetingRecordingMetadata>,
 }
 
 fn check_if_legacy_notes_exists(thread_id: u64) -> Result<Option<String>, Error> {
@@ -196,10 +220,14 @@ async fn get_notes(path: web::Path<u64>) -> impl Responder {
 
   let exists = notes.is_some();
   let revision = revisions::revision(thread_id, notes.as_deref());
+  let recording=Thread::find_by_id(thread_id).ok().flatten().map(|thread|MeetingRecordingMetadata {
+    recorded:thread.recorded.unwrap_or(false),
+    transcript_available:saved_transcript_available(&home_dir,thread.saved_transcript.as_deref()),
+  });
 
   HttpResponse::Ok().json(json!({
     "success": true,
-    "data": GetNotesResponse { notes, exists, thread_id, revision }
+    "data": GetNotesResponse { notes, exists, thread_id, revision, recording }
   }))
 }
 
@@ -361,5 +389,24 @@ mod isolation_tests {
       std::fs::read_to_string(&production_note).unwrap(),
       "production sentinel"
     );
+  }
+}
+
+#[cfg(test)]
+mod saved_transcript_metadata_tests {
+  use super::*;
+  #[test]
+  fn saved_transcript_metadata_requires_an_explicit_nonempty_linked_file() {
+    let home=tempfile::tempdir().unwrap();let dir=home.path().join(".transcripts");std::fs::create_dir(&dir).unwrap();let file=dir.join("synthetic.txt");std::fs::write(&file,"Synthetic transcript").unwrap();
+    assert!(saved_transcript_available(home.path(),file.to_str()));
+    assert!(!saved_transcript_available(home.path(),None));
+    assert!(!saved_transcript_available(home.path(),Some("/placeholder/transcript")));
+    let empty=dir.join("empty.txt");std::fs::write(&empty,"").unwrap();assert!(!saved_transcript_available(home.path(),empty.to_str()));
+    let outside=home.path().join("outside.txt");std::fs::write(&outside,"Other meeting").unwrap();assert!(!saved_transcript_available(home.path(),outside.to_str()));
+  }
+  #[cfg(unix)]
+  #[test]
+  fn saved_transcript_metadata_rejects_symlinks_and_parent_escape() {
+    let home=tempfile::tempdir().unwrap();let dir=home.path().join(".transcripts");std::fs::create_dir(&dir).unwrap();let outside=home.path().join("other.txt");std::fs::write(&outside,"Other meeting").unwrap();let link=dir.join("link.txt");std::os::unix::fs::symlink(&outside,&link).unwrap();assert!(!saved_transcript_available(home.path(),link.to_str()));let escape=dir.join("../other.txt");assert!(!saved_transcript_available(home.path(),escape.to_str()));
   }
 }

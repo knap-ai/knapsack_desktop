@@ -167,7 +167,7 @@ pub fn kn_follow_through_decide(brain_root: String, id: String, decision: String
   })
 }
 async fn gmail(account: &str, action: &str, id: &str) -> Result<Value, String> {
-  let value = native_gmail_read_impl(&NativeGmailRead { action: action.into(), account_email: Some(account.into()),
+  let value = native_gmail_read_impl(&NativeGmailRead { expected_studio_owner: None, connection_id: None, desktop_mailboxes: false, action: action.into(), account_email: Some(account.into()),
     message_id: Some(id.into()), query: None, max_results: None, page_token: None }).await?;
   Ok(value["result"].clone())
 }

@@ -1,3 +1,4 @@
+import EmailPopupPreference from 'src/components/molecules/EmailPopupPreference'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import CircularProgress from '@mui/material/CircularProgress'
@@ -424,6 +425,7 @@ export const EmailAutopilot = ({
       }
       <div className="flex-1 p-4 h-full overflow-y-auto relative">
 
+        <EmailPopupPreference />
         {/* Settings Sidebar */}
         {showSettings && (
           <div className="fixed inset-0 z-50 flex justify-end">

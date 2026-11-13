@@ -107,7 +107,7 @@ mod clawd {
     }
   }
   pub mod gmail {
-    pub struct NativeGmailRead { pub action:String,pub account_email:Option<String>,pub message_id:Option<String>,pub query:Option<String>,pub max_results:Option<usize>,pub page_token:Option<String> }
+    pub struct NativeGmailRead { pub action:String,pub account_email:Option<String>,pub connection_id:Option<u64>,pub expected_studio_owner:Option<String>,pub desktop_mailboxes:bool,pub message_id:Option<String>,pub query:Option<String>,pub max_results:Option<u32>,pub page_token:Option<String> }
     pub async fn native_gmail_read_impl(_: &NativeGmailRead)->Result<serde_json::Value,String>{Err("No email access in tests".into())}
   }
   #[allow(dead_code)] pub mod loops { include!("loops.rs"); }

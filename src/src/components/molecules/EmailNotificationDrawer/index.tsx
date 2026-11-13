@@ -1,3 +1,5 @@
+import { useEmailPopupPreference } from 'src/hooks/useEmailPopupPreference'
+import { getProfileRevision, PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import CircularProgress from '@mui/material/CircularProgress'
@@ -6,10 +8,6 @@ import { ConnectionKeys } from 'src/api/connections'
 import { AutopilotActions, EmailImportance } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, IFeed } from 'src/hooks/feed/useFeed'
 import KNAnalytics from 'src/utils/KNAnalytics'
-import {
-  KNLocalStorage,
-  EMAIL_NOTIFICATION_DRAWER_DISMISSED,
-} from 'src/utils/KNLocalStorage'
 
 import EmailDraftCard from 'src/components/molecules/EmailDraftCard'
 import EmailAutopilotSettings from 'src/components/molecules/EmailAutopilotSettings'
@@ -43,7 +41,11 @@ const EmailNotificationDrawer = ({
   onForceOpenHandled,
   isChatBusy,
 }: EmailNotificationDrawerProps) => {
-  const [permanentlyDismissed, setPermanentlyDismissed] = useState<boolean | null>(null)
+  const popupPreference = useEmailPopupPreference()
+  const [manualSession, setManualSession] = useState(false)
+  useEffect(() => { if (!popupPreference.enabled && !manualSession) setIsVisible(false) }, [popupPreference.enabled, manualSession])
+  const [permanentlyDismissed, setPermanentlyDismissed] = useState(false)
+  useEffect(() => { if (popupPreference.enabled) setPermanentlyDismissed(false) }, [popupPreference.enabled])
   const [sessionDismissedIds, setSessionDismissedIds] = useState<Set<string>>(new Set())
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimatingOut, setIsAnimatingOut] = useState(false)
@@ -59,6 +61,8 @@ const EmailNotificationDrawer = ({
   const [drawerWidth, setDrawerWidth] = useState(540)
   const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.55))
   const resizingRef = useRef(false)
+  const resizeCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => resizeCleanupRef.current?.(), [])
   const resizeStartRef = useRef({ x: 0, y: 0, w: 0, h: 0 })
   const prevEmailCountRef = useRef<number>(0)
   const initialLoadRef = useRef(true)
@@ -68,18 +72,35 @@ const EmailNotificationDrawer = ({
   const chatBusyStartRef = useRef<number | null>(null)
   const shownEmailUidsRef = useRef<Set<string>>(new Set())
 
-  // Check if user has permanently dismissed
+  // Account changes close the drawer and discard transient display/edit state.
   useEffect(() => {
-    const checkDismissed = async () => {
-      const dismissed = await KNLocalStorage.getItem(EMAIL_NOTIFICATION_DRAWER_DISMISSED)
-      setPermanentlyDismissed(dismissed === true)
+    const reset = () => {
+      setManualSession(false)
+      setPermanentlyDismissed(false)
+      setIsVisible(false)
+      setIsExpanded(false)
+      setShowSettings(false)
+      setGeneratingDraftKey('')
+      setRemovingEmailUid('')
+      setCaughtUpDismissing(false)
+      setIsAnimatingOut(false)
+      chatBusyStartRef.current = null
+      prevChatBusyRef.current = false
+      setIsEditorActive(false)
+      setCurrentEmailKey(null)
+      setSessionDismissedIds(new Set())
+      frozenEmailRef.current = null
+      shownEmailUidsRef.current.clear()
+      initialLoadRef.current = true
     }
-    checkDismissed()
+    window.addEventListener(PROFILE_CHANGED_EVENT, reset)
+    return () => window.removeEventListener(PROFILE_CHANGED_EVENT, reset)
   }, [])
 
   // Listen for /autopilot slash command to force-open the drawer in expanded mode
   useEffect(() => {
     const unlisten = listen('kn_trigger_autopilot', () => {
+      setManualSession(true)
       setIsVisible(true)
       setIsExpanded(true)
       setIsAnimatingOut(false)
@@ -93,6 +114,7 @@ const EmailNotificationDrawer = ({
   // When forceEmailUid is provided, navigate the drawer to that specific email.
   useEffect(() => {
     if (forceOpen) {
+      setManualSession(true)
       if (forceEmailUid) {
         const forcedEmail = (feed.classifiedEmails?.[EmailImportance.IMPORTANT] || []).find(
           email => email.message.emailUid === forceEmailUid,
@@ -191,7 +213,6 @@ const EmailNotificationDrawer = ({
 
   // Get IMPORTANT emails that need a response and haven't been dismissed (for collapsed notification)
   const pendingEmail: DisplayEmail | null = useMemo(() => {
-    if (permanentlyDismissed || permanentlyDismissed === null) return null
 
     const importantEmails = feed.classifiedEmails?.[EmailImportance.IMPORTANT] || []
     const activeEmails = importantEmails.filter(
@@ -218,7 +239,7 @@ const EmailNotificationDrawer = ({
   const BUSY_DELAY_MS = 5000
   const prevChatBusyRef = useRef(isChatBusy)
   useEffect(() => {
-    if (permanentlyDismissed || permanentlyDismissed === null) return
+    if (!popupPreference.enabled || permanentlyDismissed) return
 
     const importantEmails = feed.classifiedEmails?.[EmailImportance.IMPORTANT] || []
     const currentCount = importantEmails.filter(
@@ -255,19 +276,21 @@ const EmailNotificationDrawer = ({
 
     prevChatBusyRef.current = isChatBusy
     prevEmailCountRef.current = currentCount
-  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail, isChatBusy])
+  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, popupPreference.enabled, pendingEmail, isChatBusy])
 
   // Delayed show: only pop the drawer after chat has been busy for BUSY_DELAY_MS,
   // and only for emails not yet shown this session.
   useEffect(() => {
-    if (permanentlyDismissed || permanentlyDismissed === null) return
+    if (!popupPreference.enabled || permanentlyDismissed) return
     if (!isChatBusy || !pendingEmail || initialLoadRef.current) return
 
     // Skip emails already shown this session
     const pendingEmailKey = drawerEmailKey(pendingEmail, userEmail)
     if (shownEmailUidsRef.current.has(pendingEmailKey)) return
 
+    const originRevision = getProfileRevision()
     const timer = setTimeout(() => {
+      if (getProfileRevision() !== originRevision) return
       // Re-check: still busy and same email?
       if (chatBusyStartRef.current && pendingEmail) {
         shownEmailUidsRef.current.add(pendingEmailKey)
@@ -277,7 +300,7 @@ const EmailNotificationDrawer = ({
     }, BUSY_DELAY_MS)
 
     return () => clearTimeout(timer)
-  }, [isChatBusy, pendingEmail, permanentlyDismissed, userEmail])
+  }, [isChatBusy, pendingEmail, permanentlyDismissed, popupPreference.enabled, userEmail])
 
   const isLoading =
     feed.emailAutopilotStatus.status === 'fetching-emails' ||
@@ -368,7 +391,7 @@ const EmailNotificationDrawer = ({
   }, [pendingEmail, userEmail])
 
   const handleDismissForever = useCallback(async () => {
-    await KNLocalStorage.setItem(EMAIL_NOTIFICATION_DRAWER_DISMISSED, true)
+    await popupPreference.setEnabled(false)
     setPermanentlyDismissed(true)
     setIsAnimatingOut(true)
     setIsExpanded(false)
@@ -376,7 +399,7 @@ const EmailNotificationDrawer = ({
       setIsVisible(false)
       setIsAnimatingOut(false)
     }, 300)
-  }, [])
+  }, [popupPreference.setEnabled])
 
   const handleGoToEmail = useCallback(() => {
     setIsAnimatingOut(true)
@@ -429,6 +452,7 @@ const EmailNotificationDrawer = ({
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    resizeCleanupRef.current?.()
     resizingRef.current = true
     resizeStartRef.current = { x: e.clientX, y: e.clientY, w: drawerWidth, h: drawerHeight }
 
@@ -436,16 +460,18 @@ const EmailNotificationDrawer = ({
       if (!resizingRef.current) return
       const dx = resizeStartRef.current.x - ev.clientX // dragging left = increase width
       const dy = resizeStartRef.current.y - ev.clientY // dragging up = increase height
-      setDrawerWidth(Math.max(400, Math.min(window.innerWidth * 0.9, resizeStartRef.current.w + dx)))
-      setDrawerHeight(Math.max(300, Math.min(window.innerHeight - 32, resizeStartRef.current.h + dy)))
+      setDrawerWidth(Math.max(Math.min(400, window.innerWidth - 16), Math.min(window.innerWidth - 16, resizeStartRef.current.w + dx)))
+      setDrawerHeight(Math.max(180, Math.min(window.innerHeight - 32, resizeStartRef.current.h + dy)))
     }
 
     const onMouseUp = () => {
       resizingRef.current = false
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
+      resizeCleanupRef.current = null
     }
 
+    resizeCleanupRef.current = onMouseUp
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
   }, [drawerWidth, drawerHeight])
@@ -474,27 +500,34 @@ const EmailNotificationDrawer = ({
           ? 'translate-y-full opacity-0'
           : 'translate-y-0 opacity-100'
       }`}
-      style={isExpanded ? { width: `${drawerWidth}px`, maxWidth: '90vw' } : { width: '540px', maxWidth: '540px' }}
+      style={{ width: `${drawerWidth}px`, maxWidth: '100vw', height: `${drawerHeight + 16}px`, maxHeight: '100%' }}
     >
       <div
         className={`mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
-          isExpanded ? '' : 'max-h-[220px]'
+          ''
         }`}
-        style={isExpanded ? { height: `${drawerHeight}px`, maxHeight: 'calc(100vh - 32px)' } : {}}
+        style={{ height: 'calc(100% - 16px)', maxHeight: 'calc(100vh - 32px)' }}
       >
         {/* Resize handle — top-left corner drag */}
-        {isExpanded && (
-          <div
+        {(
+          <button
+            type="button" aria-label="Resize Email Autopilot"
+            onKeyDown={event => {
+              if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                event.preventDefault()
+                setDrawerHeight(value => Math.max(180, Math.min(window.innerHeight - 32, value + (event.key === 'ArrowUp' ? 32 : -32))))
+              }
+            }}
             className="absolute top-0 left-0 w-4 h-4 cursor-nw-resize z-50 group"
             onMouseDown={handleResizeStart}
-            title="Drag to resize"
+            title="Drag to resize, or use Up and Down arrow keys"
           >
             <svg className="w-3 h-3 m-0.5 text-ks-warm-grey-300 group-hover:text-ks-warm-grey-500 transition-colors" viewBox="0 0 10 10" fill="currentColor">
               <circle cx="2" cy="2" r="1.2" />
               <circle cx="2" cy="6" r="1.2" />
               <circle cx="6" cy="2" r="1.2" />
             </svg>
-          </div>
+          </button>
         )}
         {/* Header bar */}
         <div
@@ -568,7 +601,7 @@ const EmailNotificationDrawer = ({
         {/* Collapsed content — single email preview */}
         {!isExpanded && (
           <>
-            <div className="flex-1 overflow-hidden px-4 py-3">
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold font-Lora text-ks-warm-grey-950 truncate">
@@ -577,15 +610,16 @@ const EmailNotificationDrawer = ({
                   <div className="text-xs text-ks-warm-grey-600 font-InterTight mt-0.5 truncate">
                     From: {sender}
                   </div>
-                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed line-clamp-3">
+                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed">
                     {summary}
                   </div>
+                  {actionRequired && <p className="mt-3 text-sm text-amber-900"><strong>Suggested next step:</strong> {actionRequired}</p>}
                 </div>
               </div>
             </div>
 
             {/* Collapsed footer */}
-            <div className="flex items-center justify-between px-4 py-2 border-t border-ks-warm-grey-100 shrink-0">
+            <div className="flex items-center justify-between flex-wrap gap-2 px-4 py-2 border-t border-ks-warm-grey-100 shrink-0">
               <button
                 onClick={handleNoResponseNeeded}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-ks-warm-grey-200 hover:bg-ks-warm-grey-100 text-ks-warm-grey-700 text-xs font-medium font-InterTight transition-colors"
@@ -596,7 +630,6 @@ const EmailNotificationDrawer = ({
               {pendingEmail && pendingEmail.classification?.classification === 'IMPORTANT_NEEDS_RESPONSE' && (
                 <TakeActionButton
                   email={pendingEmail}
-                  label={actionRequired || undefined}
                 />
               )}
               <button
@@ -626,7 +659,7 @@ const EmailNotificationDrawer = ({
             )}
 
             {/* Single email view — only IMPORTANT (needs response) emails */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
               {isLoading && (!emailsForCategory || emailsForCategory.length === 0) ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <CircularProgress size="2.5rem" sx={{ color: '#C14841' }} />

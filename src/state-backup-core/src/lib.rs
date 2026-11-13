@@ -7,6 +7,7 @@
 //! Linux and macOS are supported; other platforms fail closed until equivalent
 //! descriptor-relative, no-follow and atomic no-replace operations are provided.
 pub mod conversations;
+pub mod shared_context;
 mod filesystem;
 mod schema;
 mod secrets;

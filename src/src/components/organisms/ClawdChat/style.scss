@@ -1,4 +1,5 @@
 .ClawdChatRoot {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -373,11 +374,50 @@
 }
 
 .ClawdChatHeader {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+// Follow the pane width, not the whole window: the browser/sidebar can leave
+// Scout narrow even on a large display. Keep every option in the same menu.
+@container (max-width: 680px) {
+  .ClawdChatTitleRow > .ClawdCompactControlsButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 36px;
+    height: 32px;
+    border: 1px solid #dedbdd;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+  }
+  .ClawdChatRoot .ClawdChatHeader .ClawdChatActions--responsive {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 80;
+    width: min(280px, 100%);
+    max-height: min(420px, 65vh);
+    overflow-y: auto;
+    padding: 8px;
+    gap: 6px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    border: 1px solid #dedbdd;
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 12px 30px rgba(35,35,35,.16);
+  }
+  .ClawdChatRoot .ClawdChatHeader .ClawdChatActions--responsive.ClawdChatActions--open { display: flex; }
+  .ClawdChatActions--responsive > button { width: 100%; min-height: 36px; text-align: left; }
 }
 
 .ClawdChatTitleRow {

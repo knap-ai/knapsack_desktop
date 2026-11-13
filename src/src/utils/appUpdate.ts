@@ -52,3 +52,30 @@ export async function installAppUpdate(
   await prepare()
   await install()
 }
+
+/** Register before requesting installation, and settle setup failures honestly.
+ * Do not time out or retry an installation: native replacement is not cancellable.
+ */
+export async function installNativeAppUpdate(
+  subscribe: (handler: (event: { status: string; error?: string }) => void) => Promise<() => void>,
+  request: () => Promise<void>,
+): Promise<void> {
+  let requested = false
+  let complete!: () => void
+  let fail!: (error: Error) => void
+  const completion = new Promise<void>((resolve, reject) => { complete = resolve; fail = reject })
+  // A native error may arrive while request() is still resolving.
+  void completion.catch(() => {})
+  const stop = await subscribe(event => {
+    if (!requested) return
+    if (event.error) fail(new Error(event.error))
+    else if (event.status === 'DONE') complete()
+  })
+  try {
+    requested = true
+    await request()
+    await completion
+  } finally {
+    stop()
+  }
+}

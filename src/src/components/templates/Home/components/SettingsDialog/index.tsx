@@ -1,3 +1,5 @@
+import EmailPopupPreference from 'src/components/molecules/EmailPopupPreference'
+import { describeTaskSchedule as formatScheduledTaskCadence } from 'src/utils/scheduledTaskCadence'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getSessionCapabilitySecretStatus, setSessionCapabilitySecret } from 'src/api/channels'
@@ -205,28 +207,14 @@ type PiiModelStatus = {
 type ScheduledTask = {
   id: string
   name: string
+  description?: string | null
   enabled: boolean
   schedule: Record<string, unknown> | null
   next_run_at_ms: number | null
   delivery: Record<string, unknown> | null
 }
 
-const formatScheduledTaskCadence = (schedule: ScheduledTask['schedule']) => {
-  if (!schedule) return 'Schedule unavailable'
-  if (schedule.kind === 'cron') {
-    const timezone = typeof schedule.tz === 'string' ? ` · ${schedule.tz}` : ''
-    return `Cron: ${String(schedule.expr ?? 'custom')}${timezone}`
-  }
-  if (schedule.kind === 'every' && typeof schedule.everyMs === 'number') {
-    const minutes = Math.round(schedule.everyMs / 60_000)
-    return minutes % 60 === 0 ? `Every ${minutes / 60}h` : `Every ${minutes} min`
-  }
-  if (schedule.kind === 'at' && typeof schedule.at === 'string') {
-    const at = new Date(schedule.at)
-    return Number.isNaN(at.getTime()) ? 'Once · scheduled time unavailable' : `Once · ${at.toLocaleString()}`
-  }
-  return 'Custom schedule'
-}
+
 
 const formatScheduledTaskDelivery = (delivery: ScheduledTask['delivery']) => {
   if (!delivery) return 'Delivered in this chat'
@@ -1452,7 +1440,8 @@ export const SettingsDialog = ({
         <DiagnosticCaptureControl />
         <hr className="border-zinc-200" />
         <div className="NotificationContainer p-6 flex flex-col gap-4">
-          <Typography weight={TypographyWeight.medium}>Notifications</Typography>
+<Typography weight={TypographyWeight.medium}>Notifications</Typography>
+          <EmailPopupPreference />
           <div className="NotificationContent flex flex-col gap-6">
             <InputCheckbox
               checked={sendPushNotificationsIsChecked}
@@ -2525,11 +2514,8 @@ export const SettingsDialog = ({
         <div className="DocumentsContainer p-6 flex flex-col gap-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Typography weight={TypographyWeight.medium}>Scheduled work</Typography>
-              <Typography className="mt-1 text-xs text-zinc-500 leading-5">
-                Review the recurring reports and reminders that are actually scheduled in your
-                Knapsack gateway.
-              </Typography>
+              <h2 className="font-medium text-base">Scheduled work</h2>
+              <p className="mt-2 text-sm text-zinc-600 leading-5">Reports and reminders scheduled in Scout. Expand task details to see its identifier.</p>
             </div>
             <button
               type="button"
@@ -2555,10 +2541,9 @@ export const SettingsDialog = ({
             <div key={task.id} className="rounded-lg border border-zinc-200 px-3 py-3 flex flex-col gap-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Typography className="font-medium text-sm truncate">{task.name}</Typography>
-                  <Typography className="mt-1 text-xs text-zinc-500">
-                    {formatScheduledTaskCadence(task.schedule)}
-                  </Typography>
+                  <h3 className="font-medium text-sm break-words">{task.name.startsWith('knapsack-automation:') ? 'Scheduled Scout task' : task.name}</h3>
+                  <p className="mt-2 text-sm text-zinc-600 leading-5">{task.description?.trim() || 'This task has no description. Ask Scout what it does before changing it.'}</p>
+                  <p className="mt-2 text-xs text-zinc-500">{formatScheduledTaskCadence(task.schedule)}</p>
                 </div>
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -2568,13 +2553,14 @@ export const SettingsDialog = ({
                   {task.enabled ? 'Active' : 'Paused'}
                 </span>
               </div>
-              <Typography className="text-xs text-zinc-500">
+              <p className="text-xs text-zinc-500">
                 {task.next_run_at_ms
                   ? `Next run: ${new Date(task.next_run_at_ms).toLocaleString()}`
                   : 'No next run is scheduled'}
                 {' · '}
                 {formatScheduledTaskDelivery(task.delivery)}
-              </Typography>
+              </p>
+              <details className="text-xs text-zinc-500"><summary className="cursor-pointer">Task details</summary><p className="mt-2 break-all">ID: {task.id}</p><p className="mt-1 break-all">Saved name: {task.name}</p></details>
               <div className="flex flex-wrap gap-3 pt-1">
                 <button
                   type="button"

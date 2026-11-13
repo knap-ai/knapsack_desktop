@@ -58,9 +58,9 @@ export const getHasOnboarded = async () => {
 
 export const setHasOnboarded = async (hasOnboarded: boolean) => {
   if (hasOnboarded) {
-    KNLocalStorage.setItem(KN_LOCAL_STORAGE_KEY_HAS_ONBOARDED, '1')
+    await KNLocalStorage.setItem(KN_LOCAL_STORAGE_KEY_HAS_ONBOARDED, '1')
   } else {
-    KNLocalStorage.setItem(KN_LOCAL_STORAGE_KEY_HAS_ONBOARDED, '0')
+    await KNLocalStorage.setItem(KN_LOCAL_STORAGE_KEY_HAS_ONBOARDED, '0')
   }
 }
 
@@ -120,9 +120,10 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     0: 'welcome',
     1: 'privacy',
     2: 'sign_in',
-    3: 'chrome_extension',
-    4: 'agent_picker',
-    5: 'telegram_accounts',
+    3: 'inference_provider',
+    4: 'chrome_extension',
+    5: 'agent_picker',
+    6: 'telegram_accounts',
   }
 
   useEffect(() => {
@@ -171,11 +172,11 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     KNAnalytics.trackEvent('onboarding_paid_fast_path_completed', {
       step: index,
       screen: 'privacy',
-      destination: 'first_task',
+      destination: 'inference_provider',
       ...getOnboardingAnalyticsProps(latestIntent),
     })
-    await setHasOnboarded(true)
-    navigate('/home?onboarding=paid-role')
+    setCurrentSlideOutScreen(undefined)
+    setCurrentSlideInScreen(3)
   }
 
   // Listen to google signin
@@ -348,12 +349,12 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
 
   const onChromeExtensionInstallClick = (_index: number) => {
     KNAnalytics.trackEvent('Onboarding - Installed Chrome Extension', {})
-    transitionToNextScreen(3)
+    transitionToNextScreen(4)
   }
 
   const onChromeExtensionSkipClick = (_index: number) => {
     KNAnalytics.trackEvent('Onboarding - Skipped Chrome Extension', {})
-    transitionToNextScreen(3)
+    transitionToNextScreen(4)
   }
 
   // const onClickGrantNotificationPermission = async () => {
@@ -485,7 +486,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     })
 
     // Transition to the Telegram accounts setup step
-    transitionToNextScreen(4)
+    transitionToNextScreen(5)
   }
 
   const handleTelegramAccountsComplete = (_index: number) => {
@@ -531,6 +532,12 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       onMicrosoftGrantClick={onMicrosoftGrantClick}
       isLoading={isLoading}
       error={error}
+      onInferenceContinue={() => {
+        if (getPaidStarter(onboardingIntent ?? getOnboardingIntent())) {
+          void setHasOnboarded(true).then(() => navigate('/home?onboarding=paid-role'))
+        } else transitionToNextScreen(3)
+      }}
+      onInferenceBack={() => { setCurrentSlideOutScreen(undefined); setCurrentSlideInScreen(getPaidStarter(onboardingIntent ?? getOnboardingIntent()) ? 1 : 2) }}
       onChromeExtensionInstallClick={onChromeExtensionInstallClick}
       onChromeExtensionSkipClick={onChromeExtensionSkipClick}
       connectedProvider={connectedProvider}

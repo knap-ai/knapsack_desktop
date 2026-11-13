@@ -7,6 +7,7 @@ import RecordButton, { RecordButtonVariant } from '../RecordButton'
 interface RecordPanelProps {
   isRecording: boolean
   isStarting?: boolean
+  onClickRecord?: () => void
   onClickJoin: () => void
   onClickPause: () => void
   onClickResume: () => void
@@ -20,6 +21,7 @@ const RecordControlPanel: React.FC<RecordPanelProps> = ({
   isRecording,
   isStarting = false,
   onClickJoin,
+  onClickRecord,
   onClickPause,
   onClickResume,
   onClickEnd,
@@ -89,12 +91,16 @@ const RecordControlPanel: React.FC<RecordPanelProps> = ({
         )
       ) : (
         !isSynthesizing && (
-          <RecordButton
-            text="Join & record"
-            onClick={onClickJoin}
-            isDisabled={isDisabled}
-            variant={RecordButtonVariant.regular}
-          />
+          <div className="inline-flex flex-wrap items-center gap-2">
+            <RecordButton
+              text="Join & record"
+              onClick={onClickJoin}
+              isDisabled={isDisabled}
+              variant={RecordButtonVariant.regular}
+            />
+            {onClickRecord && <RecordButton text="Record" onClick={onClickRecord}
+              isDisabled={isDisabled} variant={RecordButtonVariant.white} />}
+          </div>
         )
       )}
     </div>

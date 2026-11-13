@@ -385,6 +385,33 @@ function waitForUrl(url, timeoutMs, child = null) {
   });
 }
 
+// HTTP readiness does not compile lazy component imports or CSS. Transform
+// this fixed graph before starting the unchanged native probe/watchdog budgets.
+const QA_MODULES = [
+  '/src/main.css', '/src/qa/nativeDomProbes.tsx',
+  '/src/components/organisms/TranscriptView/index.tsx',
+  '/src/components/molecules/CalendarMeetingLink/index.tsx',
+  '/src/utils/calendarMeetingLink.ts',
+  '/src/components/organisms/ClawdChat/ChatSelectionActions.tsx',
+  '/src/components/organisms/ClawdChat/QuotedChatContext.tsx',
+  '/src/utils/selectedChatContext.ts',
+  '/src/components/organisms/MeetingNotesMode/useNotesEditReview.tsx',
+  '/src/components/molecules/SlackNotesShare/index.tsx',
+  '/src/api/slackNotes.ts', '/src/utils/slackMeetingNotes.ts',
+  '/src/qa/personScoutProbe.ts', '/qa-fixtures/person-chat-native.tsx',
+];
+async function warmQaModules(request = fetch) {
+  const started = Date.now();
+  const signal = AbortSignal.timeout(45_000);
+  // No JavaScript evaluation, account data, external URL, retry or redirect.
+  await Promise.all(QA_MODULES.map(async file => {
+    const response = await request(`http://127.0.0.1:${QA_VITE_PORT}${file}`, { signal, redirect: 'error' });
+    if (!response.ok) throw new Error(`QA module preflight failed: ${file} (${response.status})`);
+    await response.arrayBuffer();
+  }));
+  console.log(`[qa-dev-run] fixed QA modules transformed (${Date.now() - started}ms)`);
+}
+
 async function main() {
   assertSupportedQaPlatform();
   assertSyntheticModeRequest();
@@ -420,6 +447,7 @@ async function main() {
 
   await waitForUrl(`http://127.0.0.1:${QA_VITE_PORT}/`, Number(process.env.KNAPSACK_QA_VITE_READY_TIMEOUT_MS || 90_000), vite);
   assertPortOwnedBy(QA_VITE_PORT, vite.pid);
+  if (process.env.KNAPSACK_QA_DOM_PROBES === "1") await warmQaModules();
   assertGatewaySnapshotUnchanged(gatewayBefore);
   if (listeningPortHolderPids(QA_API_PORT).length > 0) throw new Error(`Synthetic QA API port ${QA_API_PORT} became occupied before app launch.`);
   app = spawn(appExecutable, [], {
@@ -474,6 +502,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  warmQaModules,
   assertSupportedQaPlatform,
   assertGatewaySnapshotUnchanged,
   assertAllowedConnectionCatalog,

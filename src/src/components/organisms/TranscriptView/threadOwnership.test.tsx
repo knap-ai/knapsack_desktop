@@ -80,3 +80,15 @@ it.each([null, { content: '' }])('does not copy a missing or empty transcript: %
   expect(copyButton().disabled).toBe(true)
   fireEvent.click(copyButton()); expect(mocks.copy).not.toHaveBeenCalled()
 })
+
+it('names only the explicit remote channel for a verified one-to-one roster', async () => {
+  mocks.fetch.mockResolvedValue({ content: 'Me: Fictional question\nThem: Fictional answer' })
+  const { rerender } = render(<TranscriptView threadId={1} onClose={vi.fn()} remoteParticipantName="Alex Example" />)
+  await loaded('Fictional answer')
+  expect(screen.getByText('Alex Example')).toBeTruthy()
+  expect(screen.getByText('Me')).toBeTruthy()
+  rerender(<TranscriptView threadId={2} onClose={vi.fn()} />)
+  await loaded('Fictional answer')
+  expect(screen.getByText('Them')).toBeTruthy()
+  expect(screen.queryByText('Alex Example')).toBeNull()
+})

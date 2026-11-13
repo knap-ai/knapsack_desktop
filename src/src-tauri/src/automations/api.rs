@@ -1893,21 +1893,12 @@ async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixEr
   };
 
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let transcript_data_dir = home_dir.join(".transcripts");
-
-  let file_name = generate_filename(
-    thread.subtitle.clone().unwrap(),
-    thread.timestamp.clone().unwrap(),
-  );
-  let file_path = transcript_data_dir.join(file_name);
-
-  if !file_path.exists() {
-    return Ok(HttpResponse::NotFound().json(GetTranscriptDataResponse {
-      success: false,
-      data: None,
-      message: Some("Transcript not found".to_string()),
-    }));
-  }
+  let file_path=match crate::api::notes::linked_saved_transcript_path(&home_dir,thread.saved_transcript.as_deref()) {
+    Some(path)=>path,
+    None=>return Ok(HttpResponse::NotFound().json(GetTranscriptDataResponse {
+      success:false,data:None,message:Some("No linked saved transcript is available for this meeting".to_string()),
+    })),
+  };
 
   let title = if let Some(feed_item) = feed_item {
     feed_item.title

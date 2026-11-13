@@ -1,3 +1,4 @@
+import EmailPopupPreference from 'src/components/molecules/EmailPopupPreference'
 import { useEffect, useState } from 'react'
 import { KNLocalStorage, EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS, EMAIL_AUTOPILOT_SCHEDULING_LINKS } from 'src/utils/KNLocalStorage'
 import { Typography } from 'src/components/atoms/typography'
@@ -47,6 +48,7 @@ const EmailAutopilotSettings = ({ onClose }: EmailAutopilotSettingsProps) => {
         </button>
       </div>
 
+      <EmailPopupPreference />
       <div className="flex flex-col mb-6">
         <Typography className="mb-2 font-medium">Custom Instructions</Typography>
         <textarea
