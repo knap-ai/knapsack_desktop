@@ -4695,6 +4695,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   }, [])
 
   const pushAssistant = useCallback(async (text: string) => {
+    if (!chatMountedRef.current) return
     surfaceMissingStudioConnector(text)
     setMsgs(prev => [
       ...prev,
@@ -4864,6 +4865,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   }, [developerMode, ownsForeground])
 
   const pushUser = (text: string, replyToId?: string) => {
+    if (!chatMountedRef.current) return
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
     const connectIntent = isStudioConnectIntent(text)
     const connectorSuggestion =
@@ -5335,7 +5337,10 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
 
     // Check if we need to prompt for API key first
     if (!hasCompletedOnboarding) {
-      const hasKey = await checkAndPromptForKey()
+      const isCurrent = () => chatMountedRef.current && executionEpoch === sharedChatEpoch.current
+        && quoteScopeAtSend === quoteConversationRef.current
+      const hasKey = await checkAndPromptForKey(isCurrent)
+      if (!isCurrent()) return
       if (!hasKey) {
         pushUser(text || '(files attached)')
         pushAssistant('Please set up an AI provider first. Add an API key or enable Ollama in Settings to get started.')
