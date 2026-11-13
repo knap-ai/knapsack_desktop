@@ -139,8 +139,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Rust stable
+      # Native gateway tests compile the same macOS dependency graph.
+      - name: Install validated Rust 1.99.1
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
