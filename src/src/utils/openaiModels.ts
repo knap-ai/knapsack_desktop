@@ -14,8 +14,15 @@ export const OPENAI_MODELS: OpenAIModelOption[] = [
   { id: 'gpt-5.6', name: 'GPT-5.6', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-5.5', name: 'GPT-5.5', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-5.4', name: 'GPT-5.4', description: 'Highly capable general-purpose model', vision: true },
+  { id: 'gpt-5.3', name: 'GPT-5.3', description: 'Highly capable general-purpose model', vision: true },
+  { id: 'gpt-5.2', name: 'GPT-5.2', description: 'Highly capable general-purpose model', vision: true },
+  { id: 'gpt-5.1', name: 'GPT-5.1', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-5', name: 'GPT-5', description: 'Highly capable general-purpose model', vision: true },
   { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast and affordable', vision: true },
+  { id: 'gpt-4.5', name: 'GPT-4.5', description: 'Highly capable general-purpose model', vision: true },
+  { id: 'gpt-4.1', name: 'GPT-4.1', description: 'Highly capable general-purpose model', vision: true },
+  { id: 'gpt-4', name: 'GPT-4', description: 'Highly capable general-purpose model', vision: true },
+  { id: 'gpt-3.5', name: 'GPT-3.5', description: 'Highly capable general-purpose model', vision: true },
   { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic', vision: true },
 ]
 
