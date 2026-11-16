@@ -243,7 +243,9 @@ const OPENAI_MODEL_ID_PATTERN = /\b(?:gpt-\d+(?:\.\d+)?(?:-[a-z0-9.]+)?|o3)\b/gi
 // OpenAI agent route currently uses tool-enabled Chat Completions, so do not
 // offer either the invalid bare alias or canonical Sol ID until that route is
 // implemented and exercised end to end.
-const UNSUPPORTED_DESKTOP_OPENAI_MODEL_IDS = new Set(['gpt-6.1', 'gpt-6.1-sol'])
+// Historical family references are not callable aliases. Their canonical
+// gpt-4.5-preview and gpt-3.5-turbo models are also shut down.
+const UNSUPPORTED_DESKTOP_OPENAI_MODEL_IDS = new Set(['gpt-6.1', 'gpt-6.1-sol', 'gpt-4.5', 'gpt-3.5'])
 
 function openAIVersionParts(modelId) {
   const match = modelId.match(/^gpt-(\d+(?:\.\d+)?)/)
@@ -292,6 +294,7 @@ function openAIModelDescription(modelId) {
 }
 
 export function buildOpenAISource(ids) {
+  ids = ids.filter(id => !UNSUPPORTED_DESKTOP_OPENAI_MODEL_IDS.has(id))
   const models = ids.map((id) => ({
     id,
     name: openAIDisplayName(id),

@@ -87,6 +87,17 @@ test('checked-in OpenAI catalog round-trips through its generator', () => {
   assert.equal(buildOpenAISource(ids), catalog)
 })
 
+test('historical OpenAI references cannot become selectable model aliases', () => {
+  const historical = 'GPT-4.5 gpt-4.5-preview gpt-4.5-preview-2025-02-27 GPT-3.5 gpt-3.5-turbo gpt-3.5-turbo-0125'
+  assert.deepEqual(canonicalOpenAIModelIdsFromHtml(historical), [])
+  assert.deepEqual(canonicalOpenAIModelIdsFromHtml(`${historical} gpt-4.1 gpt-5-mini`), ['gpt-5-mini', 'gpt-4.1'])
+  const source = buildOpenAISource(['gpt-4.5', 'gpt-3.5', 'gpt-5-mini'])
+  assert.doesNotMatch(source, /id: 'gpt-(?:4\.5|3\.5)'/)
+  assert.match(source, /id: 'gpt-5-mini'/)
+  const catalog = fs.readFileSync(new URL('../src/utils/openaiModels.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(catalog, /id: 'gpt-(?:4\.5|3\.5)'/)
+})
+
 test('Anthropic catalog parser recognizes Fable 5.1 from dedicated launch content', () => {
   assert.deepEqual(
     [...canonicalAnthropicModelIdsFromHtml('claude-fable-5-1 claude-fable-5')],
