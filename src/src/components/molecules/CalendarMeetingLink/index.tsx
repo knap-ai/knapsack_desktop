@@ -9,7 +9,7 @@ export default function CalendarMeetingLink({ meeting, recording = false }: { me
   const url = getEventUrl(meeting)
   const label = calendarMeetingLinkLabel(url).replace(/^Join /, recording ? 'Open ' : 'Join ')
   if (!meeting) return null
-  if (!url) return <span className="meeting-link-unavailable" role="status">No meeting link</span>
+  if (!url) return <span className="meeting-link-unavailable" role="status">No video call link</span>
   return <span className="calendar-meeting-link inline-flex flex-col text-xs">
     <a href={url} title={url} aria-label={label} aria-busy={status === 'opening'}
       className="meeting-link-button inline-flex h-9 items-center rounded-lg border border-zinc-300 px-3 text-sm font-medium leading-none whitespace-nowrap hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" onClick={event => { event.preventDefault(); void openCalendarMeetingLink(meeting, true) }}>
