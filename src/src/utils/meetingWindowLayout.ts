@@ -48,19 +48,21 @@ const applyMeetingLayout = async () => {
   // Space before reading the underlying normal window frame or applying the
   // Granola-style right-side meeting layout.
   const fullscreen = await appWindow.isFullscreen()
-  if (fullscreen) await appWindow.setFullscreen(false)
+  // setSize restores client size, not outer frame decoration.
   savedWindowBounds = {
     position: await appWindow.outerPosition(),
-    size: await appWindow.outerSize(),
+    size: await appWindow.innerSize(),
     maximized: await appWindow.isMaximized(),
     fullscreen,
   }
 
+  if (fullscreen) await appWindow.setFullscreen(false)
   if (savedWindowBounds.maximized) await appWindow.unmaximize()
   const isMac = navigator.userAgent.includes('Mac')
   const isWindows = navigator.userAgent.includes('Windows')
   const innerSize = await appWindow.innerSize()
-  const frameHeight = Math.max(0, savedWindowBounds.size.height - innerSize.height)
+  const outerSize = await appWindow.outerSize()
+  const frameHeight = Math.max(0, outerSize.height - innerSize.height)
   const screenWithOffsets = window.screen as Screen & {
     availLeft?: number
     availTop?: number
@@ -99,12 +101,13 @@ const applyMeetingLayout = async () => {
 const restorePreviousLayout = async () => {
   if (appWindow.label !== 'main' || activeMeetingViews > 0 || !savedWindowBounds) return
   const bounds = savedWindowBounds
-  savedWindowBounds = null
+  if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
   if (await appWindow.isMaximized()) await appWindow.unmaximize()
   await appWindow.setSize(new PhysicalSize(bounds.size.width, bounds.size.height))
   await appWindow.setPosition(new PhysicalPosition(bounds.position.x, bounds.position.y))
   if (bounds.maximized) await appWindow.maximize()
   if (bounds.fullscreen) await appWindow.setFullscreen(true)
+  savedWindowBounds = null
 }
 
 export const enterMeetingWindowLayout = () => {

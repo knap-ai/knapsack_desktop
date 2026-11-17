@@ -13,12 +13,14 @@ import './relationshipTimeline.scss'
 
 export default function RelationshipTimeline({
   documents,
+  person = true,
   evidence,
   loading,
   error,
   onRetry,
   onOpenCalendar,
 }: {
+  person?: boolean
   documents: WorkspaceDocument[]
   evidence: RelationshipEvidence | null
   loading: boolean
@@ -76,10 +78,10 @@ export default function RelationshipTimeline({
       </div>
     )
   return (
-    <section className="relationship-story" aria-label="Relationship timeline">
+    <section className="relationship-story" aria-label={person ? 'Relationship timeline' : 'Timeline'}>
       <div className="relationship-story__intro">
         <div>
-          <p className="relationship-story__eyebrow">The story so far</p>
+          <p className="relationship-story__eyebrow">{person ? 'The story so far' : 'Project timeline'}</p>
           <h2>Moments that moved things forward</h2>
           <p>
             {dates.length ? `${date(Math.min(...dates))} — ${date(Math.max(...dates))} · ` : ''}
@@ -147,7 +149,7 @@ export default function RelationshipTimeline({
                   ) : (
                     'Date unavailable'
                   )}
-                  {item.significance === 'major' && <span>Milestone</span>}
+                  {item.date && item.date * 1000 > Date.now() ? <span>Upcoming</span> : item.significance === 'major' && <span>Milestone</span>}
                 </div>
                 <h3>{item.title}</h3>
                 {item.summary && <p className="relationship-story__summary">{item.summary}</p>}

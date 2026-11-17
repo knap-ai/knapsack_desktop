@@ -1,3 +1,4 @@
+use futures::FutureExt;
 use super::https_client::get_https_client;
 use crate::spotlight::WINDOW_LABEL;
 use actix_web::web::Data;
@@ -92,30 +93,23 @@ pub async fn fetch_calendar(
     }
   };
 
-  let access_token = match refresh_connection_token(email.clone(), user_connection.clone()).await {
-    Ok(token) => token,
-    Err(error) => {
-      let msg = format!(
-        "Failed to refresh access token for calendar {} (user {})",
-        calendar_account_email, email
-      );
-      knap_log_error(msg, Some(error), None);
-      return Err(Error::KSError("Fail to refresh access token".to_string()));
-    }
-  };
-
+  // Bind admission to the exact persisted grant, before token refresh.
+  let sync_key = format!("{}|{}|{:?}", email.to_lowercase(), calendar_account_email.to_lowercase(), user_connection.id);
   if !ConnectionsData::lock_and_try_begin_account_sync(
-    connections_data.clone(),
-    ConnectionsEnum::GoogleCalendar,
-    &calendar_account_email,
-  )
-  .await
-  {
-    return Ok(());
-  }
-
+    connections_data.clone(), ConnectionsEnum::GoogleCalendar, &sync_key,
+  ).await { return Ok(()); }
   let cal_email_clone = calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
+    let outcome = std::panic::AssertUnwindSafe(async {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(90);
+    let access_token = match tokio::time::timeout_at(deadline, refresh_connection_token(email.clone(), user_connection.clone())).await {
+      Ok(Ok(token)) => token,
+      Ok(Err(error)) => {
+        knap_log_error("Calendar token refresh failed; cached events preserved".into(), Some(error), None);
+        return (false, 0);
+      }
+      Err(_) => { log::warn!("Calendar token refresh deadline exceeded"); return (false, 0); }
+    };
     let hub = CalendarHub::new(get_https_client(), access_token);
 
     let two_weeks_ago = chrono::Utc::now() - chrono::Duration::days(16);
@@ -139,7 +133,14 @@ pub async fn fetch_calendar(
         request = request.page_token(token);
       }
 
-      let result = request.doit().await;
+      let result = match tokio::time::timeout_at(deadline, request.doit()).await {
+        Ok(result) => result,
+        Err(_) => {
+          log::warn!("Calendar sync deadline exceeded; cached snapshot retained");
+          sync_succeeded = false;
+          break;
+        }
+      };
       match result {
         Ok(response) => {
           let events = response.1.items.unwrap_or_default();
@@ -282,14 +283,22 @@ pub async fn fetch_calendar(
         }
       }
     }
+    (sync_succeeded, event_count)
+    }).catch_unwind().await;
+    let (sync_succeeded, event_count) = match outcome {
+      Ok(result) => result,
+      Err(_) => {
+        log::error!("Calendar worker failed; cached snapshot retained");
+        (false, 0)
+      }
+    };
     ConnectionsData::lock_and_finish_account_sync(
       connections_data,
       ConnectionsEnum::GoogleCalendar,
-      &cal_email_clone,
+      &sync_key,
     )
     .await;
-    let window = app_handle.get_window(WINDOW_LABEL).unwrap();
-    window.emit(
+    if let Some(window) = app_handle.get_window(WINDOW_LABEL) { let _ = window.emit(
       "finish_fetch_calendar",
       FetchCalendarEventPayload {
         success: sync_succeeded,
@@ -297,7 +306,7 @@ pub async fn fetch_calendar(
         calendar_account_email: Some(cal_email_clone),
         owner_email: Some(email),
       },
-    );
+    ); }
   });
   Ok(())
 }

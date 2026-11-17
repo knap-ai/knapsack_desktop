@@ -17,13 +17,13 @@ export default function EmailSyncNotice({
   const failed = accounts.filter(account => account.state === ConnectionStates.FAILED)
   return (
     <section className="email-sync-notice" aria-label="Email source status">
-      <p>Locally synced mail · past 7 days · unread or starred</p>
       {accounts.length > 0 && (
         <details>
           <summary>
             {accounts.length} saved {accounts.length === 1 ? 'inbox' : 'inboxes'}
             {busy ? ' · refreshing view…' : ''}
           </summary>
+          <p>Saved mail · past 7 days · unread or starred</p>
           <ul>
             {accounts.map(account => (
               <li key={account.queryAccount}>

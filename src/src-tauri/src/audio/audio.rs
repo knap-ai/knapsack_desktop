@@ -1734,32 +1734,10 @@ pub struct StopRecordEventPayload {
   saveTranscript: bool,
 }
 
-async fn fetch_meeting_end_time(event_id: u64) -> Result<Option<DateTime<Utc>>, String> {
-  match CalendarEvent::find_by_id(event_id) {
-    Ok(Some(event)) => match event.end {
-      Some(end_timestamp) => Ok(Some(
-        DateTime::from_timestamp(end_timestamp, 0)
-          .ok_or_else(|| "Invalid timestamp".to_string())?,
-      )),
-      None => Ok(None),
-    },
-    Ok(None) => Ok(None),
-    Err(e) => Err(format!("Error fetching event: {:?}", e)),
-  }
-}
 
-// The scheduled end is a fallback when the call's microphone activity cannot
-// be distinguished from our own. A small grace period avoids cutting off an
-// ordinary overrun; users can always stop earlier from the recording UI.
-fn auto_stop_due(
-  now: DateTime<Utc>,
-  end: Option<DateTime<Utc>>,
-  mic_drop_since: Option<DateTime<Utc>>,
-) -> bool {
-  mic_drop_since.map_or(false, |since| now - since >= ChronoDuration::seconds(10))
-    || end.map_or(false, |end| now - end >= ChronoDuration::minutes(5))
-}
 
+// Calendar times and microphone-device counts are not call-termination authority.
+// Capture continues until explicit Stop closes the shared CaptureGate.
 async fn stream_audio(
   config: cpal::SupportedStreamConfig,
   device: &cpal::Device,
@@ -1775,15 +1753,6 @@ async fn stream_audio(
   let err_fn = move |err| {
     log::error!("an error occurred on stream: {}", err);
   };
-  // A temporary calendar DB failure must not abort microphone capture.
-  let meeting_end_time = match fetch_meeting_end_time(data.event_id).await {
-    Ok(end) => end,
-    Err(err) => {
-      log::warn!("[recording] Scheduled end unavailable: {}", err);
-      None
-    }
-  };
-
   let semaphore = recording_state.input_file_semaphore.clone();
   let is_paused = recording_state.is_paused.clone();
 
@@ -1903,25 +1872,11 @@ async fn stream_audio(
     sample_format => return Err(format!("Unsupported sample format '{sample_format}'")),
   };
 
-  // Count BEFORE play() so we measure only OTHER processes (meeting apps),
-  // not the notetaker's own mic stream.  External speakers/monitors are no
-  // longer counted because count_microphone_users() filters to input-only.
-  let mic_users_beginning = count_microphone_users();
   stream
     .play()
     .map_err(|e| format!("Failed to start audio stream: {}", e))?;
   let _ = startup_tx.send(Ok(()));
   let start_time = Utc::now();
-  // A note started after a calendar event has already ended must not stop
-  // immediately because of that stale event's timestamp.
-  let scheduled_end = meeting_end_time.filter(|end| *end > start_time);
-  let mut mic_users_after_connections = 0;
-
-  let mut in_meeting = false;
-  let mut mic_drop_since: Option<DateTime<Utc>> = None;
-  let mut last_stop_request: Option<DateTime<Utc>> = None;
-  let mut mic_baseline_sampled = false;
-
   // Heartbeat: every 15 minutes, generate an LLM insight from the transcript so far
   let heartbeat_interval = ChronoDuration::minutes(15);
   let mut last_heartbeat = Utc::now();
@@ -1972,34 +1927,9 @@ async fn stream_audio(
       }
     }
 
-    if elapsed_time >= ChronoDuration::seconds(60) {
-      if !mic_baseline_sampled {
-        mic_users_after_connections = count_microphone_users();
-        mic_baseline_sampled = true;
-      }
-      let mic_dropped = should_stop_recording(
-        &mut in_meeting,
-        mic_users_beginning,
-        mic_users_after_connections,
-      );
-      if mic_dropped {
-        mic_drop_since.get_or_insert_with(Utc::now);
-      } else {
-        mic_drop_since = None;
-      }
-    }
+    // No automatic Stop on scheduled overrun, device switching, silence or
+    // a CoreAudio query error. Those do not establish that a call ended.
 
-    let now = Utc::now();
-    if auto_stop_due(now, scheduled_end, mic_drop_since)
-      && last_stop_request.map_or(true, |last| now - last >= ChronoDuration::seconds(5))
-    {
-      // Do not declare success or hide the indicator until the stop endpoint
-      // actually clears is_recording. Re-emit if the meeting view was mounting.
-      last_stop_request = Some(now);
-      if let Err(err) = handle_stop_events(app_handle, &recording_state).await {
-        log::warn!("[recording] Automatic stop request failed: {:?}", err);
-      }
-    }
   }
 
   drop(stream);
@@ -2087,48 +2017,7 @@ pub async fn emit_stop_events(
   }
 }
 
-fn should_stop_recording(
-  in_meeting: &mut bool,
-  mic_users_beginning: u64,
-  mic_users_after_connections: u64,
-) -> bool {
-  let current_mic_users = count_microphone_users();
 
-  let meeting_was_already_running = (mic_users_beginning == mic_users_after_connections);
-
-  // Meeting ended when the active-input count drops below what it was during
-  // the meeting.  The old `|| current == 1` shortcut is removed: with
-  // input-only counting it would fire at count=1 even when a meeting is still
-  // in progress, causing premature auto-stop whenever audio went briefly quiet.
-  let ended_if_already_running = current_mic_users < mic_users_after_connections;
-
-  let ended_if_new_meeting =
-    (current_mic_users < mic_users_after_connections) || (current_mic_users == mic_users_beginning);
-
-  if meeting_was_already_running {
-    if !*in_meeting {
-      *in_meeting = true;
-    }
-
-    if ended_if_already_running {
-      *in_meeting = false;
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    if !*in_meeting {
-      *in_meeting = true;
-    }
-
-    if ended_if_new_meeting {
-      *in_meeting = false;
-      return true;
-    } else {
-      return false;
-    }
-  }
-}
 
 #[get("/api/knapsack/recording_status")]
 async fn get_recording_status(recording_state: web::Data<RecordingState>) -> impl Responder {
@@ -2645,66 +2534,6 @@ mod tests {
     let result = std::fs::remove_file(&nonexistent);
     // Should be an error (file not found) but we ignore it with let _ =
     assert!(result.is_err());
-  }
-
-  #[test]
-  fn test_should_stop_recording_meeting_ended() {
-    let mut in_meeting = false;
-    let mic_users_beginning = 2;
-    let mic_users_after_connections = 3; // one more app connected after recording started
-
-    // Meeting still running (3 users)
-    // First call sets in_meeting = true
-    // current_mic_users (simulated) would need to be < mic_users_after_connections
-    // Since count_microphone_users is platform-specific, we test the logic directly
-
-    // Scenario: new meeting (beginning != after_connections)
-    // Meeting started: mic_users_beginning=2, mic_users_after_connections=3
-    // Meeting still running: current = 3
-    // should_stop = false (current >= after_connections AND current != beginning)
-    // This is a logic test — the function calls count_microphone_users() internally
-    // so we can only test the state machine transitions here
-
-    // Test state transitions
-    let mut in_meeting_state = false;
-
-    // Initially not in meeting
-    assert_eq!(in_meeting_state, false);
-
-    // After first check, should enter meeting state
-    in_meeting_state = true;
-    assert_eq!(in_meeting_state, true);
-  }
-
-  #[test]
-  fn automatic_stop_requires_sustained_call_end_or_scheduled_grace() {
-    let now = Utc::now();
-    assert!(!auto_stop_due(now, None, None));
-    assert!(!auto_stop_due(
-      now,
-      None,
-      Some(now - ChronoDuration::seconds(9))
-    ));
-    assert!(auto_stop_due(
-      now,
-      None,
-      Some(now - ChronoDuration::seconds(10))
-    ));
-    assert!(!auto_stop_due(
-      now,
-      Some(now - ChronoDuration::minutes(4)),
-      None
-    ));
-    assert!(auto_stop_due(
-      now,
-      Some(now - ChronoDuration::minutes(5)),
-      None
-    ));
-    assert!(!auto_stop_due(
-      now,
-      Some(now + ChronoDuration::minutes(20)),
-      None
-    ));
   }
 
   #[test]

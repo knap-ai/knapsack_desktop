@@ -112,6 +112,8 @@ $ks-red: #c14841;
 
   // Search
   &__search {
+    position: relative;
+    flex-shrink: 0;
     padding: 32px 16px 8px; // extra top padding to clear collapse btn
   }
 
@@ -1343,3 +1345,10 @@ $ks-red: #c14841;
     text-align: center;
   }
 }
+
+.notetaker-sidebar__search-overlay { position: absolute; top: 100%; left: 12px; right: 12px; z-index: 40; max-height: min(60vh, 520px); overflow-y: auto; background: #fff; border: 1px solid #e5e1dd; border-radius: 12px; box-shadow: 0 12px 30px #332f2d20; padding: 8px; }
+.notetaker-sidebar__search-overlay h2 { font-size: 11px; color: #807873; padding: 8px; }
+.notetaker-sidebar__search-overlay button { display: flex; flex-direction: column; text-align: left; width: 100%; padding: 9px; border-radius: 6px; }
+.notetaker-sidebar__search-overlay button:hover, .notetaker-sidebar__search-overlay button:focus-visible { background: #f4efec; outline: 2px solid #a84b44; }
+.notetaker-sidebar__search-overlay strong { font-size: 13px; overflow-wrap: anywhere; }
+.notetaker-sidebar__search-overlay span, .notetaker-sidebar__search-overlay p { font-size: 11px; color: #807873; padding: 2px; }

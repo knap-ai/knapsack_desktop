@@ -115,8 +115,8 @@ function RecordingIndicator() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
-          padding: '8px 16px 8px 12px',
+          gap: 7,
+          padding: '5px 10px',
           borderRadius: 24,
           background: '#ffffff',
           boxShadow: '0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
@@ -128,7 +128,7 @@ function RecordingIndicator() {
         <img
           src="/assets/images/knap-logo-medium.png"
           alt="Knapsack"
-          style={{ width: 20, height: 20, flexShrink: 0 }}
+          style={{ width: 16, height: 16, flexShrink: 0 }}
         />
 
         {/* Animated waveform bars */}
@@ -147,7 +147,7 @@ function RecordingIndicator() {
                 width: 3,
                 borderRadius: 2,
                 background: '#6B7A2F',
-                animation: `waveform-bounce 1.2s ease-in-out ${delay}ms infinite`,
+                animation: `waveform-bounce 2s ease-in-out ${delay}ms infinite`,
               }}
             />
           ))}
@@ -200,7 +200,7 @@ function RecordingIndicator() {
       <style>{`
         @keyframes waveform-bounce {
           0%, 100% { height: 4px; }
-          50% { height: 16px; }
+          50% { height: 10px; }
         }
       `}</style>
     </div>

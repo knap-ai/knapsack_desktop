@@ -12,7 +12,7 @@ function Fixture() {
   return <main style={{ padding: 24, background: '#faf9f7', minHeight: '100vh' }}>
     <nav style={{ display: 'flex', gap: 16, marginBottom: 24 }}>{[1100, 650, 360].map(size => <button key={size} onClick={() => setWidth(size)}>{size}px</button>)}<button onClick={() => setProject(value => !value)}>Switch person / project</button></nav>
     <section style={{ width, maxWidth: '100%', margin: '0 auto' }}><h1 style={{ fontSize: 28, fontWeight: 600 }}>{project ? 'North Star partnership' : 'Alex Rivera'}</h1><p style={{ color: '#82756f', marginBottom: 30 }}>{project ? 'Project story' : 'alex@example.test'}</p>
-    <RelationshipTimeline documents={documents} evidence={{ displayName: 'Alex Rivera', sources, truncated: false }} loading={false} error={false} onRetry={() => {}} onOpenCalendar={async () => {}} /></section>
+    <RelationshipTimeline person={!project} documents={documents} evidence={{ displayName: 'Alex Rivera', sources, truncated: false }} loading={false} error={false} onRetry={() => {}} onOpenCalendar={async () => {}} /></section>
   </main>
 }
 createRoot(document.getElementById('root')!).render(<Fixture />)

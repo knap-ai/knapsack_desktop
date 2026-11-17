@@ -292,3 +292,13 @@ it('identifies an exact Studio OAuth source and never replaces a mismatched save
   expect(api.sendSlackNotes).not.toHaveBeenCalled()
   expect(screen.getByText('Studio send support is not deployed.')).toBeTruthy()
 })
+
+it('shows connected-workspace discovery instead of falsely offering reconnect while pending', async () => {
+  let finish!: (value: Awaited<ReturnType<typeof api.slackNotesWorkspaces>>) => void
+  vi.mocked(api.slackNotesWorkspaces).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  render(<SlackNotesShare {...props} />)
+  expect(screen.getByRole('option', {name:'Loading connected workspaces…'})).toBeTruthy()
+  expect(screen.queryByRole('button', {name:'Connect Slack'})).toBeNull()
+  finish({owner:'owner1',accounts:workspaces})
+  await waitFor(() => expect(screen.getByRole('option', {name:'Choose workspace'})).toBeTruthy())
+})
