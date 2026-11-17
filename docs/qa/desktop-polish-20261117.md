@@ -18,11 +18,15 @@ Autopilot and Scout query a local mail cache with different ranges/filters; neit
 - 35 focused frontend tests passed across 11 suites, then two additional WorkspaceView cases passed (project default timeline and proper-name resolution).
 - TypeScript noEmit passed; Vite production build passed (existing large-chunk warning).
 - Focused new-file ESLint passed; whole-repository lint was not claimed green.
-- Three tests of the actual Rust timeline module passed in an isolated in-memory SQLite crate. Full Tauri/API integration compile is not yet verified.
+- Three tests of the actual Rust timeline module passed in an isolated in-memory SQLite crate. Full native cargo check and all three timeline tests in the actual native binary now pass.
 - Actual timeline component visually checked in Chrome at 1100px and 360px containers, person and project. Alternating timeline becomes one column, larger milestone cards remain readable.
 - No production profile, recording, account, email, Slack, live model or security settings were used. No source link was opened against a real account.
 - Locked npm dependency tree restored with ci --legacy-peer-deps --ignore-scripts. Missing QA peer packages were installed separately in /tmp and copied only when absent; no existing locked package was overwritten. package.json and package-lock.json are unchanged.
 
 ## Remaining acceptance
 
-Native/WebKit source opening, full native compilation and full screenshot-driven meeting-header/chat/Autopilot visual acceptance remain unrun. Live multi-account freshness/provider authentication is unverified. Source projections do not recover deleted records and deliberately avoid guessing calendar provider URLs. These are local implementation results, not release acceptance.
+Native/WebKit source opening remains unrun. Header controls, semantic markdown markers and partial-sync warnings were additionally checked in a synthetic browser fixture at 900px and 360px; this is not full native-app acceptance. Live multi-account freshness/provider authentication is unverified. Source projections do not recover deleted records and deliberately avoid guessing calendar provider URLs. These are local implementation results, not release acceptance.
+
+## QA repairs
+
+Hosted platform tests caught the changed no-link wording. Restored the existing No video call link contract without weakening assertions: 30 meeting-link tests pass. Source review also found that header classes were applied only to the empty-notes branch; corrected the saved-notes branch and keyboard edit access. The complete local platform UI test batch passes after both repairs. Temporary visual fixtures were removed and their server stopped. Production app/data remain untouched.
