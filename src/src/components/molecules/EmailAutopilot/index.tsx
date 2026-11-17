@@ -1,4 +1,4 @@
-import EmailPopupPreference from 'src/components/molecules/EmailPopupPreference'
+import EmailSyncNotice from './EmailSyncNotice'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import CircularProgress from '@mui/material/CircularProgress'
@@ -425,7 +425,10 @@ export const EmailAutopilot = ({
       }
       <div className="flex-1 p-4 h-full overflow-y-auto relative">
 
-        <EmailPopupPreference />
+        <EmailSyncNotice accounts={feed.emailAccounts}
+          error={feed.emailAutopilotStatus.status === 'error' ? feed.emailAutopilotStatus.message || 'Email refresh did not finish. Existing messages have been kept.' : undefined}
+          busy={['fetching-emails', 'classifying-emails', 'sync-email'].includes(feed.emailAutopilotStatus.status)}
+          onRetry={() => { void refreshEmails().catch(() => undefined) }} />
         {/* Settings Sidebar */}
         {showSettings && (
           <div className="fixed inset-0 z-50 flex justify-end">
@@ -451,8 +454,8 @@ export const EmailAutopilot = ({
         ) : feed.emailAutopilotStatus.status === 'error' &&
           (!emailsCategory || emailsCategory.length === 0) ? (
           <div className="flex flex-col items-center text-center text-gray-500 mt-4 gap-2">
-            <span>Email refresh did not finish.</span>
-            <button className="text-ks-red-500 hover:underline" onClick={() => void refreshEmails()}>
+            <span>Unable to refresh this category. Saved messages have been kept.</span>
+            <button className="text-ks-red-500 hover:underline" onClick={() => { void refreshEmails().catch(() => undefined) }}>
               Try again
             </button>
           </div>
@@ -472,7 +475,7 @@ export const EmailAutopilot = ({
         ) : (
           selectedCategory &&
           (!emailsCategory || emailsCategory.length === 0) && (
-            <div className="text-center text-gray-500 mt-4">No emails in this category.</div>
+            <div className="text-center text-gray-500 mt-4">No matching emails in this category. Try another category or refresh the locally synced mail.</div>
           )
         )}
         <div className="space-y-4 pb-28">

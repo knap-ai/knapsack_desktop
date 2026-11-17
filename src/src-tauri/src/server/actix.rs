@@ -616,6 +616,7 @@ pub async fn start_server<'a>(
       .service(workspace_api::create_workspace)
       .service(workspace_api::list_workspaces)
       .service(workspace_api::get_workspace)
+      .service(workspace_api::get_workspace_timeline)
       .service(workspace_api::update_workspace)
       .service(workspace_api::delete_workspace)
       .service(workspace_api::add_document)

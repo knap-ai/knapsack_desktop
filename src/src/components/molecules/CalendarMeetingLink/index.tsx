@@ -9,10 +9,10 @@ export default function CalendarMeetingLink({ meeting, recording = false }: { me
   const url = getEventUrl(meeting)
   const label = calendarMeetingLinkLabel(url).replace(/^Join /, recording ? 'Open ' : 'Join ')
   if (!meeting) return null
-  if (!url) return <span role="status">No video call link in this calendar event.</span>
-  return <span className="inline-flex flex-col text-xs">
+  if (!url) return <span className="meeting-link-unavailable" role="status">No video call link</span>
+  return <span className="calendar-meeting-link inline-flex flex-col text-xs">
     <a href={url} title={url} aria-label={label} aria-busy={status === 'opening'}
-      className="inline-flex items-center rounded-full border border-zinc-300 px-3 py-2 font-medium hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2" onClick={event => { event.preventDefault(); void openCalendarMeetingLink(meeting, true) }}>
+      className="meeting-link-button inline-flex h-9 items-center rounded-lg border border-zinc-300 px-3 text-sm font-medium leading-none whitespace-nowrap hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" onClick={event => { event.preventDefault(); void openCalendarMeetingLink(meeting, true) }}>
       {label}
     </a>
     {status === 'error' && <span role="status">Could not open the call. Try {label} again, or copy its link address.</span>}

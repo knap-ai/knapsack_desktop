@@ -1,0 +1,7 @@
+.email-sync-notice { margin: 0 0 16px; color: #77716e; font-size: 12px; line-height: 1.5; }
+.email-sync-notice > p { margin-bottom: 4px; }
+.email-sync-notice summary { cursor: pointer; color: #586a9f; }
+.email-sync-notice ul { margin: 8px 0; list-style: none; }
+.email-sync-notice li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; }
+.email-sync-notice__warning { border: 1px solid #ead3ba; background: #fff9ed; border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+.email-sync-notice__warning button { margin-top: 6px; color: #8c4a40; text-decoration: underline; }

@@ -19,7 +19,9 @@ import {
   TeamGroup,
 } from 'src/agents/teamRoster'
 import { updateAutomationFeedbackAPI } from 'src/api/automations'
-import { Workspace } from 'src/api/workspaces'
+import { Workspace, type RelationshipSource } from 'src/api/workspaces'
+import { serializeCalendarEventToMeeting } from 'src/hooks/dataSources/useCalendar'
+import { KN_API_REST_GET_CALENDAR_EVENT } from 'src/utils/constants'
 import { HomeProps } from 'src/App'
 import { KN_API_STOP_LLM_EXECUTION, PRIVACY_POLICY_LINK, TERMS_LINK } from 'src/utils/constants'
 import { buildFollowUpEmailBody, getFollowUpRecipients, normalizeFollowUpEmailVoice } from 'src/utils/emails'
@@ -195,6 +197,25 @@ function Home({
   const activeBrowserProfile = 'openclaw'
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const ownedSelectedWorkspace = selectedWorkspaceOwner === userEmail.trim().toLowerCase() ? selectedWorkspace : null
+  const libraryScope = JSON.stringify([userEmail.trim().toLowerCase(), ownedSelectedWorkspace?.uuid])
+  const libraryScopeRef = useRef(libraryScope)
+  libraryScopeRef.current = libraryScope
+  const openTimelineCalendar = async (source: RelationshipSource) => {
+    const scope = libraryScope
+    if (!ownedSelectedWorkspace || !source.available || source.kind !== 'calendar' || !/^\d+$/.test(source.sourceId || '')) throw new Error('Unavailable source')
+    const response = await fetch(`${KN_API_REST_GET_CALENDAR_EVENT}/${source.sourceId}`)
+    const result = await response.json()
+    if (!response.ok || result.success !== true || String(result.data?.id) !== source.sourceId
+      || (source.account && result.data.calendar_account_email !== source.account)) throw new Error('Source changed')
+    if (libraryScopeRef.current !== scope) return
+    const meeting = serializeCalendarEventToMeeting(result.data)
+    // Opening a saved event does not join the call or start recording.
+    await feed.openCalendarEvent(meeting)
+    if (libraryScopeRef.current !== scope) return
+    setCurrentTab(TabChoices.Meeting)
+    setMeetingSubView('meetings')
+  }
+
   const selectLibraryWorkspace = (workspace: Workspace) => {
     setSelectedWorkspace(workspace)
     setSelectedWorkspaceOwner(userEmail.trim().toLowerCase())
@@ -943,6 +964,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                             userEmail={userEmail}
                             userName={userName}
                             nativeEmailConnected={nativeEmailConnected}
+                            nativeConnections={connections}
                             onBusyChange={isActiveChat ? setIsChatBusy : undefined}
                             onAssistantMessage={respondingChatId => {
                               if (
@@ -1267,6 +1289,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                     <PersonWorkspace
                       key={`${userEmail.trim().toLowerCase()}:${ownedSelectedWorkspace.uuid}`}
                       workspace={ownedSelectedWorkspace}
+                      onOpenCalendarSource={openTimelineCalendar}
                       userEmail={userEmail}
                       userName={userName}
                       onBack={() => setSelectedWorkspace(null)}

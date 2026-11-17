@@ -290,6 +290,7 @@ export default class DataFetcher {
     throwOnFailure: boolean = false,
     accountEmails?: string[],
   ): Promise<EmailDocument[]> {
+    if (accountEmails && accountEmails.length === 0) return []
     const fromDatetime = KNDateUtils.nDaysAgo(days)
     const today = new Date()
     const toDatetime = new Date(today)
@@ -317,6 +318,10 @@ export default class DataFetcher {
       return []
     }
 
+    if (!Array.isArray(data['display_docs'])) {
+      if (throwOnFailure) throw new Error('Email query returned an invalid message list')
+      return []
+    }
     return data['display_docs'] as EmailDocument[]
   }
   // & helpers for getRecentCalendarEvents

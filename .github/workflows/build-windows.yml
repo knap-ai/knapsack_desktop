@@ -62,6 +62,13 @@ jobs:
         shell: pwsh
         run: ./scripts/windows-release-policy.test.ps1
 
+      - name: Test relationship timeline source projection
+        working-directory: src
+        env:
+          VITE_KN_API_SERVER: http://127.0.0.1:8897
+          VITE_GOOGLE_CLIENT_ID: unused
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features workspaces::timeline::tests -- --test-threads=1
+
       - name: Create .env from example
         working-directory: src
         run: Copy-Item .env.example .env

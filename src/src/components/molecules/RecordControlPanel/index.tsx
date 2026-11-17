@@ -30,7 +30,7 @@ const RecordControlPanel: React.FC<RecordPanelProps> = ({
   isSynthesizing,
 }) => {
   return (
-    <div className="ml-auto rounded-md">
+    <div className="record-control-panel ml-auto rounded-md">
       {isStarting ? (
         <RecordButton
           text="Starting…"

@@ -42,6 +42,7 @@ import {
   useEmailAutopilot,
 } from 'src/hooks/dataSources/useEmailAutopilot'
 import DataFetcher from 'src/utils/data_fetch'
+import { emailSyncAccounts, EmailSyncAccount } from 'src/utils/emailCacheState'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import KNDateUtils from 'src/utils/KNDateUtils'
@@ -118,6 +119,7 @@ export interface IFeed {
   updateFeedItemTitle?: (key: string, itemId: number, newTitle: string) => void
   deleteFeedItemFromState?: (itemId: number) => Promise<void>
   deleteRecordingFromState?: (item: FeedItem) => Promise<void>
+  emailAccounts?: EmailSyncAccount[]
   emailAutopilotStatus: {
     status:
       | 'idle'
@@ -127,6 +129,7 @@ export interface IFeed {
       | 'complete'
       | 'error'
       | 'sync-email'
+    message?: string
     progress?: { current: number; total: number }
   }
   setEmailAutopilotStatus: React.Dispatch<
@@ -139,6 +142,7 @@ export interface IFeed {
         | 'complete'
         | 'error'
         | 'sync-email'
+      message?: string
       progress?: {
         current: number
         total: number
@@ -294,6 +298,7 @@ export function useFeed(
       | 'complete'
       | 'error'
       | 'sync-email'
+    message?: string
     progress?: { current: number; total: number }
   }>({ status: 'idle' })
   const [classifiedEmails, setClassifiedEmails] = useState<
@@ -308,24 +313,8 @@ export function useFeed(
   const calendarRecordingRef = useRef(new Map<string, ReturnType<IFeed['startCalendarMeeting']>>())
   const feedContentRef = useRef(feedContent)
   feedContentRef.current = feedContent
-  const connectedEmailAccountEmails = useMemo(
-    () => Array.from(new Set(
-      Object.values(connections)
-        .filter(connection =>
-          connection.key === ConnectionKeys.GOOGLE_GMAIL ||
-          connection.key === ConnectionKeys.MICROSOFT_OUTLOOK,
-        )
-        .map(connection =>
-          connection.key === ConnectionKeys.GOOGLE_GMAIL
-            ? (connection.calendarAccountEmail || connection.ownerEmail)?.trim().toLowerCase()
-            : connection.ownerEmail
-              ? `microsoft:${connection.ownerEmail.trim().toLowerCase()}`
-              : undefined,
-        )
-        .filter((email): email is string => Boolean(email)),
-    )),
-    [connections],
-  )
+  const emailAccounts = useMemo(() => emailSyncAccounts(connections), [connections])
+  const connectedEmailAccountEmails = useMemo(() => emailAccounts.map(account => account.queryAccount), [emailAccounts])
   const [classificationActions, setClassificationActions] = useState<
     Partial<Record<EmailImportance, EmailAction>>
   >({
@@ -745,14 +734,15 @@ export function useFeed(
   }
 
   const updateRecentClassifiedEmails = useCallback(async () => {
+    if (!connectedEmailAccountEmails.length) return
     try {
       const dataFetcher = new DataFetcher()
 
       const allMessages = await dataFetcher.getRecentGmailMessages(
         7,
         5000,
-        false,
-        connectedEmailAccountEmails.length > 0 ? connectedEmailAccountEmails : undefined,
+        true,
+        connectedEmailAccountEmails,
       )
 
       if (allMessages.length === 0) {
@@ -814,6 +804,10 @@ export function useFeed(
   }, [classifiedEmails, connectedEmailAccountEmails])
 
   const runEmailAutopilotOnce = async () => {
+    if (!connectedEmailAccountEmails.length) {
+      setEmailAutopilotStatus({ status: 'error', message: 'No saved mailbox identity is available. Review Connections in Settings.' })
+      return
+    }
     const dataFetcher = new DataFetcher()
     // const isSynced = handleSyncSources([AutomationDataSources.GMAIL])
     await updateRecentClassifiedEmails()
@@ -828,8 +822,8 @@ export function useFeed(
       let allMessages = await dataFetcher.getRecentGmailMessages(
         7,
         5000,
-        false,
-        connectedEmailAccountEmails.length > 0 ? connectedEmailAccountEmails : undefined,
+        true,
+        connectedEmailAccountEmails,
       )
 
       if (allMessages.length === 0) {
@@ -970,7 +964,7 @@ export function useFeed(
         setEmailAutopilotStatus(prevState => ({ ...prevState, status: 'complete' }))
       }, 300000)
     } catch (error) {
-      setEmailAutopilotStatus({ status: 'error' })
+      setEmailAutopilotStatus({ status: 'error', message: 'Could not read synced email. Existing messages have been kept. Try again or review Connections in Settings.' })
       if (error instanceof HttpError) {
         logError(new Error('insertFeedItemAPI or createThread failed'), {
           additionalInfo: 'Error occurred while creating Email Autopilot FeedItem.',
@@ -2402,6 +2396,7 @@ export function useFeed(
     classificationActions,
     updateClassificationActions,
     emailAutopilotStatus,
+    emailAccounts,
     setEmailAutopilotStatus,
     takeEmailAction,
     emailAutopilot,

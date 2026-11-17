@@ -150,6 +150,32 @@ export const listWorkspaces = () =>
 export const getWorkspace = (uuid: string) =>
   get<WorkspaceResponse>(`/api/knapsack/workspaces/${uuid}`)
 
+export interface RelationshipSource {
+  documentId: number
+  sourceId: string | null
+  kind: string
+  occurredAt: number | null
+  dateKind: 'occurred' | 'added' | 'unknown'
+  url: string | null
+  account: string | null
+  available: boolean
+}
+
+export interface RelationshipEvidence {
+  displayName: string | null
+  sources: RelationshipSource[]
+  truncated: boolean
+}
+
+/** Local source metadata only; never contacts an email/calendar/inference provider. */
+export async function getWorkspaceTimeline(uuid: string, signal?: AbortSignal): Promise<RelationshipEvidence> {
+  const response = await fetch(`${API_BASE}/api/knapsack/workspaces/${encodeURIComponent(uuid)}/timeline`, { signal })
+  if (!response.ok) throw new Error('Saved relationship sources could not be loaded')
+  const result = await response.json()
+  if (!result.success || !result.data || !Array.isArray(result.data.sources)) throw new Error('Saved relationship sources are unavailable')
+  return result.data
+}
+
 export const updateWorkspace = (
   uuid: string,
   name: string,

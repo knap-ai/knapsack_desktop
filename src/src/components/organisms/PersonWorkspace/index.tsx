@@ -1,12 +1,13 @@
+import { workspaceDisplayName } from 'src/utils/relationshipTimeline'
 import { useState } from 'react'
 
-import type { Workspace } from 'src/api/workspaces'
+import type { Workspace, RelationshipSource } from 'src/api/workspaces'
 import { personChatContext } from 'src/utils/personChatContext'
 
 import ClawdChat from '../ClawdChat'
 import WorkspaceView from '../WorkspaceView'
 
-type Props = { workspace: Workspace; userEmail: string; userName?: string; onBack: () => void }
+type Props = { workspace: Workspace; userEmail: string; userName?: string; onBack: () => void; onOpenCalendarSource?: (source: RelationshipSource) => Promise<void> }
 /** Owned, visible person chat; opening the view never sends a prompt. */
 export default function PersonWorkspace(props: Props) {
   const scope = JSON.stringify([
@@ -17,7 +18,7 @@ export default function PersonWorkspace(props: Props) {
   return <ScopedPersonWorkspace key={scope} {...props} />
 }
 
-function ScopedPersonWorkspace({ workspace, userEmail, userName, onBack }: Props) {
+function ScopedPersonWorkspace({ workspace, userEmail, userName, onBack, onOpenCalendarSource }: Props) {
   const [opened, setOpened] = useState(false),
     [showChat, setShowChat] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspace)
@@ -28,6 +29,7 @@ function ScopedPersonWorkspace({ workspace, userEmail, userName, onBack }: Props
         <WorkspaceView
           workspace={workspace}
           onBack={onBack}
+          onOpenCalendarSource={onOpenCalendarSource}
           onOpenPersonChat={
             context
               ? currentWorkspace => {
@@ -52,7 +54,7 @@ function ScopedPersonWorkspace({ workspace, userEmail, userName, onBack }: Props
             className="self-start px-4 py-2 text-sm underline"
             onClick={() => setShowChat(false)}
           >
-            Back to {selectedWorkspace.name}
+            Back to {workspaceDisplayName(selectedWorkspace)}
           </button>
           <div className="min-h-0 flex-1">
             <ClawdChat
