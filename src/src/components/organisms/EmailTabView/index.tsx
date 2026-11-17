@@ -34,7 +34,7 @@ const EmailTabView = ({
   useEffect(() => {
     if (!feed.loggedEmailAutopilot || refreshStartedRef.current) return
     refreshStartedRef.current = true
-    void onRefresh()
+    void onRefresh().catch(() => undefined)
   }, [feed.loggedEmailAutopilot, onRefresh])
 
   const emailCategories = useMemo(() => {

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { open } from '@tauri-apps/api/dialog'
+import RelationshipTimeline from './RelationshipTimeline'
+import { workspaceDisplayName } from 'src/utils/relationshipTimeline'
+import { getWorkspaceTimeline, type RelationshipEvidence, type RelationshipSource } from 'src/api/workspaces'
 import {
   Workspace,
   WorkspaceDocument,
@@ -17,12 +20,28 @@ const DOC_SUMMARY_CACHE_PREFIX = 'knap.library.docsummary.'
 interface WorkspaceViewProps {
   workspace: Workspace
   onBack: () => void
+  onOpenCalendarSource?: (source: RelationshipSource) => Promise<void>
   onOpenPersonChat?: (workspace: Workspace) => void
 }
 
-function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewProps) {
+function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSource }: WorkspaceViewProps) {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>(workspace)
   const [documents, setDocuments] = useState<WorkspaceDocument[]>(workspace.documents ?? [])
+  const [view, setView] = useState<'timeline' | 'documents'>(['person', 'project'].includes(workspace.entityType || '') ? 'timeline' : 'documents')
+  const [timeline, setTimeline] = useState<RelationshipEvidence | null>(null)
+  const [timelineLoading, setTimelineLoading] = useState(true)
+  const [timelineError, setTimelineError] = useState(false)
+  const [timelineRetry, setTimelineRetry] = useState(0)
+  const displayName = workspaceDisplayName(currentWorkspace, timeline?.displayName)
+  useEffect(() => {
+    const controller = new AbortController()
+    setTimelineLoading(true); setTimelineError(false); setTimeline(null)
+    getWorkspaceTimeline(workspace.uuid, controller.signal).then(result => {
+      if (!controller.signal.aborted) setTimeline(result)
+    }).catch(() => { if (!controller.signal.aborted) setTimelineError(true) })
+      .finally(() => { if (!controller.signal.aborted) setTimelineLoading(false) })
+    return () => controller.abort()
+  }, [workspace.uuid, timelineRetry])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [isDragging, setIsDragging] = useState(false)
@@ -126,6 +145,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
         await addDocumentToWorkspace(currentWorkspace.uuid, fileName, filePath, ext)
       }
       await refreshWorkspace()
+      setTimelineRetry(value => value + 1)
     } catch (err) {
       console.error('Failed to add files:', err)
     }
@@ -144,6 +164,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
       const folderName = selected.split(/[/\\]/).pop() ?? selected
       await addDocumentToWorkspace(currentWorkspace.uuid, folderName, selected, 'folder')
       await refreshWorkspace()
+      setTimelineRetry(value => value + 1)
     } catch (err) {
       console.error('Failed to add folder:', err)
     }
@@ -283,6 +304,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
         )
       }
       await refreshWorkspace()
+      setTimelineRetry(value => value + 1)
     },
     [currentWorkspace.uuid, refreshWorkspace],
   )
@@ -309,7 +331,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
   }
 
   return (
-    <div className="flex flex-col p-6 pl-10 h-full">
+    <div className="relationship-workspace flex flex-col p-6 h-full">
       {/* Back button and header */}
       <div className="flex items-center gap-3 mb-2">
         <button
@@ -328,6 +350,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
             className="font-semibold text-2xl border border-gray-300 rounded-md px-2 py-1 w-full mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={editName}
             onChange={e => setEditName(e.target.value)}
+            aria-label="Display name"
             autoFocus
           />
           <textarea
@@ -360,18 +383,18 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
         <div className="mb-6">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentWorkspace.icon || '\uD83D\uDCC1'}</span>
-            <h1 className="font-semibold text-2xl">{currentWorkspace.name}</h1>
+            <h1 className="font-semibold text-2xl">{displayName}</h1>
             <button
               className="text-xs text-gray-400 hover:text-gray-600 ml-2 transition-colors"
-              onClick={() => setIsEditing(true)}
+              onClick={() => { setEditName(displayName === 'Unnamed contact' ? '' : displayName); setIsEditing(true) }}
             >
-              Edit
+              {displayName === 'Unnamed contact' ? 'Add name' : 'Edit'}
             </button>
           </div>
           {currentWorkspace.entityType === 'person' && onOpenPersonChat && (
             <div className="mt-4 flex flex-col items-start gap-1">
               <button type="button" className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2"
-                onClick={() => onOpenPersonChat(currentWorkspace)}>Chat about {currentWorkspace.name}</button>
+                onClick={() => onOpenPersonChat({ ...currentWorkspace, name: displayName })}>Chat about {displayName}</button>
               <p className="text-xs text-zinc-500">Ask about your meetings, conversations, and follow-ups. Nothing is sent until you submit a question.</p>
             </div>
           )}
@@ -385,7 +408,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
               {currentWorkspace.description}
             </p>
           )}
-          {aiSummary && !overallSummary && (
+          {view === 'documents' && aiSummary && !overallSummary && (
             <div className="ml-10 mt-2">
               <p className="text-sm text-gray-700">{aiSummary.summary}</p>
               {aiSummary.nextAction && currentWorkspace.entityType !== 'person' && (
@@ -409,7 +432,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
               )}
             </div>
           )}
-          {overallSummary && (
+          {view === 'documents' && overallSummary && (
             <div className="ml-10 mt-2">
               <p className="text-sm text-gray-700">{overallSummary}</p>
             </div>
@@ -417,9 +440,13 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
         </div>
       )}
 
+      {['person', 'project'].includes(currentWorkspace.entityType || '') && <nav className="relationship-workspace__switcher" aria-label="Workspace view">
+        <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>Relationship timeline</button>
+        <button type="button" aria-pressed={view === 'documents'} onClick={() => setView('documents')}>Documents · {documents.length}</button>
+      </nav>}
       {/* Tag filter bar */}
       {allTags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-4">
+        <details className="mb-4" open={view === 'documents'}><summary className="text-xs text-gray-500 cursor-pointer mb-2">Filter by topic · {allTags.length}</summary><div className="flex flex-wrap gap-1.5">
           <button
             className={`text-xs px-2 py-1 rounded-full border transition-colors ${
               !activeTagFilter
@@ -443,7 +470,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
               {tag}
             </button>
           ))}
-        </div>
+        </div></details>
       )}
 
       {/* Search */}
@@ -473,7 +500,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
       </div>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      {view === 'documents' && <div className="flex flex-wrap gap-2 mb-4">
         <button
           className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           onClick={handleAddFiles}
@@ -493,10 +520,15 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat }: WorkspaceViewPro
         >
           {isSummarizing ? 'Summarizing…' : '✦ Summarize'}
         </button>
-      </div>
+      </div>}
+
+      {view === 'timeline' && <RelationshipTimeline documents={filteredDocuments} evidence={timeline}
+        loading={timelineLoading} error={timelineError} onRetry={() => setTimelineRetry(value => value + 1)}
+        onOpenCalendar={onOpenCalendarSource} />}
 
       {/* Document list with drop zone */}
       <div
+        hidden={view !== 'documents'}
         ref={dropRef}
         className={`flex-1 rounded-lg py-4 transition-colors min-h-[200px] ${
           isDragging

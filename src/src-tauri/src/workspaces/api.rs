@@ -93,6 +93,26 @@ struct SearchResponse {
 
 // ── Endpoints ─────────────────────────────────────────────────
 
+/// Resolve only source records already attached to this exact saved workspace.
+#[get("/api/knapsack/workspaces/{uuid}/timeline")]
+pub async fn get_workspace_timeline(path: web::Path<String>) -> impl Responder {
+  let uuid = path.into_inner();
+  let result = (|| -> Result<_, crate::error::Error> {
+    let workspace = Workspace::find_by_uuid(uuid.clone())?.ok_or_else(|| crate::error::Error::KSError("Workspace not found".into()))?;
+    let docs = WorkspaceDocument::find_by_workspace(uuid)?;
+    let sources = docs.iter().filter_map(|doc| doc.id.map(|id| super::timeline::SavedSource {
+      document_id: id, kind: doc.source_type.clone(), source_id: doc.source_id.clone(),
+      path: doc.document_path.clone(), added_at: doc.created_at,
+    })).collect::<Vec<_>>();
+    Ok(super::timeline::project_sources(&crate::db::db::get_db_conn(),
+      workspace.entity_type.as_deref().unwrap_or(""), workspace.entity_key.as_deref().unwrap_or(""), &workspace.name, &sources)?)
+  })();
+  match result {
+    Ok(data) => HttpResponse::Ok().json(json!({ "success": true, "data": data })),
+    Err(_) => HttpResponse::InternalServerError().json(json!({ "success": false, "error": "Saved relationship sources could not be loaded. Your documents have not changed." })),
+  }
+}
+
 #[post("/api/knapsack/workspaces")]
 pub async fn create_workspace(payload: Json<CreateWorkspaceRequest>) -> impl Responder {
   match Workspace::create(

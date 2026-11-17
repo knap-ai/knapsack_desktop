@@ -1651,8 +1651,8 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
       <div className="notetaker-note">
         <div className="notetaker-note__scroll-area">
         <div className="notetaker-note__container">
-          <div className="w-full flex flex-col gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="notetaker-note__heading">
+            <div className="notetaker-note__heading-layout">
               <div className="flex-1 min-w-0">
                 {isEditingTitle ? (
                   <input
@@ -1672,6 +1672,8 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                     className="notetaker-note__title notetaker-note__title--editable"
                     onClick={() => { setIsEditingTitle(true) }}
                     title="Click to edit title"
+                  tabIndex={0}
+                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ' ) { event.preventDefault(); setIsEditingTitle(true) } }}
                   >
                     {editableTitle || thread.subtitle}
                   </h1>
@@ -1729,7 +1731,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                   )}
                 </div>
               </div>
-              <div className="flex-shrink-0 flex items-center gap-2">
+              <div className="notetaker-note__record-controls">
                 <CalendarMeetingLink meeting={meeting} recording={isMeetingRecording} />
                 {!wasRecorded && !isEndingMeetingState && (
                   <RecordControlPanel
@@ -2002,6 +2004,7 @@ Be direct, specific, and concise. No filler text.`
                       className="notetaker-note__meta-item notetaker-note__attendees-chip"
                       onClick={() => setShowAttendeePicker(prev => !prev)}
                       title="View attendees"
+                      aria-expanded={showAttendeePicker}
                     >
                       <span className="notetaker-note__attendee-stack" aria-hidden="true">
                         {meeting.participants.slice(0, 3).map((participant, index) => (

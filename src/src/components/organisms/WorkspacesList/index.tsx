@@ -1,3 +1,4 @@
+import { workspaceDisplayName } from 'src/utils/relationshipTimeline'
 import { useEffect, useMemo, useState } from 'react'
 import {
   CurationStatus,
@@ -368,11 +369,14 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="text-lg">{workspace.icon || '\uD83D\uDCC1'}</span>
-            <span className="font-semibold text-lg truncate">{workspace.name}</span>
+            <span className="font-semibold text-lg truncate">{workspaceDisplayName(workspace)}</span>
             {opts.auto && (
               <span title="Auto-curated by Knapsack" className="text-xs">✨</span>
             )}
           </div>
+          {workspace.entityType === 'person' && workspace.entityKey && (
+            <p className="text-xs text-gray-500 break-all">{workspace.entityKey}</p>
+          )}
           {aiSummary ? (
             <>
               <div className="text-sm text-gray-600 mt-0.5">

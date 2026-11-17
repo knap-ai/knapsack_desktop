@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Workspace, WorkspaceDocument } from 'src/api/workspaces'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import WorkspaceView from './index'
 
-const mocks = vi.hoisted(() => ({ get: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), timeline: vi.fn() }))
 vi.mock('src/api/workspaces', async original => ({
   ...(await original<typeof import('src/api/workspaces')>()),
   getWorkspace: mocks.get,
+  getWorkspaceTimeline: (...args: unknown[]) => Promise.resolve(mocks.timeline(...args)).then((value: unknown) => value || { displayName: null, sources: [], truncated: false }),
 }))
 
 const documents = [
@@ -69,4 +70,24 @@ it('filters saved metadata immediately and handles replacing a previous query', 
   fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
   expect(screen.getByText('Planning meeting')).toBeTruthy()
   expect(screen.getByText('Follow-up email')).toBeTruthy()
+})
+
+it('defaults a project to the same story view while keeping its documents accessible', async () => {
+  const project = { ...workspace, uuid: 'synthetic-project', name: 'North Star', entityType: 'project' }
+  mocks.get.mockResolvedValue({ success: true, data: project })
+  render(<WorkspaceView workspace={project} onBack={vi.fn()} />)
+  expect(screen.getByRole('heading', { name: 'North Star' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Relationship timeline' }).getAttribute('aria-pressed')).toBe('true')
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Relationship timeline' })).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: 'Documents · 2' }))
+  expect(screen.getByRole('button', { name: '+ Add Files' })).toBeTruthy()
+})
+it('resolves a proper person name and leaves email secondary', async () => {
+  const person = { ...workspace, name: 'alex@example.test' }
+  mocks.get.mockResolvedValue({ success: true, data: person })
+  mocks.timeline.mockResolvedValue({ displayName: 'Alex Rivera', sources: [], truncated: false })
+  render(<WorkspaceView workspace={person} onBack={vi.fn()} />)
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Alex Rivera' })).toBeTruthy())
+  expect(screen.queryByRole('heading', { name: 'alex@example.test' })).toBeNull()
+  expect(screen.getByText('alex@example.test')).toBeTruthy()
 })

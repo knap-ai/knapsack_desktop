@@ -836,6 +836,8 @@
 
 .ClawdMsg-assistant {
   justify-content: flex-start;
+
+  .ClawdBubble { max-width: min(72ch, 100%); padding: 14px 16px; line-height: 1.6; }
 }
 
 .ClawdMsg-clickable {
@@ -1093,6 +1095,21 @@
       margin-bottom: 0;
     }
   }
+
+  // Tailwind's reset removes native markers. Restore semantic Markdown lists.
+  ul { list-style-type: disc; }
+  ol { list-style-type: decimal; }
+  ul ul { list-style-type: circle; }
+  ul ul ul { list-style-type: square; }
+  ol ol { list-style-type: lower-alpha; }
+  li::marker { color: #77716e; }
+  li > p { margin: 0.3em 0; }
+  li > ul, li > ol { margin: 0.35em 0; }
+  .contains-task-list { list-style: none; padding-left: 0; }
+  .task-list-item { list-style: none; }
+  .task-list-item > input { margin-right: 0.5em; }
+  .ClawdSelectableText > :first-child { margin-top: 0; }
+  .ClawdSelectableText > :last-child { margin-bottom: 0; }
 
   li {
     margin: 0.25em 0;

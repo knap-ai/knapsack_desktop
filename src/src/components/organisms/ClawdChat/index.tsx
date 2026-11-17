@@ -42,6 +42,8 @@ import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import type { ChannelStatus } from 'src/api/channels'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist, getSlackAccounts, disconnectSlackAccount, type SlackAccountSummary } from 'src/api/channels'
 import { shouldPrefetchNativeEmailCalendarContext, nativeCalendarRange, nativeContextRequest, CONNECTED_DATA_GUIDANCE } from 'src/utils/nativeWorkspaceContext'
+import { Connection } from 'src/api/connections'
+import { emailSyncAccounts, emailCacheContext } from 'src/utils/emailCacheState'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
@@ -1131,6 +1133,7 @@ const SLASH_COMMANDS: Record<string, string> = {
 async function fetchEmailCalendarContext(
   nativeEmailConnected = false,
   request = '',
+  connections: Record<string, Connection> = {},
 ): Promise<{ text: string; hasConnectedData: boolean }> {
   const dataFetcher = new DataFetcher()
   const contextParts: string[] = []
@@ -1143,7 +1146,7 @@ async function fetchEmailCalendarContext(
       Math.floor(range.start.getTime() / 1000),
       Math.floor(range.end.getTime() / 1000) - 1,
     )
-    contextParts.push(`\n## ${range.label}\nUse these freshly queried calendar records for the requested period, rather than older conversation claims. Include work and personal calendars unless the user requests a specific account or organization; use Calendar account and attendees to identify it. Do not treat a calendar entry as proof that tickets were purchased.\nRange: ${range.start.toLocaleString()} through ${range.end.toLocaleString()} (exclusive). Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`)
+    contextParts.push(`\n## ${range.label}\nThese are locally cached calendar records for the requested period, not proof that remote calendar sync or token refresh succeeded. Do not claim all calendars are healthy, that the sidebar has no events, or that UI filters caused a discrepancy without checking. Use these records rather than older conversation claims. Include work and personal calendars unless the user requests a specific account or organization; use Calendar account and attendees to identify it. Do not treat a calendar entry as proof that tickets were purchased.\nRange: ${range.start.toLocaleString()} through ${range.end.toLocaleString()} (exclusive). Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`)
     if (!todayEvents?.length) {
       contextParts.push('The native calendar query returned no synced events for this range. This does not establish whether remote calendars contain unsynced events; check a connected Calendar API if needed.')
     }
@@ -1174,7 +1177,9 @@ async function fetchEmailCalendarContext(
 
   // Fetch recent emails (last 2 days, up to 15)
   try {
-    const emails = await dataFetcher.getRecentGmailMessages(2, 15, nativeEmailConnected)
+    const accounts = emailSyncAccounts(connections)
+    const emails = accounts.length ? await dataFetcher.getRecentGmailMessages(2, 15, true, accounts.map(account => account.queryAccount)) : []
+    contextParts.push(emailCacheContext(accounts, emails.length, 2))
     if (emails?.length) {
       hasConnectedData = true
       contextParts.push('## Recent Emails\n')
@@ -1185,18 +1190,13 @@ async function fetchEmailCalendarContext(
           `- **Mailbox:** ${email.accountEmail || 'unknown'} | **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
         )
       }
-    } else if (nativeEmailConnected) {
-      contextParts.push(`## Native Email Status
-
-- Knapsack's connected email query completed but returned no messages from the last 2 days.
-- Do not open Gmail in the browser or ask for a Google password. Report that the connected inbox returned no recent messages.`)
     }
   } catch (err) {
     console.warn('[ClawdChat] Failed to pre-fetch emails:', err)
     if (nativeEmailConnected) {
       contextParts.push(`## Native Email Status
 
-- A Gmail or Outlook account is connected, but Knapsack's native email query failed: ${err instanceof Error ? err.message : String(err)}
+- A Gmail or Outlook account is connected, but the local email cache query failed. No live provider-authentication check was completed.
 - Do not open Gmail in the browser, ask for a password, or claim Google requested verification. Report this as a Knapsack connection/query error.`)
     }
   }
@@ -2030,6 +2030,7 @@ interface ClawdChatProps {
   onAssistantMessage?: (chatId: string) => void
   onOpenBrowser?: () => void
   nativeEmailConnected?: boolean
+  nativeConnections?: Record<string, Connection>
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
@@ -2065,7 +2066,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ onNotesEditRequest, active = true, foregroundActive, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ onNotesEditRequest, active = true, foregroundActive, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, nativeConnections = {}, openProviderPanel, initialInput, initialInputKey, submitRequest, onSubmitRequestAccepted, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const ownsForeground = active && (foregroundActive ?? true)
   const chatMountedRef = useRef(true)
   const activeRef = useRef(active)
@@ -5773,7 +5774,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
 
         if (isSmartPrompt) {
           try {
-            const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest)
+            const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest, nativeConnections)
             if (context.text) {
               actualText = INITIAL_BRIEFING_INSTRUCTIONS + context.text
               usedNativeEmailCalendarContext = true
@@ -5790,7 +5791,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
 
         if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(nativeRequest)) {
           try {
-            const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest)
+            const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest, nativeConnections)
             if (context.text) {
               usedNativeEmailCalendarContext = true
               usedNativeConnectedData = context.hasConnectedData

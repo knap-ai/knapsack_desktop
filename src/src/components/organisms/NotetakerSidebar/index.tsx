@@ -11,6 +11,7 @@ import {
   TeamAgent,
   TeamGroup,
 } from 'src/agents/teamRoster'
+import UpcomingCalendarEvents from './UpcomingCalendarEvents'
 import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { FeedItem } from 'src/api/feed_items'
 import { isRecordingStatus } from 'src/api/recording'
@@ -901,9 +902,7 @@ function NotetakerSidebar({
                 .map(([dateStr, events]) => {
                   const date = dayjs(dateStr)
                   const isToday = date.isSame(dayjs(), 'day')
-                  const filteredEvents = isToday
-                    ? filterBySearch(events)
-                    : filterBySearch(events).slice(0, 4)
+                  const filteredEvents = filterBySearch(events)
                   if (filteredEvents.length === 0) return null
                   return (
                     <div key={dateStr} className="notetaker-sidebar__calendar-day">
@@ -921,8 +920,8 @@ function NotetakerSidebar({
                           </span>
                         </div>
                       </div>
-                      <div className="notetaker-sidebar__calendar-events">
-                        {filteredEvents.map(({ item, key }) => {
+                      <UpcomingCalendarEvents items={filteredEvents} dateLabel={date.format('MMM D')}
+                        showAll={isToday || Boolean(searchQuery.trim())} renderItem={({ item, key }) => {
                           const isNow = isNowMeeting(item)
                           const title =
                             typeof item.getTitle === 'function'
@@ -1031,8 +1030,7 @@ function NotetakerSidebar({
                               </div>
                             </div>
                           )
-                        })}
-                      </div>
+                        }} />
                     </div>
                   )
                 })}
