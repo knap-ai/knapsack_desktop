@@ -15,7 +15,8 @@ export type KnapsackTierModelOption = {
 }
 
 export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', description: 'Anthropic frontier flagship for advanced coding and long-running agentic work', vision: true },
+  { id: 'claude-fable-5-2', name: 'Claude Fable 5.2', description: 'Anthropic frontier flagship for advanced coding and long-running agentic work', vision: true },
+  { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', description: 'Earlier Fable release, still excellent for high-end agentic workloads', vision: true },
   { id: 'claude-fable-5', name: 'Claude Fable 5', description: 'Earlier Fable release, still excellent for high-end agentic workloads', vision: true },
   { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', description: 'Current Opus flagship, excellent for complex coding, reasoning, and vision', vision: true },
   { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
@@ -37,7 +38,7 @@ export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
 
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5'
 
-export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5'
+export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.2, Opus 5.5, Sonnet 5.5, Haiku 5.5'
 
 export const KNAPSACK_ANTHROPIC_TIER_MODELS: KnapsackTierModelOption[] = [
   { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
