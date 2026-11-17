@@ -199,6 +199,11 @@ pub(crate) fn start(window: Window) {
       let folder = std::path::Path::new(option_env!("KNAPSACK_QA_BUILD_STATE_DIR").unwrap_or(""));
       let saved = std::fs::write(folder.join("qa-capture-result.tmp"), serde_json::to_vec_pretty(&capture_report).unwrap()).and_then(|_| std::fs::rename(folder.join("qa-capture-result.tmp"),folder.join("qa-capture-result.json"))).is_ok();
       if !capture_passed || !saved { window.unlisten(listener); window.app_handle().exit(1); return; }
+      let notes_passed = matches!(tokio::time::timeout(Duration::from_secs(5), crate::notes_transcript::native_read_probe()).await, Ok(Ok(())));
+      let notes_report = serde_json::json!({"version":1,"run_id":option_env!("KNAPSACK_QA_BUILD_RUN_ID").unwrap_or(""),"bundle_id":option_env!("KNAPSACK_QA_BUILD_BUNDLE_ID").unwrap_or(""),"coverage":"native_saved_read_commands_synthetic_profile_and_database","passed":notes_passed});
+      let notes_saved = std::fs::write(folder.join("qa-notes-read-result.json"), serde_json::to_vec_pretty(&notes_report).unwrap()).is_ok();
+      eprintln!("[qa-notes-read] {}", notes_report);
+      if !notes_passed || !notes_saved { window.unlisten(listener); window.app_handle().exit(1); return; }
       let deadline = Instant::now() + SUITE_LIMIT;
       let mut rows = Vec::new();
       for probe in PROBES {

@@ -221,6 +221,95 @@ pub async fn read_saved_meeting_notes(
   .map_err(|_| READ_ERROR)?
 }
 
+/// Fixed synthetic fixture executed inside the isolated native QA application.
+/// Never callable through IPC and never enabled in a production build.
+pub(crate) async fn native_read_probe() -> Result<(), String> {
+  use crate::db::models::{feed_item::FeedItem, thread::Thread};
+  if !crate::qa_launch::is_synthetic_build() {
+    return Err("not_synthetic".into());
+  }
+  let home = dirs::home_dir().ok_or(READ_ERROR)?;
+  if Some(home.as_path()) != option_env!("KNAPSACK_QA_BUILD_HOME").map(Path::new) {
+    return Err("wrong_synthetic_home".into());
+  }
+  let profile = home.join(".knapsack/profile.dat");
+  let previous = match std::fs::read(&profile) {
+    Ok(value) => Some(value),
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+    Err(_) => return Err(READ_ERROR.into()),
+  };
+  std::fs::create_dir_all(home.join(".knapsack/transcripts")).map_err(|_| READ_ERROR)?;
+  std::fs::create_dir_all(home.join(".knapsack/notes")).map_err(|_| READ_ERROR)?;
+  std::fs::write(
+    &profile,
+    br#"{"KN_PROFILE":{"email":"native@example.test","uuid":"native-owner"}}"#,
+  )
+  .map_err(|_| READ_ERROR)?;
+  let result = async {
+    let mut feed = FeedItem {
+      title: Some("Fictional saved meeting".into()),
+      timestamp: Some(1700000000),
+      ..Default::default()
+    };
+    feed.create().map_err(|_| READ_ERROR)?;
+    let mut thread = Thread {
+      feed_item_id: feed.id,
+      ..Default::default()
+    };
+    thread.create().map_err(|_| READ_ERROR)?;
+    let id = thread.id.ok_or(READ_ERROR)?;
+    let filename = "native-read-probe.txt";
+    let mut transcript = Transcript {
+      thread_id: Some(id),
+      filename: filename.into(),
+      ..Default::default()
+    };
+    transcript.create().map_err(|_| READ_ERROR)?;
+    let transcript_path = home.join(".knapsack/transcripts").join(filename);
+    let notes_path = home.join(".knapsack/notes").join(id.to_string());
+    std::fs::write(&transcript_path, "Fictional retained transcript").map_err(|_| READ_ERROR)?;
+    std::fs::write(&notes_path, "Existing fictional user edits").map_err(|_| READ_ERROR)?;
+    for _ in 0..2 {
+      let value =
+        read_saved_notes_transcript(id, "native@example.test".into(), "native-owner".into())
+          .await?;
+      let notes =
+        read_saved_meeting_notes(id, "native@example.test".into(), "native-owner".into()).await?;
+      if value.content != "Fictional retained transcript"
+        || value.thread_id != Some(id)
+        || notes["data"]["notes"] != "Existing fictional user edits"
+        || notes["data"]["thread_id"] != id
+      {
+        return Err("native_read_mismatch".into());
+      }
+    }
+    if read_saved_meeting_notes(id, "other@example.test".into(), "other-owner".into())
+      .await
+      .is_ok()
+      || read_saved_notes_transcript(id, "other@example.test".into(), "other-owner".into())
+        .await
+        .is_ok()
+    {
+      return Err("native_account_boundary".into());
+    }
+    if std::fs::read_to_string(&notes_path).map_err(|_| READ_ERROR)?
+      != "Existing fictional user edits"
+      || std::fs::read_to_string(&transcript_path).map_err(|_| READ_ERROR)?
+        != "Fictional retained transcript"
+    {
+      return Err("native_read_modified_source".into());
+    }
+    Ok(())
+  }
+  .await;
+  match previous {
+    Some(bytes) => std::fs::write(profile, bytes),
+    None => std::fs::remove_file(profile),
+  }
+  .map_err(|_| READ_ERROR)?;
+  result
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
