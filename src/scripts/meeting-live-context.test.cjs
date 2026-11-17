@@ -89,11 +89,11 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   );
   assert.match(
     meeting,
-    /let requestQueued = false[\s\S]*?requestQueued = true[\s\S]*?if \(!requestQueued\) briefPrepTriggeredRef\.current = false/,
+    /claimMeetingBrief\(key,originAuthority\)[\s\S]*?flight\.promise\.then[\s\S]*?if \(!ownsRequest\) return/,
   );
   assert.match(
     meeting,
-    /Promise\.race\(\[buildBriefPrepDocuments\(\), contextGatherDeadline\]\)\.then[\s\S]*?briefPrepTimeout = setTimeout/,
+    /Promise\.race\(\[buildBriefPrepDocuments\(\), contextGatherDeadline\]\)\.then[\s\S]*?requestKind: 'brief'[\s\S]*?signal: flight\.signal/,
   );
   assert.match(meeting, /additionalDocuments,/);
   assert.match(meeting, /concise but evidence-rich executive meeting brief/);
