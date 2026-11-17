@@ -5,6 +5,7 @@ const path = require('node:path')
 const test = require('node:test')
 const { spawn, spawnSync } = require('node:child_process')
 const {
+  visibleMarkerAccepted,
   assertGatewaySnapshotUnchanged,
   assertAllowedConnectionCatalog,
   assertPortOwnedBy,
@@ -24,6 +25,26 @@ const {
   resolveViteLaunch,
   waitForUrl,
 } = require('./qa-dev-run.cjs')
+
+test('visible operator marker rejects stale, malformed, oversized and symlink releases', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-visible-marker-'))
+  const file = path.join(root, 'go.json')
+  try {
+    assert.equal(visibleMarkerAccepted(file, 'run-a', 'bundle-a'), false)
+    for (const value of [null, {run_id:'run-b',bundle_id:'bundle-a'}, {run_id:'run-a',bundle_id:'bundle-a',extra:true}]) {
+      fs.writeFileSync(file, JSON.stringify(value))
+      assert.throws(() => visibleMarkerAccepted(file, 'run-a', 'bundle-a'))
+    }
+    fs.writeFileSync(file, ' '.repeat(513))
+    assert.throws(() => visibleMarkerAccepted(file, 'run-a', 'bundle-a'))
+    fs.writeFileSync(file, JSON.stringify({run_id:'run-a',bundle_id:'bundle-a'}))
+    assert.equal(visibleMarkerAccepted(file, 'run-a', 'bundle-a'), true)
+    if (process.platform !== 'win32') {
+      const link = path.join(root, 'link.json'); fs.symlinkSync(file, link)
+      assert.throws(() => visibleMarkerAccepted(link, 'run-a', 'bundle-a'))
+    }
+  } finally { fs.rmSync(root, {recursive:true,force:true}) }
+})
 
 const launcherPath = path.join(__dirname, 'qa-dev-run.cjs')
 
