@@ -1,6 +1,6 @@
 import MeetingPublicResearch from 'src/components/molecules/MeetingPublicResearch'
 import { publicPrepEvidence, type PublicPrepSource } from 'src/utils/meetingPublicResearch'
-import { readMeetingBrief, claimMeetingBrief, forgetMeetingBrief, meetingBriefAuthority, meetingBriefModelFingerprint } from 'src/utils/meetingBriefCache'
+import { readMeetingBrief, claimMeetingBrief, forgetMeetingBrief, meetingBriefAuthority, meetingBriefModelFingerprint, promoteMeetingBriefDisplay } from 'src/utils/meetingBriefCache'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import { createNotesAutosave } from 'src/utils/notesAutosave'
 import { PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
@@ -413,13 +413,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [emailContextBannerDismissed, setEmailContextBannerDismissed] = useState(false)
   const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
   const briefCacheKeyRef = useRef('')
+  const briefDisplayKeyRef = useRef('')
   const [briefRefresh, setBriefRefresh] = useState(0)
   const [briefSavedAt, setBriefSavedAt] = useState<number | null>(null)
   const [briefError, setBriefError] = useState('')
   const [publicPrepResearch, setPublicPrepResearch] = useState<PublicPrepSource[]>([])
-  useEffect(() => { const clear = () => setPublicPrepResearch([]); window.addEventListener(PROFILE_CHANGED_EVENT,clear); return () => window.removeEventListener(PROFILE_CHANGED_EVENT,clear) }, [])
   useEffect(() => {
-    const invalidate = () => { setBriefPrepContent('');setBriefSavedAt(null);setBriefError('');setBriefRefresh(value=>value+1) }
+    const invalidate = () => { briefCacheKeyRef.current='';briefDisplayKeyRef.current='';setPublicPrepResearch([]);setBriefPrepContent('');setBriefSavedAt(null);setBriefError('');setBriefRefresh(value=>value+1) }
     window.addEventListener(PROFILE_CHANGED_EVENT,invalidate)
     window.addEventListener('privacy-mode-changed',invalidate)
     window.addEventListener('provider-settings-changed',invalidate)
@@ -1298,13 +1298,18 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       setIsBriefPrepGenerating(false)
       return
     }
-    const key = JSON.stringify([owner.uuid,owner.email.toLowerCase(),meeting.calendar_account_email,meeting.event_id,meeting.start,meeting.end,meeting.title,meeting.description,meeting.participants,privacyModeStatus().inference,meetingBriefModelFingerprint(),publicPrepResearch,'brief-v2'])
+    const scope = JSON.stringify([owner.uuid,owner.email.toLowerCase(),meeting.calendar_account_email,meeting.event_id,meeting.start,meeting.end,meeting.title,meeting.description,meeting.participants,privacyModeStatus().inference,meetingBriefModelFingerprint(),'brief-v3'])
+    const key = JSON.stringify([scope,publicPrepResearch])
+    const displayKey = JSON.stringify(['completed-display',scope])
     briefCacheKeyRef.current = key
-    const cached = readMeetingBrief(key,originAuthority)
+    briefDisplayKeyRef.current = displayKey
+    const cached = publicPrepResearch.length ? readMeetingBrief(key,originAuthority)
+      : readMeetingBrief(displayKey,originAuthority) || readMeetingBrief(key,originAuthority)
     if (cached) {
+      if (publicPrepResearch.length) promoteMeetingBriefDisplay(displayKey,cached,originAuthority)
       setBriefPrepContent(cached.content);setBriefPrepSources(cached.sources);setBriefSavedAt(cached.savedAt);setIsBriefPrepGenerating(false);return
     }
-    const {owner:ownsRequest,flight} = claimMeetingBrief(key,originAuthority)
+    const {owner:ownsRequest,flight} = claimMeetingBrief(key,originAuthority,displayKey)
     void flight.promise.then(value => {
       if (!viewCurrent()) return
       setBriefPrepContent(value.content);setBriefPrepSources(value.sources);setBriefSavedAt(value.savedAt);setIsBriefPrepGenerating(false)
@@ -2333,6 +2338,7 @@ Be direct, specific, and concise. No filler text.`
               <div className="notetaker-note__brief-drawer-title-wrap">
                 <button type="button" disabled={isBriefPrepGenerating} onClick={() => {
                   if (briefCacheKeyRef.current) forgetMeetingBrief(briefCacheKeyRef.current)
+                  if (briefDisplayKeyRef.current) forgetMeetingBrief(briefDisplayKeyRef.current)
                   setBriefPrepContent('');setBriefSavedAt(null);setBriefRefresh(value=>value+1)
                 }}>Refresh brief</button>
                 <span className="notetaker-note__brief-drawer-label">
@@ -2378,6 +2384,7 @@ Be direct, specific, and concise. No filler text.`
             {briefPrepExpanded && (
               <div className="notetaker-note__brief-drawer-body">
                 {briefSavedAt && <p className="text-xs text-zinc-500">Prepared {new Date(briefSavedAt).toLocaleString()}. Refresh for the latest context.</p>}
+                {briefSavedAt && !publicPrepResearch.length && briefPrepSources.some(source=>source.startsWith('Public web')) && <p className="text-xs text-zinc-500">This saved brief includes reviewed public sources. Select public sources again to include them in a refreshed brief.</p>}
                 {briefError && <p role="alert">{briefError}</p>}
                 <MeetingPublicResearch key={`${thread.id}:${userEmail}`} account={userEmail} people={otherParticipants.map(person=>person.name)} companies={externalDomains} briefBusy={isBriefPrepGenerating} onApply={sources=>{setPublicPrepResearch(sources);setBriefPrepContent('');setBriefSavedAt(null);setBriefRefresh(value=>value+1)}} />
                 <div className="notetaker-note__brief-drawer-sources">

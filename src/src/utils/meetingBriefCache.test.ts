@@ -104,3 +104,47 @@ it('refresh remains usable when disk invalidation is denied and does not reuse s
     remove.mockRestore()
   }
 })
+it('reopens the latest enriched display without restoring research inputs or starting inference', async () => {
+  const base = 'account-A/occurrence/policy/model/display',
+    first = claimMeetingBrief('base-variant', undefined, base)
+  first.flight.complete({ content: 'Basic context', sources: ['Calendar'] })
+  await first.flight.promise
+  const rich = claimMeetingBrief('explicit-research-variant', undefined, base)
+  rich.flight.complete({
+    content: 'Enriched context with https://example.test/source',
+    sources: ['Calendar', 'Public web · reviewed'],
+  })
+  await rich.flight.promise
+  expect(readMeetingBrief(base)?.content).toContain('Enriched context')
+  expect(readMeetingBrief('base-variant')?.content).toBe('Basic context')
+  expect(readMeetingBrief('account-B/occurrence/policy/model/display')).toBeUndefined()
+  expect(readMeetingBrief('account-A/occurrence/other-policy/model/display')).toBeUndefined()
+  expect(readMeetingBrief('account-A/occurrence/policy/other-model/display')).toBeUndefined()
+  forgetMeetingBrief(base)
+  forgetMeetingBrief('base-variant')
+  expect(readMeetingBrief(base)).toBeUndefined()
+  const refresh = claimMeetingBrief('base-variant', undefined, base)
+  expect(refresh.owner).toBe(true)
+  refresh.flight.complete({ content: 'Fresh internal context only', sources: ['Calendar'] })
+  await refresh.flight.promise
+  expect(readMeetingBrief(base)?.sources).toEqual(['Calendar'])
+})
+it('a late older variant cannot replace the newer completed display', async () => {
+  const key = 'competing-display',
+    older = claimMeetingBrief('older-variant', undefined, key),
+    newer = claimMeetingBrief('newer-variant', undefined, key)
+  newer.flight.complete({ content: 'Newer reviewed brief', sources: [] })
+  await newer.flight.promise
+  older.flight.complete({ content: 'Older late brief', sources: [] })
+  await older.flight.promise
+  expect(readMeetingBrief(key)?.content).toBe('Newer reviewed brief')
+})
+it('refresh invalidation fences a prior flight before asynchronous admission resumes',async()=>{
+ const display='refresh-race-display',old=claimMeetingBrief('refresh-race-old',undefined,display)
+ forgetMeetingBrief(display)
+ old.flight.complete({content:'Old completion after refresh',sources:[]});await old.flight.promise
+ expect(readMeetingBrief(display)).toBeUndefined()
+ const next=claimMeetingBrief('refresh-race-new',undefined,display)
+ next.flight.complete({content:'Explicit refresh result',sources:[]});await next.flight.promise
+ expect(readMeetingBrief(display)?.content).toBe('Explicit refresh result')
+})

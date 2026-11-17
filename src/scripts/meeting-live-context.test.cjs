@@ -89,7 +89,7 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   );
   assert.match(
     meeting,
-    /claimMeetingBrief\(key,originAuthority\)[\s\S]*?flight\.promise\.then[\s\S]*?if \(!ownsRequest\) return/,
+    /claimMeetingBrief\(key,originAuthority,displayKey\)[\s\S]*?flight\.promise\.then[\s\S]*?if \(!ownsRequest\) return/,
   );
   assert.match(
     meeting,

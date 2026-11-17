@@ -3,6 +3,8 @@ import { PROFILE_CHANGED_EVENT } from './profileScope'
 export type SavedMeetingBrief = { content: string; sources: string[]; savedAt: number }
 const PREFIX = 'kn-meeting-brief-v1:'
 const invalidated = new Set<string>()
+const displayRevisions = new Map<string, number>()
+let displayRevision = 0
 let authority = 0
 for (const event of [PROFILE_CHANGED_EVENT, 'privacy-mode-changed', 'provider-settings-changed']) {
   window.addEventListener(event, () => {
@@ -45,6 +47,8 @@ export function readMeetingBrief(
   }
 }
 export function forgetMeetingBrief(key: string): void {
+  if (displayRevisions.has(key)) displayRevisions.set(key, ++displayRevision)
+  flights.get(key)?.fail(new Error('A requested refresh replaced this brief.'))
   invalidated.add(key)
   try {
     localStorage.removeItem(PREFIX + key)
@@ -52,7 +56,42 @@ export function forgetMeetingBrief(key: string): void {
     /* In-memory invalidation still forces refresh. */
   }
 }
-function newFlight(key: string) {
+function persistBrief(key: string, saved: SavedMeetingBrief) {
+  const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX))
+  if (keys.length >= 48 && !keys.includes(PREFIX + key)) {
+    const oldest = keys.sort((a, b) => {
+      try {
+        return (
+          JSON.parse(localStorage.getItem(a) || '{}').savedAt -
+          JSON.parse(localStorage.getItem(b) || '{}').savedAt
+        )
+      } catch {
+        return 0
+      }
+    })[0]
+    if (oldest) localStorage.removeItem(oldest)
+  }
+  localStorage.setItem(PREFIX + key, JSON.stringify(saved))
+  invalidated.delete(key)
+}
+/** Displaying saved text restores neither research selection nor permission to transmit it. */
+export function promoteMeetingBriefDisplay(
+  key: string,
+  saved: SavedMeetingBrief,
+  expectedAuthority = authority,
+) {
+  if (authority !== expectedAuthority) return
+  displayRevisions.set(key, ++displayRevision)
+  try {
+    persistBrief(key, saved)
+  } catch {
+    /* Cache is optional; inference authority is unchanged. */
+  }
+}
+function newFlight(key: string, displayKey?: string) {
+  const displayStamp = displayKey ? ++displayRevision : undefined
+  if (displayKey) displayRevisions.set(displayKey, displayStamp!)
+
   const originAuthority = authority
   const controller = new AbortController()
   let resolve!: (value: SavedMeetingBrief) => void, reject!: (error: Error) => void
@@ -98,35 +137,27 @@ function newFlight(key: string) {
       }
       const saved = { ...value, sources: value.sources.slice(0, 20), savedAt: Date.now() }
       try {
-        const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX))
-        if (keys.length >= 48) {
-          const oldest = keys.sort((a, b) => {
-            try {
-              return (
-                JSON.parse(localStorage.getItem(a) || '{}').savedAt -
-                JSON.parse(localStorage.getItem(b) || '{}').savedAt
-              )
-            } catch {
-              return 0
-            }
-          })[0]
-          if (oldest) localStorage.removeItem(oldest)
-        }
-        localStorage.setItem(PREFIX + key, JSON.stringify(saved))
-        invalidated.delete(key)
+        persistBrief(key, saved)
       } catch {
-        /* Show the result, but do not claim it was persisted. */
+        /* Show complete output without claiming persistence. */
+      }
+      if (displayKey && displayRevisions.get(displayKey) === displayStamp) {
+        try {
+          persistBrief(displayKey, saved)
+        } catch {
+          /* No research permissions are restored. */
+        }
       }
       finish()
       resolve(saved)
     },
   }
 }
-export function claimMeetingBrief(key: string, expectedAuthority = authority) {
+export function claimMeetingBrief(key: string, expectedAuthority = authority, displayKey?: string) {
   if (authority !== expectedAuthority) throw new Error('Brief authority changed before admission.')
   const existing = flights.get(key)
   if (existing) return { owner: false, flight: existing }
-  const flight = newFlight(key)
+  const flight = newFlight(key, displayKey)
   flights.set(key, flight)
   return { owner: true, flight }
 }
