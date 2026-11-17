@@ -9,6 +9,7 @@ import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import { NameSpellingReview } from './NameSpellingReview'
 import { oneToOneParticipantName } from 'src/utils/oneToOneParticipant'
 import NotesGenerationRetry from './NotesGenerationRetry'
+import SavedAudioRecovery from './SavedAudioRecovery'
 import { useNotesEditReview } from './useNotesEditReview'
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import dayjs from 'dayjs'
@@ -302,7 +303,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }
   const finishingEdit = useRef(false)
   const [pendingAudio, setPendingAudio] = useState(0)
-  const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -2241,22 +2241,7 @@ Be direct, specific, and concise. No filler text.`
           <span>Microphone signal</span><meter min={0} max={1} value={Math.min(1, Math.sqrt(microphoneLevel))} aria-label="Live microphone signal" />
           <span>{microphoneLevel > 0.001 ? 'Receiving sound' : 'Quiet — check Settings → Audio if speaking'}</span>
         </div>}
-        {transcriptionError && (
-          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 my-3">
-            <strong>Transcription needs attention</strong>
-            <p>{transcriptionError || 'Saved audio is waiting to be transcribed.'}</p>
-            {(/sign.?in|auth failed|session expired|unauthorized/i.test(transcriptionError || '')) &&
-              <button type="button" className="transcription-reconnect" disabled={reconnecting} onClick={() => void reconnectTranscription()}>{reconnecting ? 'Waiting for sign-in…' : 'Sign in to Knapsack'}</button>}
-            <p>Your audio is saved on this device. Fix the issue above, then retry. Your notes stay as you edited them.</p>
-            {pendingAudio > 0 && <button type="button" className="transcription-reconnect" disabled={recoveryBusy} onClick={async () => {
-              if (recoveryBusy) return
-              setRecoveryBusy(true)
-              try { await invoke('resume_saved_transcription') }
-              catch (error) { setTranscriptionError(`${String(error)} Your audio is preserved.`) }
-              finally { setRecoveryBusy(false) }
-            }}>{recoveryBusy ? 'Resuming transcription…' : 'Retry saved audio'}</button>}
-          </div>
-        )}
+        <SavedAudioRecovery pendingAudio={pendingAudio} transcriptionError={transcriptionError} setTranscriptionError={setTranscriptionError} reconnecting={reconnecting} reconnectTranscription={reconnectTranscription} />
         {permissionError && !recordingHandlers.isRecording(thread.id) && (
           <div className="notetaker-note__permission-error">
             <div className="notetaker-note__permission-error-icon">
@@ -2422,7 +2407,6 @@ Be direct, specific, and concise. No filler text.`
           </div>
         )}
 
-        {!transcriptionError && pendingAudio > 0 && <p role="status" className="text-xs text-zinc-500 my-2">Processing saved audio… Your recording is preserved.</p>}
 
         {/* Inline insights — collected from heartbeat during recording, dismissable */}
         {inlineInsights.length > 0 && (
