@@ -30,6 +30,7 @@ mod llm;
 mod local_fs;
 mod mcp;
 mod memory;
+mod notes_transcript;
 mod privacy_mode;
 mod state_backup;
 mod shared_context;
@@ -2195,6 +2196,8 @@ async fn run_app() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      notes_transcript::read_saved_notes_transcript,
+      notes_transcript::read_saved_meeting_notes,
       diagnostics::set_diagnostic_capture,
       diagnostics::diagnostic_capture_snapshot,
       local_fs::kn_open_file_as_app,

@@ -13,15 +13,13 @@ const code = ts.transpileModule(source.slice(start, end) + '\n exports.fetchNote
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText
 
-function fixture(data, current = 44, responseOk = true) {
-  const state = { notes: 'stale previous notes', synthesis: 'stale synthesis notes', editor: 'stale editor', loading: true, writes: 0, gets: 0, recordingMetadata: null }
+function fixture(data, current = 44, responseOk = true, options = {}) {
+  const edits={current:0}, ticket={current:0}; let profileRevision=0
+  const state = { error: null, notes: 'stale previous notes', synthesis: 'stale synthesis notes', editor: 'stale editor', loading: true, writes: 0, gets: 0, recordingMetadata: null }
   const exports = {}
   vm.runInNewContext(code, {
-    localStorage: { getItem: () => null }, exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
-    fetch: async (url, opts) => {
-      assert.equal(url, 'fixture-notes/44'); assert.equal(opts.method, 'GET'); state.gets++
-      return { ok: responseOk, json: async () => ({ data }) }
-    },
+    localStorage: { getItem: () => null }, notesReadTicket:ticket, notesHydrationRevision:edits, getProfileRevision:()=>profileRevision, userEmail:'fixture@example.test', KNLocalStorage:{getItem:async()=>({email:'fixture@example.test',uuid:'fixture-owner'})}, setNotesReadError:value=>{state.error=value}, exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
+    getSavedMeetingNotes: async (id,owner) => { assert.equal(id,44); assert.equal(owner.uuid,'fixture-owner'); state.gets++;return options.responses ? options.responses[state.gets-1] : {success:responseOk,data:data ? {...data,thread_id:id} : data} },
     editor: {
       storage: { markdown: { parser: { parse: text => text } } },
       commands: { setContent: (text, emitUpdate = true) => { state.editor = text; if (emitUpdate) state.writes++ } },
@@ -30,9 +28,9 @@ function fixture(data, current = 44, responseOk = true) {
     setNotesMarkdown: text => { state.notes = text }, setMarkdown: text => { state.synthesis = text },
     setIsInitialLoading: value => { state.loading = value },
     setRecordingMetadata: value => { state.recordingMetadata = value },
-    logError: () => { throw Error('unexpected fixture error') }, DOMException, Error,
+    logError: () => {}, DOMException, Error,
   })
-  return { state, read: exports.fetchNotes }
+  return { state, read: exports.fetchNotes, changed:()=>{edits.current++}, accountRoundTrip:()=>{profileRevision+=2} }
 }
 
 test('saved notes GET displays content without scheduling autosave', async () => {
@@ -52,7 +50,7 @@ test('HTTP 200 with exists=false clears both notes states without creating an em
 
 test('an absent data envelope is not interpreted as saved notes', async () => {
   const f = fixture(undefined)
-  assert.equal(await f.read(), null); assert.equal(f.state.notes, '')
+  assert.equal(await f.read(), null); assert.equal(f.state.notes, 'stale previous notes'); assert.ok(f.state.error)
   assert.equal(f.state.writes, 0); assert.equal(f.state.gets, 1)
 })
 
@@ -167,7 +165,7 @@ function incidentTranscript(fetchImpl) {
   const begin = s.indexOf('export async function getTranscript('), end = s.indexOf('\nexport const deleteTranscript', begin)
   const out = {}, timers = new Map(); let sharingReads = 0
   vm.runInNewContext(ts.transpileModule(s.slice(begin, end).replace(/import\.meta\.env/g, '({})'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    exports: out, fetch: fetchImpl, AbortController, Error, KN_API_GET_TRANSCRIPT: 'fixture',
+    exports: out, fetch: fetchImpl, readNativeMeeting: async () => ({ content: 'Fictional local transcript' }), AbortController, Error, KN_API_GET_TRANSCRIPT: 'fixture',
     setTimeout: (callback, ms) => { timers.set(1, { callback, ms }); return 1 }, clearTimeout: id => timers.delete(id),
     KNLocalStorage: { getItem: () => { sharingReads++; throw Error('optional sharing must not run') } }, PROFILE_KEY: 'fixture', logError: () => {},
   })
@@ -175,11 +173,11 @@ function incidentTranscript(fetchImpl) {
 }
 test('local synthesis transcript read never waits for optional sharing', async () => {
   const f = incidentTranscript(async () => ({ ok: true, json: async () => ({ success: true, data: { content: 'Fictional local transcript' } }) }))
-  assert.equal((await f.read(44, { localOnly: true })).content, 'Fictional local transcript'); assert.equal(f.timers.size, 0); assert.equal(f.sharingReads(), 0)
+  assert.equal((await f.read(44, { localOnly: true, owner: { email: 'fixture@example.test', uuid: 'fixture-owner' } })).content, 'Fictional local transcript'); assert.equal(f.timers.size, 0); assert.equal(f.sharingReads(), 0)
 })
 test('transcript HTTP500 fails instead of treating success-shaped payload as usable', async () => {
   const f = incidentTranscript(async () => ({ ok: false, json: async () => ({ success: true, data: { content: 'Must not generate' } }) }))
-  await assert.rejects(f.read(44, { localOnly: true }), /Could not read/); assert.equal(f.timers.size, 0)
+  await assert.rejects(f.read(44), /Could not read/); assert.equal(f.timers.size, 0)
 })
 test('stalled transcript read aborts at bounded deadline and can be retried', async () => {
   let calls = 0
@@ -187,9 +185,9 @@ test('stalled transcript read aborts at bounded deadline and can be retried', as
     if (++calls === 1) return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Fetch is aborted', 'AbortError'))))
     return { ok: true, json: async () => ({ success: true, data: { content: 'Retry transcript' } }) }
   })
-  const stalled = f.read(44, { localOnly: true }); assert.equal(f.timers.get(1).ms, 15000)
+  const stalled = f.read(44); assert.equal(f.timers.get(1).ms, 15000)
   f.timers.get(1).callback(); await assert.rejects(stalled, /timed out/); assert.equal(f.timers.size, 0)
-  assert.equal((await f.read(44, { localOnly: true })).content, 'Retry transcript')
+  assert.equal((await f.read(44)).content, 'Retry transcript')
 })
 
 function inferenceClock(latency) {
@@ -333,3 +331,23 @@ test('late notes metadata cannot expose another meeting transcript control', asy
  const f=fixture({exists:true,notes:'Old synthetic notes',recording:{recorded:true,transcriptAvailable:true}},45)
  await f.read();assert.equal(f.state.recordingMetadata,null)
 })
+
+// Exercise the actual hydration function with late native replies, not a mirror.
+function deferredSnapshot() {let resolve;const promise=new Promise(done=>{resolve=done});return {promise,resolve};}
+for(const change of ['changed','accountRoundTrip'])test(`late native snapshot cannot replace content after ${change}`,async()=>{
+ const pending=deferredSnapshot(), f=fixture(null,44,true,{responses:[pending.promise]});
+ const read=f.read();await Promise.resolve();await Promise.resolve();
+ f.state.notes='New saved edit';f.state.editor='New saved edit';f[change]();
+ pending.resolve({success:true,data:{thread_id:44,exists:true,notes:'Old delayed notes'}});await read;
+ assert.equal(f.state.notes,'New saved edit');assert.equal(f.state.editor,'New saved edit');assert.equal(f.state.writes,0);
+});
+test('an older native snapshot cannot replace the latest completed read',async()=>{
+ const first=deferredSnapshot(),second=deferredSnapshot(), f=fixture(null,44,true,{responses:[first.promise,second.promise]});
+ const a=f.read();await Promise.resolve();await Promise.resolve();const b=f.read();await Promise.resolve();await Promise.resolve();
+ second.resolve({success:true,data:{thread_id:44,exists:true,notes:'New snapshot'}});await b;
+ first.resolve({success:true,data:{thread_id:44,exists:true,notes:'Old snapshot'}});await a;assert.equal(f.state.notes,'New snapshot');
+});
+
+for(const bad of [{},{exists:'bad',notes:null},{exists:true,notes:null},{exists:false,notes:'unexpected'}])test(`malformed note snapshot preserves the editor: ${JSON.stringify(bad)}`,async()=>{
+ const f=fixture(bad);await f.read();assert.equal(f.state.notes,'stale previous notes');assert.equal(f.state.editor,'stale editor');assert.ok(f.state.error);assert.equal(f.state.writes,0);
+});

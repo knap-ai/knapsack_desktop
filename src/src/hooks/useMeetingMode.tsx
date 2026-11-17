@@ -216,7 +216,7 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
               cancelForProfile(); generation.check()
             }
           }
-          const transcript = await getTranscript(threadId, { localOnly: true })
+          const transcript = await getTranscript(threadId, { localOnly: true, owner: { email: startingProfile?.email || '', uuid: startingProfile?.uuid || '' } })
           if (!transcript) {
             logError(new Error('Transcript is undefined or null.'), {
               additionalInfo: 'error getTranscript',
