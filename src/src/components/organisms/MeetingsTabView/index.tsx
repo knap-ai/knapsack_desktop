@@ -165,7 +165,7 @@ const MeetingsTabView = ({
       const notes = data?.data?.notes
       if (!response.ok || !data?.data?.exists || !notes?.trim()) throw new Error('No saved notes are available to share yet.')
       if (email) onEmailClick?.(notes, selectedMeeting?.getCalendarEvent())
-      else { await copyMeetingNotesForSlack(notes, selectedMeeting?.getTitle?.()); setCopyStatus('Notes copied') }
+      else { await copyMeetingNotesForSlack(notes, selectedMeeting?.getTitle?.(), selectedMeeting?.getCalendarEvent()); setCopyStatus('Notes copied') }
       setShareOpen(false)
     } catch (error) { handleErrorContact(error instanceof Error ? error.message : 'Unable to share notes.') }
   }
@@ -308,7 +308,7 @@ const MeetingsTabView = ({
             {slackShareOpen && notesThread && <SlackNotesShare key={`${notesThread.id}:${userEmail}`} threadId={notesThread.id} userEmail={userEmail} onClose={()=>setSlackShareOpen(false)} notes={async()=>{
               const response=await fetch(`${KN_API_NOTES}/${notesThread.id}`);const body=await response.json()
               if(!response.ok||!body.data?.exists||body.data.thread_id!==notesThread.id)throw new Error('Notes are unavailable for this meeting.')
-              return {markdown:body.data.notes,title:selectedMeeting?.getTitle?.()}
+              return {markdown:body.data.notes,title:selectedMeeting?.getTitle?.(),metadata:selectedMeeting?.getCalendarEvent()}
             }}/>}
             {copyStatus && <span role="status">{copyStatus}</span>}
             {shareOpen && <div className="MeetingsTabView__share-menu">

@@ -179,13 +179,18 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
           if (backendIsDone) {
             finishedConnections[syncingKey] = {
               ...connections[syncingKey],
-              state: ConnectionStates.UP_TO_DATE,
+              // Provider-wide idle is not proof this exact account succeeded.
+              state: ConnectionStates.IDLE,
             }
           }
         }
 
         if (Object.keys(finishedConnections).length > 0) {
-          setConnections(prev => ({ ...prev, ...finishedConnections }))
+          setConnections(prev => ({
+            ...prev,
+            ...Object.fromEntries(Object.entries(finishedConnections).filter(([key]) =>
+              prev[key]?.state === ConnectionStates.SYNCING)),
+          }))
         }
       }, 3000)
     }

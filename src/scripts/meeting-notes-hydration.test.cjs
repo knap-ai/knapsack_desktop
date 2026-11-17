@@ -135,7 +135,7 @@ function incidentCompletion(failure, customFetcher) {
   vm.runInNewContext(ts.transpileModule(app.slice(begin, end) + '\nexports.run=chatMessagesAskBot;', { fileName: 'fixture.tsx', compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.React } }).outputText, {
     exports: out, waitForAbort: notesUtility.waitForAbort, useCallback: cb => cb, Error, diagnosticNow: () => 0, emitDiagnostic: () => {},
     getHasOnboarded: async () => { if (failure === 'onboarding') throw Error('synthetic onboarding error'); return true },
-    KNAnalytics: { trackEvent: () => {} }, userEmail: 'fixture', userName: 'fixture', handleErrorContact: () => {}, logError: () => {},
+    KNAnalytics: { trackEvent: () => {} }, userEmail: 'fixture', userName: 'fixture', handleErrorContact: () => {}, handleOpenToastr: () => {}, logError: () => {},
     dataFetcher: customFetcher || { getChatCompletionStream: async () => { if (failure === 'HTTP500') throw Error('synthetic HTTP500'); return { read: async () => { const e = Error('synthetic failed stream'); if (failure === 'abort') e.name = 'AbortError'; throw e } } } },
     readCompletionStream: customFetcher ? streamUtility.readCompletionStream : async reader => reader.read(), KN_CHAT_MESSAGE_MAX_STREAM_READS: 100,
   })

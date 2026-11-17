@@ -1169,23 +1169,7 @@ async fn multi_provider_completion_inner(messages: Vec<LlmMessage>) -> Result<St
     .unwrap_or_default();
   apply_model_routing(&mut provider, &user_prompt);
 
-  let key_len = provider.api_key.len();
-  let key_preview = if key_len > 8 {
-    format!(
-      "{}...{}",
-      &provider.api_key[..4],
-      &provider.api_key[key_len - 4..]
-    )
-  } else {
-    format!("({}chars)", key_len)
-  };
-  log::info!(
-    "[notes] Using {} ({}) for meeting notes completion [key_len={}, key={}]",
-    provider.name,
-    provider.model,
-    key_len,
-    key_preview
-  );
+  log::info!("[notes] Using {} ({}) for meeting notes completion", provider.name, provider.model);
 
   let result = if provider.name == "knapsack" {
     knapsack_completion(&provider, &messages).await
@@ -1197,6 +1181,9 @@ async fn multi_provider_completion_inner(messages: Vec<LlmMessage>) -> Result<St
 
   match result {
     Ok(text) => Ok(text),
+    // A local provider failure must not transmit the same source to a cloud
+    // provider. Keep the selected destination and let the user retry explicitly.
+    Err(e) if provider.name == "ollama" => Err(e),
     Err(e) => {
       log::warn!(
         "[notes] {} failed: {}. Trying fallback providers...",

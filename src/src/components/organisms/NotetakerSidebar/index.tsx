@@ -1,3 +1,4 @@
+import { workspaceDisplayName } from 'src/utils/relationshipTimeline'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
@@ -16,14 +17,14 @@ import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { FeedItem } from 'src/api/feed_items'
 import { isRecordingStatus } from 'src/api/recording'
 import { ThreadType } from 'src/api/threads'
-import { listWorkspaces, Workspace } from 'src/api/workspaces'
+import { Workspace } from 'src/api/workspaces'
+import { useScopedLibrarySearch } from './useScopedLibrarySearch'
 import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
 
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { TabChoices } from 'src/components/TabBar'
 
-import { getAppVersion } from 'src/utils/app'
 
 import MeetingChatAvailableButton, {
   findStoredMeetingChatThreadId,
@@ -261,8 +262,8 @@ function NotetakerSidebar({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
-  const [appVersion, setAppVersion] = useState<string>('')
-  const [libraryResults, setLibraryResults] = useState<Workspace[]>([])
+  const resetSearch = useCallback(() => { setSearchQuery(''); setSearchFocused(false) }, [])
+  const { results: libraryResults, loading: searchLoading, error: searchError } = useScopedLibrarySearch(searchQuery, resetSearch)
   const [composerMode, setComposerMode] = useState<TeamComposerMode | null>(null)
   const [agentPendingRemoval, setAgentPendingRemoval] = useState<TeamAgent | null>(null)
   const [recordingPendingDeletion, setRecordingPendingDeletion] = useState<FeedItem | null>(null)
@@ -275,10 +276,6 @@ function NotetakerSidebar({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const recentRecordingsRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    getAppVersion().then(v => setAppVersion(v))
-  }, [])
 
   const clampTeamPaneHeight = useCallback((height: number) => {
     const available = contentRef.current?.clientHeight ?? window.innerHeight - 190
@@ -338,25 +335,6 @@ function NotetakerSidebar({
 
   const hasCalendarConnected = useMemo(() => hasCalendarCapability(connections), [connections])
 
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setLibraryResults([])
-      return
-    }
-    const q = searchQuery.toLowerCase()
-    listWorkspaces()
-      .then(res => {
-        if (res.success) {
-          setLibraryResults(
-            res.data.filter(
-              (ws: Workspace) =>
-                ws.name?.toLowerCase().includes(q) || ws.description?.toLowerCase().includes(q),
-            ),
-          )
-        }
-      })
-      .catch(() => {})
-  }, [searchQuery])
 
   const currentFeedItem = feed.currentFeedItem()
 
@@ -489,6 +467,10 @@ function NotetakerSidebar({
     },
     [searchQuery],
   )
+
+  const matchingMeetings = useMemo(() => searchQuery.trim() ?
+    filterBySearch(Object.entries(feed.feedContent || {}).flatMap(([key, items]) =>
+      items.map(item => ({ key, item })))).slice(0, 30) : [], [feed.feedContent, filterBySearch, searchQuery])
 
   const isChatActive =
     currentTab === TabChoices.Openclaw ||
@@ -652,7 +634,14 @@ function NotetakerSidebar({
       </button>
 
       {/* Search */}
-      <div className="notetaker-sidebar__search">
+      <div className="notetaker-sidebar__search" onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSearchFocused(false)
+      }} onKeyDown={event => {
+        if (event.key === 'Escape') { event.preventDefault(); setSearchFocused(false); searchInputRef.current?.blur() }
+        if (event.key === 'ArrowDown' && event.target === searchInputRef.current) {
+          event.preventDefault(); event.currentTarget.querySelector<HTMLButtonElement>('.notetaker-sidebar__search-overlay button')?.focus()
+        }
+      }}>
         <div
           className={`notetaker-sidebar__search-box ${searchFocused ? 'notetaker-sidebar__search-box--focused' : ''}`}
         >
@@ -674,10 +663,12 @@ function NotetakerSidebar({
             ref={searchInputRef}
             type="text"
             placeholder="Search meetings & library"
+            aria-label="Search meetings and library"
+            aria-controls="sidebar-search-results"
+            aria-expanded={searchFocused && Boolean(searchQuery.trim())}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
             className="notetaker-sidebar__search-input"
           />
           {searchQuery ? (
@@ -701,6 +692,18 @@ function NotetakerSidebar({
             </kbd>
           )}
         </div>
+        {searchFocused && searchQuery.trim() && <section id="sidebar-search-results" role="region" aria-label="Search results" className="notetaker-sidebar__search-overlay">
+          {matchingMeetings.length > 0 && <><h2>Meetings</h2>{matchingMeetings.map(({item,key}) => <button type="button" key={`${key}:${item.id}`} onClick={() => {
+            if (item.id == null) return
+            feed.selectFeedItem(key,item.id); onMeetingSelect?.(); onTabChange(TabChoices.Meeting,'meetings'); setSearchQuery(''); setSearchFocused(false)
+          }}><strong>{item.getTitle?.() || item.title || 'Meeting'}</strong><span>{dayjs(item.timestamp).format('MMM D, h:mm A')}</span></button>)}</>}
+          {libraryResults.length > 0 && <><h2>Library</h2>{libraryResults.map(ws => <button type="button" key={ws.uuid} onClick={() => {
+            onTabChange(TabChoices.Library); onLibraryWorkspaceOpen?.(ws); setSearchQuery(''); setSearchFocused(false)
+          }}><strong>{workspaceDisplayName(ws)}</strong>{ws.description && <span>{ws.description}</span>}</button>)}</>}
+          {searchLoading && <p role="status">Searching library…</p>}
+          {searchError && <p role="status">Library search is unavailable. Meeting results are still shown.</p>}
+          {!searchLoading && !searchError && !matchingMeetings.length && !libraryResults.length && <p>No matching meetings or library items.</p>}
+        </section>}
       </div>
 
       {/* Independently sizable team and calendar/notes panes */}
@@ -1038,33 +1041,6 @@ function NotetakerSidebar({
           </div>
         )}
 
-        {/* Library search results */}
-        {searchQuery.trim() && libraryResults.length > 0 && (
-          <div className="notetaker-sidebar__notes-group">
-            <div className="notetaker-sidebar__notes-date">Library</div>
-            {libraryResults.map(ws => (
-              <div
-                key={ws.uuid}
-                className="notetaker-sidebar__note-card"
-                onClick={() => {
-                  onTabChange(TabChoices.Library)
-                  onLibraryWorkspaceOpen?.(ws)
-                }}
-              >
-                <div className="notetaker-sidebar__note-avatar notetaker-sidebar__note-avatar--library">
-                  {libraryIcon}
-                </div>
-                <div className="notetaker-sidebar__note-info">
-                  <div className="notetaker-sidebar__note-title">{ws.name}</div>
-                  {ws.description && (
-                    <div className="notetaker-sidebar__note-subtitle">{ws.description}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Past notes */}
         {orderedPastKeys.map(dateKey => {
           const items = filterBySearch(pastNotes[dateKey])
@@ -1396,7 +1372,6 @@ function NotetakerSidebar({
             <span>GBrain</span>
           </button>
         </div>
-        {appVersion && <div className="notetaker-sidebar__version">Knapsack v{appVersion}</div>}
       </div>
     </div>
   )

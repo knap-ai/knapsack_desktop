@@ -441,7 +441,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
       )}
 
       {['person', 'project'].includes(currentWorkspace.entityType || '') && <nav className="relationship-workspace__switcher" aria-label="Workspace view">
-        <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>Relationship timeline</button>
+        <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>{currentWorkspace.entityType === 'person' ? 'Relationship timeline' : 'Timeline'}</button>
         <button type="button" aria-pressed={view === 'documents'} onClick={() => setView('documents')}>Documents · {documents.length}</button>
       </nav>}
       {/* Tag filter bar */}
@@ -522,7 +522,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
         </button>
       </div>}
 
-      {view === 'timeline' && <RelationshipTimeline documents={filteredDocuments} evidence={timeline}
+      {view === 'timeline' && <RelationshipTimeline person={currentWorkspace.entityType === 'person'} documents={filteredDocuments} evidence={timeline}
         loading={timelineLoading} error={timelineError} onRetry={() => setTimelineRetry(value => value + 1)}
         onOpenCalendar={onOpenCalendarSource} />}
 

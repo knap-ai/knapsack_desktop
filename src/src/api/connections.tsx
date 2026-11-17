@@ -326,11 +326,18 @@ export async function getGoogleProfile(email: string) {
     },
   })
   const data = await response.json()
-  if (!data || data['success'] !== true) {
-    logError(new Error(data.message), {
-      additionalInfo: '',
-      error: data.message,
-    })
+  // A refresh failure is not a signed-out profile. Never let the caller
+  // persist the error response's null identity fields over the current owner.
+  if (
+    !response.ok ||
+    data?.success !== true ||
+    typeof data.email !== 'string' ||
+    !data.email.trim() ||
+    typeof data.uuid !== 'string' ||
+    !data.uuid.trim() ||
+    data.email.trim().toLowerCase() !== email.trim().toLowerCase()
+  ) {
+    throw new Error('Could not refresh this Google profile. Your saved account was kept.')
   }
   return {
     email: data.email,

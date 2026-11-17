@@ -95,7 +95,7 @@ export default class DataFetcher {
     additionalDocuments?: { title: string; content: string }[],
     threadId?: number,
     diagnosticId?: string,
-    completionKind: 'notes' | 'completion' = 'completion',
+    completionKind: 'notes' | 'brief' | 'completion' = 'completion',
     signal?: AbortSignal,
   ) {
     const body_obj = {
@@ -111,7 +111,7 @@ export default class DataFetcher {
     }
 
     try {
-      const response = completionKind === 'notes' && signal
+      const response = completionKind !== 'completion' && signal
         ? await fetch(KN_API_STREAM_LLM_COMPLETE, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body_obj), signal,
@@ -129,10 +129,10 @@ export default class DataFetcher {
           // Notes can await native inference plus fallback before response headers.
           // Submit once: retrying an aborted POST starts duplicate generation while
           // the original backend job may still be running. Other callers keep their policy.
-          maxRetries: completionKind === 'notes' ? 1 : 3,
+          maxRetries: completionKind !== 'completion' ? 1 : 3,
           baseDelay: 100,
           maxDelay: 1000,
-          timeout: completionKind === 'notes' ? 180000 : 60000,
+          timeout: completionKind !== 'completion' ? 180000 : 60000,
         },
       )
 

@@ -1,5 +1,8 @@
+import { confirmRecordingAttempt } from 'src/utils/recordingAttempt'
+import { canAutomaticallyRecord } from './utils/autoRecordPreference'
 import { openCalendarMeetingLink } from 'src/utils/calendarMeetingLink'
 import { waitForAbort } from './utils/notesGeneration'
+import { getProfileRevision } from './utils/profileScope'
 import { readCompletionStream } from 'src/utils/completionStream'
 import { createDiagnostic, diagnosticNow, emitDiagnostic, type Diagnostic, type DiagnosticKind } from 'src/utils/diagnostics'
 import { useFollowThrough } from 'src/hooks/useFollowThrough'
@@ -211,6 +214,7 @@ export interface HomeProps {
 
 export type LLMParams = {
   diagnostic?: Diagnostic
+  requestKind?: 'notes' | 'brief' | 'completion'
   diagnosticKind?: DiagnosticKind
   signal?: AbortSignal
   prompt: string
@@ -486,6 +490,7 @@ function App() {
       threadId,
       diagnostic,
       diagnosticKind,
+      requestKind,
       signal,
     }: LLMParams) => {
       const diagnosticStart = diagnosticNow()
@@ -522,7 +527,7 @@ function App() {
           additionalDocuments,
           threadId,
           diagnostic?.id,
-          diagnosticKind === 'notes' ? 'notes' : 'completion',
+          requestKind || (diagnosticKind === 'notes' ? 'notes' : 'completion'),
           signal,
         ), signal)
         diagnosticRequestPending = false
@@ -583,7 +588,7 @@ function App() {
         errorCallback?.(err as Error)
       }
     },
-    [dataFetcher, false],
+    [dataFetcher, userEmail, userName, handleOpenToastr],
   )
 
   useEffect(() => {
@@ -614,17 +619,26 @@ function App() {
     if (auth.profile?.email) {
       const email = auth.profile.email
       // Update profile
-      if (auth.profile.provider == ConnectionKeys.MICROSOFT_PROFILE) {
-        getMicrosoftProfile(email).then(updatedProfile => auth.updateProfile(updatedProfile))
-      } else {
-        getGoogleProfile(email).then(updatedProfile => auth.updateProfile(updatedProfile))
-      }
+      let cancelled = false
+      const originRevision = getProfileRevision()
+      const refresh = auth.profile.provider === ConnectionKeys.MICROSOFT_PROFILE
+        ? getMicrosoftProfile(email)
+        : getGoogleProfile(email)
+      void refresh.then(updatedProfile => {
+        if (!cancelled) return auth.updateProfile(updatedProfile, originRevision)
+      }).catch(() => {
+        // Provider failure must not erase identity or become an unhandled rejection.
+        logError(new Error('Profile refresh failed; saved account retained.'), {
+          additionalInfo: 'Retry profile refresh through the existing sign-in flow.',
+        })
+      })
 
       // The periodic-sync effect below performs the immediate connection
       // discovery and sync. Starting it here as well would double-count a
       // single auth failure and could trigger an unnecessary reconnect.
+      return () => { cancelled = true }
     }
-  }, [auth.profile?.email])
+  }, [auth.profile?.email, auth.profile?.uuid, auth.profile?.provider])
 
   useEffect(() => {
     if (!reconnect || reconnect.length === 0 || !auth.profile || reconnectDismissedRef.current) return
@@ -1413,7 +1427,8 @@ function App() {
     }
   }, [])
 
-  const beginAutomaticMeetingCapture = useCallback(async (item: FeedItem) => {
+  const beginAutomaticMeetingCapture = useCallback(async (item: FeedItem, explicit = false) => {
+    if (!explicit && !await canAutomaticallyRecord()) return
     const key = meetingCaptureKey(item)
     if (ignoredMeetingCapturesRef.current.has(key) || activeQuietCaptureRef.current) return
     activeQuietCaptureRef.current = key
@@ -1421,15 +1436,21 @@ function App() {
     setMeetingCaptureNotice({ phase: 'recording', title, key })
     setMeetingQuietMode(true, title)
     try {
-      const started = await feedRef.current.startCalendarMeeting(item)
-      await new Promise(resolve => setTimeout(resolve, 300))
-      const status = await isRecordingStatus()
-      if (!status || !status.isRecording) {
-        throw new Error('Recording did not become active')
-      }
-      if (started?.threadId) setIsRecording(started.threadId, true)
+      const started = await feedRef.current.startCalendarMeeting(item, { automatic: !explicit })
+      if (!started) { setMeetingQuietMode(false); return }
+      // Native Start acknowledged: suppress this occurrence before any delay
+      // so an immediate manual Stop cannot race a second automatic start.
+      ignoredMeetingCapturesRef.current.add(key)
       quietCaptureObservedRecordingRef.current = true
+      const confirmed = await confirmRecordingAttempt(
+        started.threadId,
+        () => activeQuietCaptureRef.current === key,
+        isRecordingStatus,
+      )
+      if (!confirmed) return // Explicit Stop/supersession is not a start failure.
+      setIsRecording(started.threadId, true)
     } catch (error) {
+      if (activeQuietCaptureRef.current !== key) return
       console.error('Automatic meeting capture failed:', error)
       setMeetingQuietMode(false)
       handleErrorContact('Knapsack noticed the meeting, but could not start recording. Open it from Coming up to try again.')
@@ -1472,7 +1493,10 @@ function App() {
   }, [calendarCaptureItems])
 
   useEffect(() => {
-    const unlistenStop = listen('stop_recording', () => setMeetingQuietMode(false))
+    const unlistenStop = listen('stop_recording', () => {
+      if (activeQuietCaptureRef.current) ignoredMeetingCapturesRef.current.add(activeQuietCaptureRef.current)
+      setMeetingQuietMode(false)
+    })
     return () => {
       unlistenStop.then(unlisten => unlisten())
     }
@@ -1480,6 +1504,7 @@ function App() {
 
   useEffect(() => {
     if (activeQuietCaptureRef.current && quietCaptureObservedRecordingRef.current && !isAnyRecording) {
+      if (activeQuietCaptureRef.current) ignoredMeetingCapturesRef.current.add(activeQuietCaptureRef.current)
       quietCaptureObservedRecordingRef.current = false
       setMeetingQuietMode(false)
     }
@@ -1878,10 +1903,13 @@ function App() {
       {meetingCaptureNotice && (
         <div className={`meeting-capture-notice meeting-capture-notice--${meetingCaptureNotice.phase}`} role="status" aria-live="polite">
           <span className="meeting-capture-notice__dot" aria-hidden="true" />
-          <span>
-            <strong>{meetingCaptureNotice.phase === 'ready' ? 'Ready to capture' : 'Recording quietly'}</strong>
+          <button type="button" disabled={meetingCaptureNotice.phase !== 'ready'} onClick={() => {
+            const selected = calendarCaptureItems().find(item => meetingCaptureKey(item) === meetingCaptureNotice.key)
+            if (selected) void beginAutomaticMeetingCapture(selected, true)
+          }}>
+            <strong>{meetingCaptureNotice.phase === 'ready' ? 'Record now' : 'Recording — stop when finished'}</strong>
             {' · '}{meetingCaptureNotice.title}
-          </span>
+          </button>
           {meetingCaptureNotice.phase === 'ready' && (
             <button
               type="button"

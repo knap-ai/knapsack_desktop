@@ -172,7 +172,13 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
   const synthesizeContent = useCallback(
     async (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
       const saveBinding=bindNotesSave()
-      if(!saveBinding.isCurrent())throw new Error('Account changed before note generation was admitted.')
+      if(!saveBinding.isCurrent()) {
+        const admissionError = new Error('Account changed before note generation was admitted.')
+        generationIdentity.current = displayIdentity
+        setErrorThreadId(threadId)
+        setError(admissionError)
+        throw admissionError
+      }
       activeGeneration.current?.cancel(new Error('Note generation replaced by a newer attempt.'))
       const generation = new NotesGeneration(threadId)
       activeGeneration.current = generation

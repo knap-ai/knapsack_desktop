@@ -1,4 +1,29 @@
 import { extractSlackHtmlTables } from './meetingNotesTables'
+export type MeetingNotesClipboardMetadata = {
+  start?: number
+  end?: number
+  participants?: { name?: string; email?: string }[]
+}
+const clipboardMeetingDetails = (metadata?: MeetingNotesClipboardMetadata): string[] => {
+  if (!metadata) return []
+  const lines: string[] = []
+  const date = (value?: number) => value && Number.isFinite(value) && Math.abs(value) < 8640000000000
+    ? new Date(value * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
+  const start = date(metadata.start), end = date(metadata.end)
+  if (start) lines.push(`Meeting: ${start}${end ? ` — ${end}` : ''}`)
+  const seen = new Set<string>()
+  const people = (metadata.participants || []).flatMap(person => {
+    const name = (person.name || '').replace(/[\r\n\t]/g, ' ').trim()
+    const email = (person.email || '').replace(/[\r\n\t]/g, ' ').trim()
+    const key = (email || name).toLowerCase()
+    if (!key || seen.has(key)) return []
+    seen.add(key)
+    return [name && email && name.toLowerCase() !== email.toLowerCase() ? `${name} (${email})` : email || name]
+  })
+  if (people.length) lines.push(`Participants: ${people.join(', ')}`)
+  return lines
+}
+
 
 const escapeHtml = (value: string) =>
   value
@@ -127,6 +152,7 @@ export type SlackClipboardPayload = {
 export const buildSlackClipboardPayload = (
   markdown: string,
   title?: string,
+  metadata?: MeetingNotesClipboardMetadata,
 ): SlackClipboardPayload => {
   const htmlTables = extractSlackHtmlTables(markdown)
   const sourceLines = htmlTables.source.replace(/\r\n?/g, '\n').split('\n')
@@ -144,6 +170,12 @@ export const buildSlackClipboardPayload = (
     plain.push(cleanTitle, '')
     html.push(`<p><strong>${escapeHtml(cleanTitle)}</strong></p>`)
   }
+
+  for (const detail of clipboardMeetingDetails(metadata)) {
+    plain.push(detail)
+    html.push(`<p>${escapeHtml(detail)}</p>`)
+  }
+  if (clipboardMeetingDetails(metadata).length) plain.push('')
 
   for (let index = 0; index < sourceLines.length; index += 1) {
     const line = sourceLines[index]
@@ -229,8 +261,8 @@ export const buildSlackClipboardPayload = (
 export const formatMeetingNotesForSlack = (markdown: string, title?: string) =>
   buildSlackClipboardPayload(markdown, title).text
 
-export async function copyMeetingNotesForSlack(markdown: string, title?: string): Promise<void> {
-  const payload = buildSlackClipboardPayload(markdown, title)
+export async function copyMeetingNotesForSlack(markdown: string, title?: string, metadata?: MeetingNotesClipboardMetadata): Promise<void> {
+  const payload = buildSlackClipboardPayload(markdown, title, metadata)
   const clipboard = navigator.clipboard
   if (clipboard?.write && typeof ClipboardItem !== 'undefined') {
     try {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { signout as signoutAPI, updateLastSeen } from 'src/api/connections'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
+import { getProfileRevision } from 'src/utils/profileScope'
 
 export const PROFILE_KEY = 'KN_PROFILE'
 
@@ -17,7 +18,7 @@ export type Profile = {
 export interface IAuth {
   fetchProfile: () => void
   profile: Profile | undefined
-  updateProfile: (profile?: Profile) => void
+  updateProfile: (profile?: Profile, expectedProfileRevision?: number) => Promise<void>
   signout: () => void
 }
 
@@ -73,9 +74,11 @@ export const useAuth = (): IAuth => {
     return profile
   }
 
-  const updateProfile = useCallback(async (profile?: Profile) => {
-    const updatedProfile = await fetchProfileImg(profile)
-    KNLocalStorage.setItem(PROFILE_KEY, updatedProfile)
+  const updateProfile = useCallback(async (profile?: Profile, expectedProfileRevision?: number) => {
+    if (expectedProfileRevision !== undefined && getProfileRevision() !== expectedProfileRevision) return
+    const updatedProfile = await fetchProfileImg(profile ? { ...profile } : profile)
+    const committedRevision = await KNLocalStorage.setItemIfCurrent(PROFILE_KEY, updatedProfile, expectedProfileRevision)
+    if (committedRevision === null || getProfileRevision() !== committedRevision) return
     if (updatedProfile && import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE !== '1') {
       const result = await updateLastSeen(updatedProfile.email)
       if (result.success && result.sharing_permission !== undefined) {
@@ -83,7 +86,7 @@ export const useAuth = (): IAuth => {
       }
     }
 
-    setProfile(updatedProfile)
+    if (getProfileRevision() === committedRevision) setProfile(updatedProfile)
   }, [])
 
   const signout = useCallback(() => {

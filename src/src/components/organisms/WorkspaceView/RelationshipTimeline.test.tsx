@@ -64,3 +64,14 @@ it('recovers evidence loading without inventing a story', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Retry timeline' }))
   expect(retry).toHaveBeenCalledOnce()
 })
+
+it('uses Timeline for a project rather than a person relationship', () => {
+  render(<RelationshipTimeline person={false} documents={documents} evidence={{displayName:null,sources:[source],truncated:false}} loading={false} error={false} onRetry={vi.fn()} />)
+  expect(screen.getByRole('region', {name:'Timeline'})).toBeTruthy()
+  expect(screen.queryByRole('region', {name:'Relationship timeline'})).toBeNull()
+})
+it('labels future evidence as upcoming rather than an accomplished milestone', () => {
+ render(<RelationshipTimeline person={false} documents={documents} evidence={{displayName:null,sources:[{...source,occurredAt:4102444800}],truncated:false}} loading={false} error={false} onRetry={vi.fn()} />)
+ expect(screen.getByText('Upcoming')).toBeTruthy()
+ expect(screen.queryByText('Milestone')).toBeNull()
+})

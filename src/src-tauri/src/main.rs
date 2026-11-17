@@ -1938,7 +1938,7 @@ async fn run_app() {
         "main".to_string(),
         main_url,
       )
-      .title("")
+      .title("Knapsack")
       .fullscreen(false)
       .maximizable(true)
       //.maximized(true)
@@ -1949,7 +1949,7 @@ async fn run_app() {
 
       #[cfg(target_os = "macos")]
       {
-        window_builder = window_builder.title_bar_style(tauri::TitleBarStyle::Overlay);
+        window_builder = window_builder.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
       }
 
       let main_window = window_builder.build().map_err(|e| {
@@ -2130,7 +2130,7 @@ async fn run_app() {
         WindowUrl::App("recording-indicator.html".into()),
       )
       .title("Recording")
-      .inner_size(180.0, 48.0)
+      .inner_size(164.0, 40.0)
       .resizable(false)
       .decorations(false)
       .always_on_top(true)

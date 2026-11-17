@@ -1,6 +1,7 @@
 //! Exact-account Studio adapter for the notes picker. Never exports credentials.
 use serde_json::{json, Value};
 const PREFIX: &str = "studio:slack:";
+const TRUNCATED_PAGE: &str = "Studio Slack channel page exceeded the transport limit.";
 
 pub(super) fn connector(account: &str) -> Result<String, String> {
   let id = account
@@ -27,13 +28,15 @@ pub(super) fn provider_data(value: Value) -> Result<Value, String> {
   if content.len() != 1 {
     return Err("Studio Slack returned an ambiguous result.".into());
   }
-  let raw: Value = serde_json::from_str(
-    content[0]
-      .get("text")
-      .and_then(Value::as_str)
-      .ok_or("Studio Slack result is not JSON.")?,
-  )
-  .map_err(|_| "Studio Slack result is not complete JSON.")?;
+  let text = content[0].get("text").and_then(Value::as_str)
+    .ok_or("Studio Slack result is not JSON.")?;
+  let raw: Value = serde_json::from_str(text).map_err(|_| {
+    // The deployed Composio adapter appends this marker to an incomplete
+    // JSON prefix. Never accept that prefix as data; a read-only page can
+    // instead be requested again with fewer rows and the same cursor.
+    if text.contains("[TRUNCATED] Output exceeded ") { TRUNCATED_PAGE }
+    else { "Studio Slack result is not complete JSON." }
+  })?;
   let data = raw.get("data").cloned().unwrap_or_else(|| raw.clone());
   if value.get("isError").and_then(Value::as_bool) == Some(true)
     || raw.get("successful").and_then(Value::as_bool) == Some(false)
@@ -189,14 +192,33 @@ pub(super) async fn call(account: &str, method: &str, args: Value) -> Result<Val
   }
   let connector = discover(account, method, &args).await?;
   let name = action(method)?;
-  let value = crate::clawd::studio_mcp::request_studio(
-    reqwest::Method::POST,
-    &format!("/desktop/integrations/{connector}/call"),
-    Some(json!({"name":name,"arguments":args})),
-  )
-  .await?;
-  provider_data(value)
+  bounded_channel_read(method, args, |arguments| {
+    let connector = connector.clone();
+    async move {
+      let value = crate::clawd::studio_mcp::request_studio(
+        reqwest::Method::POST,
+        &format!("/desktop/integrations/{connector}/call"),
+        Some(json!({"name":name,"arguments":arguments})),
+      ).await?;
+      provider_data(value)
+    }
+  }).await
+
 }
+async fn bounded_channel_read<F, Fut>(method: &str, mut args: Value, mut read: F) -> Result<Value, String>
+where F: FnMut(Value) -> Fut, Fut: std::future::Future<Output=Result<Value,String>> {
+  loop {
+    match read(args.clone()).await {
+      Err(error) if method == "conversations.list" && error == TRUNCATED_PAGE => {
+        let limit = args["limit"].as_u64().unwrap_or(1);
+        let smaller = if limit > 50 { 50 } else if limit > 10 { 10 } else if limit > 1 { 1 } else { return Err(error); };
+        args["limit"] = json!(smaller);
+      }
+      result => return result,
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -265,6 +287,28 @@ mod tests {
     ] {
       assert!(provider_data(value).is_err())
     }
+  }
+  #[tokio::test]
+  async fn truncated_discovery_repeats_only_same_read_cursor_with_smaller_pages() {
+    let mut limits = Vec::new();
+    let result = bounded_channel_read("conversations.list", json!({"types":"public_channel","limit":200,"cursor":"exact-cursor"}), |args| {
+      assert_eq!(args["cursor"], "exact-cursor");
+      assert_eq!(args["types"], "public_channel");
+      let limit = args["limit"].as_u64().unwrap(); limits.push(limit);
+      std::future::ready(if limit > 10 { Err(TRUNCATED_PAGE.into()) } else { Ok(json!({"ok":true,"channels":[]})) })
+    }).await.unwrap();
+    assert_eq!(limits, vec![200,50,10]); assert_eq!(result["ok"], true);
+  }
+  #[tokio::test]
+  async fn malformed_json_and_non_listing_calls_are_never_retried() {
+    for (method,error) in [("conversations.list","Studio Slack result is not complete JSON."),("auth.test",TRUNCATED_PAGE)] {
+      let mut count=0;
+      assert!(bounded_channel_read(method,json!({"limit":200}), |_| {count+=1;std::future::ready(Err(error.into()))}).await.is_err());
+      assert_eq!(count,1);
+    }
+    let mut count=0;
+    assert!(bounded_channel_read("conversations.list",json!({"limit":1}), |_| {count+=1;std::future::ready(Err(TRUNCATED_PAGE.into()))}).await.is_err());
+    assert_eq!(count,1);
   }
   #[test]
   fn validates_required_and_safe_arguments() {

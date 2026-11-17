@@ -1,3 +1,4 @@
+import { canAutomaticallyRecord, setAutoRecordPreference } from 'src/utils/autoRecordPreference'
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
 
@@ -12,6 +13,8 @@ type Devices = {
   knapsackTranscription: boolean;
 };
 export default function AudioSettings() {
+  const [autoRecord, setAutoRecord] = useState<boolean | null>(null);
+  useEffect(() => { void canAutomaticallyRecord().then(setAutoRecord) }, []);
   const [devices, setDevices] = useState<Devices | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,6 +39,11 @@ export default function AudioSettings() {
   return (
     <section className="p-6 flex flex-col gap-4" aria-label="Audio settings">
       <h2 className="text-lg font-semibold">Audio & recording</h2>
+      <label className="flex items-start gap-3">
+        <input type="checkbox" checked={autoRecord === true} disabled={autoRecord === null || busy}
+          onChange={event => { const enabled = event.target.checked; void action(async () => { await setAutoRecordPreference(enabled); setAutoRecord(enabled) }) }} />
+        <span>Automatically record calendar meetings<span className="block text-sm text-zinc-600">Starts when a supported meeting app uses the microphone near a calendar event. Recording stays visible and continues until you stop it. Applies on this device; manual Record remains available.</span></span>
+      </label>
       <p className="text-sm text-zinc-600">
         Choose the microphone for your next recording. Changes won’t switch an
         ongoing recording.

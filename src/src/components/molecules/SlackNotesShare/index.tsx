@@ -11,12 +11,12 @@ import {
   SlackNotesWorkspace,
   slackNotesWorkspaces,
 } from 'src/api/slackNotes'
-import { buildSlackNotesMessage, copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import { type MeetingNotesClipboardMetadata, buildSlackNotesMessage, copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 
 type Props = {
   threadId: number
   userEmail?: string
-  notes: () => Promise<{ markdown: string; title?: string }>
+  notes: () => Promise<{ markdown: string; title?: string; metadata?: MeetingNotesClipboardMetadata }>
   onClose: () => void
 }
 type Preview = {
@@ -37,7 +37,8 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
     [status, setStatus] = useState(''),
     [channelWarnings, setChannelWarnings] = useState<string[]>([]),
     [posting, setPosting] = useState(false),
-    [inventoryWarnings, setInventoryWarnings] = useState<string[]>([])
+    [inventoryWarnings, setInventoryWarnings] = useState<string[]>([]),
+    [discovering, setDiscovering] = useState(true)
   const scope = `${threadId}:${userEmail || ''}`,
     live = useRef(scope)
   live.current = scope
@@ -47,11 +48,14 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
   const current = (token: number) => token === epoch.current && scope === live.current
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
-    const token = ++epoch.current
+    ++epoch.current
+    let disposed = false
+    const currentInventory = () => !disposed && scope === live.current
     root.current?.focus()
+    setDiscovering(true)
     slackNotesWorkspaces()
       .then(data => {
-        if (!current(token)) return
+        if (!currentInventory()) return
         setOwner(data.owner)
         setWorkspaces(data.accounts)
         setInventoryWarnings(data.warnings || [])
@@ -70,9 +74,10 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
           )
       })
       .catch(e => {
-        if (current(token)) setError(e.message)
-      })
+        if (currentInventory()) setError(e.message)
+      }).finally(() => { if (currentInventory()) setDiscovering(false) })
     return () => {
+      disposed = true
       epoch.current++
       previous?.focus()
     }
@@ -139,7 +144,7 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
       if (kind === 'copy') {
         const value = await notes()
         if (!current(token)) return
-        await copyMeetingNotesForSlack(value.markdown, value.title)
+        await copyMeetingNotesForSlack(value.markdown, value.title, value.metadata)
         if (current(token)) setStatus('Copied for Slack. Paste into any conversation.')
       }
       if (kind === 'preview') {
@@ -239,7 +244,7 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
           Workspace{' '}
           <select
             aria-label="Slack workspace"
-            disabled={busy}
+            disabled={busy || discovering}
             value={account}
             onChange={e => {
               setAccount(e.target.value)
@@ -249,7 +254,7 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
               setStatus('')
             }}
           >
-            <option value="">Choose workspace</option>
+            <option value="">{discovering ? 'Loading connected workspaces…' : 'Choose workspace'}</option>
             {workspaces.map(w => (
               <option key={w.accountId} value={w.accountId} disabled={w.unavailable}>
                 {w.name}
@@ -346,7 +351,7 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
         <button disabled={posting} onClick={onClose}>
           Close
         </button>
-        {!workspaces.length && (
+        {!discovering && !workspaces.length && (
           <button
             type="button"
             onClick={() => {
@@ -357,7 +362,7 @@ export default function SlackNotesShare({ threadId, userEmail, notes, onClose }:
             Connect Slack
           </button>
         )}
-        {!workspaces.length && (
+        {!discovering && !workspaces.length && (
           <p>Connect Slack to send notes directly. You can always copy notes without connecting.</p>
         )}
       </div>

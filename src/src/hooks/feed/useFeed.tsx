@@ -1,3 +1,4 @@
+import { canAutomaticallyRecord } from 'src/utils/autoRecordPreference'
 import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -197,7 +198,7 @@ export interface IFeed {
       }
     | undefined
   >
-  startCalendarMeeting: (item: FeedItem, options?: { openMeetingLink?: boolean }) => Promise<
+  startCalendarMeeting: (item: FeedItem, options?: { openMeetingLink?: boolean; automatic?: boolean }) => Promise<
     | {
         feedItemId: number | undefined
         threadId: number
@@ -1830,7 +1831,7 @@ export function useFeed(
     }
   }
 
-  const startCalendarMeetingOnce = async (item: FeedItem) => {
+  const startCalendarMeetingOnce = async (item: FeedItem, automatic = false) => {
     const saveTranscript = await shouldSaveTranscript()
     const parseNumericEventId = (value: unknown): number => {
       if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -1891,6 +1892,7 @@ export function useFeed(
       setSelectedFeedItem(recordingItem)
       setSubTab(SubTabChoices.Workspace)
       try {
+        if (automatic && !await canAutomaticallyRecord()) return undefined
         await startRecord(thread.id, item.id, runtimeEventId, saveTranscript)
         setIsRecording(recordingItem, true)
       } catch (recordErr: any) {
@@ -1901,6 +1903,7 @@ export function useFeed(
         handleErrorContact(
           'Could not start recording. Check audio permissions in System Settings and try again. You can still type notes manually.',
         )
+        return undefined
       }
       return { threadId: thread.id, feedItemId: item.id }
     }
@@ -1916,6 +1919,7 @@ export function useFeed(
       setSelectedFeedItem(feedItem)
       setSubTab(SubTabChoices.Workspace)
       try {
+        if (automatic && !await canAutomaticallyRecord()) return undefined
         await startRecord(
           thread.id,
           feedItem.id,
@@ -1931,6 +1935,7 @@ export function useFeed(
         handleErrorContact(
           'Could not start recording. Check audio permissions in System Settings and try again. You can still type notes manually.',
         )
+        return undefined
       }
       return { threadId: thread.id, feedItemId: feedItem.id }
     } catch (error) {
@@ -1953,8 +1958,8 @@ export function useFeed(
       ? startCalendarRecordingAction(item.getCalendarEvent(), () => pending)
       : pending
     const recording = options?.openMeetingLink
-      ? startCalendarRecordingAction(item.getCalendarEvent(), () => startCalendarMeetingOnce(item))
-      : startCalendarMeetingOnce(item)
+      ? startCalendarRecordingAction(item.getCalendarEvent(), () => startCalendarMeetingOnce(item, options?.automatic))
+      : startCalendarMeetingOnce(item, options?.automatic)
     calendarRecordingRef.current.set(key, recording)
     const clear = () => calendarRecordingRef.current.delete(key)
     recording.then(clear, clear)

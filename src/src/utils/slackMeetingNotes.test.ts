@@ -158,3 +158,16 @@ it('distinguishes emphasis from bold in rich clipboard content', () => {
     '<strong>Decision</strong> and <em>emphasis</em>',
   )
 })
+
+it('includes known meeting time and participant identity in both inert clipboard formats', () => {
+  const payload = buildSlackClipboardPayload('**Decision:** proceed', 'Synthetic meeting', {
+    start: 1700000000, end: 1700001800,
+    participants: [{ name: 'Alice', email: 'alice@example.invalid' }, { name: 'Duplicate', email: 'alice@example.invalid' }, { name: '<img src=x>', email: 'b@example.invalid' }],
+  })
+  expect(payload.text).toContain('Meeting:')
+  expect(payload.text).toContain('Alice (alice@example.invalid)')
+  expect(payload.text).not.toContain('Duplicate')
+  expect(payload.html).toContain('&lt;img src=x&gt;')
+  expect(payload.html).not.toContain('<img src=x>')
+  expect(payload.html).toContain('<strong>Decision:</strong>')
+})
