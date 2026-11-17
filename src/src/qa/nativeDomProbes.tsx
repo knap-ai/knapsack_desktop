@@ -157,6 +157,9 @@ async function bootstrap(){
  if(import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE!=='1'||window!==window.top||location.origin!=='http://127.0.0.1:1420'||location.pathname!=='/qa-dom.html'||typeof target.__TAURI_IPC__!=='function')return
  const container=document.getElementById('qa-root');if(!container)return
  const native=target.__TAURI_IPC__;bootstrapStage(native,'module_loaded');
+ // Prepare the result bridge before announcing readiness. Lazy module loading
+ // must not consume a component probe's fixed assertion/response deadline.
+ const {appWindow}=await import('@tauri-apps/api/window');bootstrapStage(native,'result_bridge_ready')
  let harness:Awaited<ReturnType<typeof createProbeHarness>>
  try{harness=await createProbeHarness(container,native);bootstrapStage(native,'harness_ready')}catch{bootstrapStage(native,'bootstrap_failed');return}
  const used=new Set<string>();let busy=false
@@ -164,7 +167,7 @@ async function bootstrap(){
   if(busy||!PROBES.includes(probe)||!/^[0-9a-f-]{36}$/.test(nonce)||used.has(nonce))return
   bootstrapStage(native,'dispatch_received');used.add(nonce);busy=true;let passed=false
   try{await harness.run(probe);passed=true}catch{container.textContent='Synthetic QA assertion failed.'}
-  finally{busy=false;const {appWindow}=await import('@tauri-apps/api/window');await appWindow.emit('knapsack-qa-dom-result',{nonce,probe,passed})}
+  finally{bootstrapStage(native,'probe_finished');busy=false;await appWindow.emit('knapsack-qa-dom-result',{nonce,probe,passed})}
  }
 }
 void bootstrap()

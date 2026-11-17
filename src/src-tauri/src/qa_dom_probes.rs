@@ -161,7 +161,7 @@ pub(crate) fn start(window: Window) {
   // Fixed enum-only diagnostic on this compiled synthetic window; never accepts code or user data.
   window.listen("knapsack-qa-bootstrap", |event| {
     let phase = event.payload().and_then(|text| serde_json::from_str::<String>(text).ok());
-    if let Some(phase) = phase.filter(|value| matches!(value.as_str(), "entry_loaded" | "module_loaded" | "harness_ready" | "bootstrap_failed" | "dispatch_received")) {
+    if let Some(phase) = phase.filter(|value| matches!(value.as_str(), "entry_loaded" | "module_loaded" | "harness_ready" | "bootstrap_failed" | "dispatch_received" | "probe_finished" | "result_bridge_ready")) {
       eprintln!("[qa-bootstrap] {}", phase);
     }
   });
