@@ -156,15 +156,18 @@ function operatorControl(native:(payload:Ipc)=>void){
  panel.id='qa-operator';button.textContent='Start checks';button.disabled=true
  status.textContent='Waiting for isolated QA preflight. Keep this window foreground.'
  panel.append(button,status);document.body.prepend(panel)
- let challenge:OperatorChallenge|undefined,used=false
- const refresh=()=>{button.disabled=used||!challenge||Date.now()>=challenge.expires_at_ms||document.visibilityState!=='visible'||!document.hasFocus()}
+ let challenge:OperatorChallenge|undefined,used=false,ready=false
+ const refresh=()=>{
+  button.disabled=!ready||used||!challenge||Date.now()>=challenge.expires_at_ms||document.visibilityState!=='visible'||!document.hasFocus()
+  if(!used)status.textContent=challenge&&Date.now()>=challenge.expires_at_ms?'Start checks expired. A fresh coordinated run is required.':!ready?'Loading isolated QA harness. Keep this window foreground.':!challenge?'Waiting for isolated QA preflight. Keep this window foreground.':'Click Start checks once, then keep this window foreground.'
+ }
  const target=window as Window & {__knapsackQaArmOperator?:(value:OperatorChallenge)=>void}
  target.__knapsackQaArmOperator=value=>{
   if(used||challenge||!value||Object.keys(value).sort().join(',')!=='bundle_id,expires_at_ms,nonce,run_id'||typeof value.run_id!=='string'||typeof value.bundle_id!=='string'||typeof value.nonce!=='string'||!Number.isFinite(value.expires_at_ms)||value.expires_at_ms<=Date.now()||value.expires_at_ms-Date.now()>30000)return
-  challenge=Object.freeze({...value});status.textContent='Click Start checks once, then keep this window foreground.';refresh()
+  challenge=Object.freeze({...value});refresh()
  }
  button.addEventListener('click',event=>{
-  refresh();if(!event.isTrusted||button.disabled||!challenge)return
+  refresh();if(!ready||!event.isTrusted||button.disabled||!challenge)return
   used=true;refresh();status.textContent='Checks requested. Keep this window foreground.'
   const callback=crypto.getRandomValues(new Uint32Array(1))[0],key=`_${callback}`
   Object.defineProperty(window,key,{configurable:true,value:()=>Reflect.deleteProperty(window,key)})
@@ -172,6 +175,9 @@ function operatorControl(native:(payload:Ipc)=>void){
  })
  window.addEventListener('focus',refresh);window.addEventListener('blur',refresh);document.addEventListener('visibilitychange',refresh)
  setInterval(refresh,100)
+ // Bootstrap alone releases readiness after both bridge and harness/dispatcher exist.
+ // A retained early challenge keeps its original expiry; readiness never rearms it.
+ return ()=>{ready=true;refresh()}
 }
 async function bootstrap(){
  const target=window as NativeWindow
@@ -179,7 +185,7 @@ async function bootstrap(){
  if(typeof bridge==='function')bootstrapStage(bridge,'entry_loaded')
  if(import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE!=='1'||window!==window.top||location.origin!=='http://127.0.0.1:1420'||location.pathname!=='/qa-dom.html'||typeof target.__TAURI_IPC__!=='function')return
  const container=document.getElementById('qa-root');if(!container)return
- const native=target.__TAURI_IPC__;operatorControl(native);bootstrapStage(native,'module_loaded');
+ const native=target.__TAURI_IPC__,operatorReady=operatorControl(native);bootstrapStage(native,'module_loaded');
  // Prepare the result bridge before announcing readiness. Lazy module loading
  // must not consume a component probe's fixed assertion/response deadline.
  const {appWindow}=await import('@tauri-apps/api/window');bootstrapStage(native,'result_bridge_ready')
@@ -192,5 +198,6 @@ async function bootstrap(){
   try{await harness.run(probe);passed=true}catch{container.textContent='Synthetic QA assertion failed.'}
   finally{bootstrapStage(native,'probe_finished');busy=false;await appWindow.emit('knapsack-qa-dom-result',{nonce,probe,passed})}
  }
+ operatorReady()
 }
 void bootstrap()

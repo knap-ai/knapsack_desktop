@@ -48,15 +48,17 @@ test('operator control requires arming and a trusted visible focused unexpired s
   const document={visibilityState:'visible',hasFocus:()=>focused,createElement:()=>{const e={disabled:false,textContent:'',listeners:{},append(){},addEventListener(name,fn){this.listeners[name]=fn}};elements.push(e);return e},body:{prepend(){}},addEventListener(){}};
   const window={addEventListener(){}};
   const context={document,window,Date:{now:()=>now},crypto:{getRandomValues:a=>a.fill(42)},setInterval:fn=>timers.push(fn),Object,Number,Reflect};
-  vm.runInNewContext(ts.transpile(helper,{target:ts.ScriptTarget.ES2020})+';operatorControl(p=>sent.push(p))',{...context,sent});
+  vm.runInNewContext(ts.transpile(helper,{target:ts.ScriptTarget.ES2020})+';window.operatorReady=operatorControl(p=>sent.push(p))',{...context,sent});
   const button=elements[1],click=trusted=>button.listeners.click({isTrusted:trusted});
-  const arm=()=>window.__knapsackQaArmOperator({run_id:'qa',bundle_id:'qa.bundle',nonce:'nonce',expires_at_ms:2000});
-  return {button,sent,click,arm,document,focus:value=>{focused=value},expire:()=>{now=2000}};
+  const arm=(expires_at_ms=2000)=>window.__knapsackQaArmOperator({run_id:'qa',bundle_id:'qa.bundle',nonce:'nonce',expires_at_ms});
+  return {button,sent,click,arm,ready:()=>window.operatorReady(),document,focus:value=>{focused=value},expire:()=>{now=2000}};
  }
- let c=setup();c.click(true);assert.equal(c.sent.length,0);c.arm();c.click(false);assert.equal(c.sent.length,0);
+ let c=setup();c.click(true);assert.equal(c.sent.length,0);c.arm();assert.equal(c.button.disabled,true);c.click(true);assert.equal(c.sent.length,0);c.ready();assert.equal(c.button.disabled,false);c.click(false);assert.equal(c.sent.length,0);
  c.focus(false);c.click(true);assert.equal(c.sent.length,0);c.focus(true);c.document.visibilityState='hidden';c.click(true);assert.equal(c.sent.length,0);
- c.document.visibilityState='visible';c.click(true);c.click(true);c.arm();c.click(true);assert.equal(c.sent.length,1);assert.equal(c.sent[0].message.event,'knapsack-qa-operator-start');assert.equal(c.button.disabled,true);
- c=setup();c.arm();c.expire();c.click(true);assert.equal(c.sent.length,0);
+ c.document.visibilityState='visible';c.click(true);c.click(true);c.arm();c.click(true);assert.equal(c.sent.length,1);assert.equal(c.sent[0].message.event,'knapsack-qa-operator-start');assert.equal(c.sent[0].message.payload.expires_at_ms,2000);assert.equal(c.button.disabled,true);
+ c=setup();c.arm();c.expire();c.ready();assert.equal(c.button.disabled,true);c.click(true);c.arm(5000);c.ready();c.click(true);assert.equal(c.sent.length,0);
+ c=setup();c.ready();assert.equal(c.button.disabled,true);c.click(true);assert.equal(c.sent.length,0);c.arm();assert.equal(c.button.disabled,false);c.click(true);c.ready();c.click(true);assert.equal(c.sent.length,1);
+ const bootstrap=fixture.slice(fixture.indexOf('async function bootstrap(){'));assert.ok(bootstrap.indexOf('operatorReady()')>bootstrap.indexOf('await createProbeHarness(container,native)'));assert.ok(bootstrap.indexOf('operatorReady()')>bootstrap.indexOf('target.__knapsackNativeQaProbe=async'));assert.ok(bootstrap.indexOf('operatorReady()')>bootstrap.indexOf("await import('@tauri-apps/api/window')"));
  const launcher=source('scripts/qa-dev-run.cjs');assert.ok(launcher.indexOf('const armPath')>launcher.lastIndexOf('assertSyntheticDatabaseClean();'));assert.match(launcher,/expires_at_ms: end/);
  const harness=fixture.slice(fixture.indexOf('export async function createProbeHarness'),fixture.indexOf('function bootstrapStage'));assert.doesNotMatch(harness,/knapsack-qa-operator-start/);
 });

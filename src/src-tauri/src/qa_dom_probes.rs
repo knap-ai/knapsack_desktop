@@ -248,6 +248,9 @@ pub(crate) fn start(window: Window) {
   let incoming_operator = operator.clone();
   let owner = window.clone();
   window.listen(OPERATOR_EVENT, move |event| {
+    // These synchronous native getters can stall; they have no per-call timeout.
+    // Until both return, no marker is written. The independent launcher still
+    // expires its 30-second operator gate and requests owned-child cleanup.
     let visible = owner.is_visible().unwrap_or(false);
     let focused = owner.is_focused().unwrap_or(false);
     if let Some(gate) = event.payload().and_then(|payload| consume_operator(&incoming_operator, payload, Instant::now(), visible, focused)) {
