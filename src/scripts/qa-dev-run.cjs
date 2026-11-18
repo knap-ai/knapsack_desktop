@@ -412,6 +412,18 @@ async function warmQaModules(request = fetch) {
   console.log(`[qa-dev-run] fixed QA modules transformed (${Date.now() - started}ms)`);
 }
 
+function visibleMarkerAccepted(file, runId, bundleId) {
+  let metadata;
+  try { metadata = fs.lstatSync(file); } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 512) throw new Error("Invalid visibility marker.");
+  const gate = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (!gate || Object.keys(gate).sort().join(",") !== "bundle_id,run_id" || gate.run_id !== runId || gate.bundle_id !== bundleId) throw new Error("Wrong visibility identity.");
+  return true;
+}
+
 async function main() {
   assertSupportedQaPlatform();
   assertSyntheticModeRequest();
@@ -479,6 +491,29 @@ async function main() {
     }
   }, 1_000);
   if (process.env.KNAPSACK_QA_DOM_PROBES === "1") {
+    if (process.env.KNAPSACK_QA_VISIBLE_OPERATOR_GATE === "1") {
+      // Arm only after ownership/empty-state preflight. The owned native window
+      // consumes one foreground operator click before this unchanged deadline.
+      console.log(`[qa-dev-run] awaiting visible operator: ${qaAppBundle}`);
+      const visiblePath = path.join(qaStateDir, "qa-visible-go.json");
+      const end = Date.now() + 30_000;
+      const armPath = path.join(qaStateDir, "qa-visible-arm.json");
+      const armTemporary = path.join(qaStateDir, "qa-visible-arm.tmp");
+      writeJsonFile(armTemporary, { run_id: qaRunId, bundle_id: qaBundleId, nonce: crypto.randomUUID(), expires_at_ms: end });
+      fs.renameSync(armTemporary, armPath);
+      let accepted = false;
+      while (Date.now() < end) {
+        if (visibleMarkerAccepted(visiblePath, qaRunId, qaBundleId)) {
+          accepted = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (!accepted) throw new Error("Visible operator gate timed out; no component acceptance claimed.");
+      assertPortOwnedBy(QA_VITE_PORT, vite.pid);
+      assertPortOwnedBy(QA_API_PORT, app.pid);
+      assertGatewaySnapshotUnchanged(gatewayBefore);
+    }
     // Only release fixed UI probes after identity, empty DB, ports and gateway
     // ownership passed the same reviewed preflight as ordinary synthetic QA.
     const gatePath = path.join(qaStateDir, "qa-dom-go.json");
@@ -502,6 +537,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  visibleMarkerAccepted,
   warmQaModules,
   assertSupportedQaPlatform,
   assertGatewaySnapshotUnchanged,

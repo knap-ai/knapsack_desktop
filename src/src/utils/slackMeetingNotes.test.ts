@@ -18,6 +18,52 @@ const syntheticNotes = `# Decisions
 describe('Slack meeting-note clipboard payload', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it.each([
+    '# Fictional planning',
+    '## Fictional planning ##',
+    '**Fictional planning**',
+    'Fictional planning',
+    'Fictional planning\n===',
+  ])('exports one title when notes open with %s', opening => {
+    const markdown = `\n${opening}\n\nDecisions remain unchanged.`
+    const payload = buildSlackClipboardPayload(markdown, 'Fictional planning')
+    expect(payload.text.match(/Fictional planning/g)).toHaveLength(1)
+    expect(payload.html.match(/Fictional planning/g)).toHaveLength(1)
+    expect(payload.text).toContain('Decisions remain unchanged.')
+    const message = buildSlackNotesMessage(markdown, 'Fictional planning')
+    expect(message.text.match(/Fictional planning/g)).toHaveLength(1)
+    expect(
+      message.blocks
+        .filter(block => block.type === 'section')
+        .map(block => block.text.text)
+        .join('\n')
+        .match(/Fictional planning/g),
+    ).toHaveLength(1)
+  })
+
+  it('preserves distinct headings, later title references, code and meeting metadata', () => {
+    const markdown = '# Different heading\n\nFictional planning\n\n```\nFictional planning\n```'
+    const payload = buildSlackClipboardPayload(markdown, 'Fictional planning', {
+      start: 1700000000,
+      participants: [{ name: 'Ada', email: 'ada@example.test' }],
+    })
+    expect(payload.text).toContain('Different heading')
+    expect(payload.text.match(/Fictional planning/g)).toHaveLength(3)
+    expect(payload.text).toContain('Ada (ada@example.test)')
+    expect(payload.text).toContain('Meeting:')
+    expect(
+      buildSlackClipboardPayload('    Fictional planning', 'Fictional planning').text.match(
+        /Fictional planning/g,
+      ),
+    ).toHaveLength(2)
+    expect(
+      buildSlackClipboardPayload('`Fictional planning`', 'Fictional planning').text.match(
+        /Fictional planning/g,
+      ),
+    ).toHaveLength(2)
+    expect(buildSlackClipboardPayload('# Fictional planning').text).toContain('Fictional planning')
+  })
+
   it('uses rich HTML while keeping the plain fallback free of literal mrkdwn', () => {
     const payload = buildSlackClipboardPayload(syntheticNotes, 'Synthetic meeting')
     expect(payload.html).toContain('<p><strong>Decisions</strong></p>')

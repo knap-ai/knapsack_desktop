@@ -1,3 +1,4 @@
+import { readNativeMeeting } from 'src/utils/nativeMeetingRead'
 import { PROFILE_KEY } from 'src/hooks/auth/useAuth'
 import { KN_API_GET_TRANSCRIPT, KN_API_THREAD_TRANSCRIPT } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
@@ -15,7 +16,8 @@ export interface ITranscript {
   participants: string
 }
 
-export async function getTranscript(threadId: number, options: { localOnly?: boolean } = {}) {
+export async function getTranscript(threadId: number, options: { localOnly?: boolean; owner?: { email: string; uuid: string } } = {}) {
+  if (options.localOnly) return readNativeMeeting<ITranscript>('read_saved_notes_transcript',threadId,options.owner,'transcript')
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15000)
   let transcript: ITranscript
@@ -46,7 +48,6 @@ export async function getTranscript(threadId: number, options: { localOnly?: boo
 
   // Generating notes reads the durable local transcript; optional sharing must
   // not hold the generation queue on a server request or provider token lookup.
-  if (options.localOnly) return transcript
 
   try {
     const profile = await KNLocalStorage.getItem(PROFILE_KEY)

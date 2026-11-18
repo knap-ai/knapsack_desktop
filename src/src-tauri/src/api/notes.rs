@@ -218,6 +218,10 @@ async fn get_notes(path: web::Path<u64>) -> impl Responder {
     }
   };
 
+  HttpResponse::Ok().json(notes_snapshot(&home_dir,thread_id,notes))
+}
+
+pub(crate) fn notes_snapshot(home_dir:&Path,thread_id:u64,notes:Option<String>)->serde_json::Value {
   let exists = notes.is_some();
   let revision = revisions::revision(thread_id, notes.as_deref());
   let recording=Thread::find_by_id(thread_id).ok().flatten().map(|thread|MeetingRecordingMetadata {
@@ -225,10 +229,10 @@ async fn get_notes(path: web::Path<u64>) -> impl Responder {
     transcript_available:saved_transcript_available(&home_dir,thread.saved_transcript.as_deref()),
   });
 
-  HttpResponse::Ok().json(json!({
+  json!({
     "success": true,
     "data": GetNotesResponse { notes, exists, thread_id, revision, recording }
-  }))
+  })
 }
 
 #[get("/api/knapsack/notes/list")]

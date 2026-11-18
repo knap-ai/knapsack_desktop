@@ -71,6 +71,25 @@ const stripInlineMarkdown = (value: string) => {
     .trim()
 }
 
+// The export adds its own title. Omit only an equivalent opening title from
+// the copied body; leave later headings, code and the saved notes untouched.
+const withoutRepeatedLeadingTitle = (markdown: string, title?: string): string => {
+  if (!title?.trim()) return markdown
+  const lines = markdown.replace(/\r\n?/g, '\n').split('\n')
+  const first = lines.findIndex(line => line.trim())
+  if (first < 0 || /^(?: {4}|\t)/.test(lines[first])) return markdown
+  const opening = lines[first].trim()
+  const heading = /^#{1,6}\s+/.test(opening)
+  const text = heading ? opening.replace(/^#{1,6}\s+/, '').replace(/\s+#+$/, '') : opening
+  if (/^[`~>]/.test(text)) return markdown
+  const normalized = (value: string) =>
+    stripInlineMarkdown(value).normalize('NFC').replace(/\s+/g, ' ')
+  if (normalized(text) !== normalized(title)) return markdown
+  const count = !heading && /^ {0,3}(?:=+|-+)\s*$/.test(lines[first + 1] || '') ? 2 : 1
+  lines.splice(first, count)
+  return lines.join('\n').replace(/^\n+/, '')
+}
+
 const renderInlineHtml = (value: string) => {
   const protectedLinks = protectMarkdownLinks(
     value,
@@ -154,7 +173,7 @@ export const buildSlackClipboardPayload = (
   title?: string,
   metadata?: MeetingNotesClipboardMetadata,
 ): SlackClipboardPayload => {
-  const htmlTables = extractSlackHtmlTables(markdown)
+  const htmlTables = extractSlackHtmlTables(withoutRepeatedLeadingTitle(markdown, title))
   const sourceLines = htmlTables.source.replace(/\r\n?/g, '\n').split('\n')
   const plain: string[] = []
   const html: string[] = []
@@ -293,7 +312,7 @@ export function buildSlackNotesMessage(
   title?: string,
 ): { text: string; blocks: SlackNotesBlock[] } {
   const blocks: SlackNotesBlock[] = []
-  const htmlTables = extractSlackHtmlTables(markdown)
+  const htmlTables = extractSlackHtmlTables(withoutRepeatedLeadingTitle(markdown, title))
   const lines = htmlTables.source.replace(/\r\n?/g, '\n').split('\n')
   let pending: string[] = [],
     fence = ''

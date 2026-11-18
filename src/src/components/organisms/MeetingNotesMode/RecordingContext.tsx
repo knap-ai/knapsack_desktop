@@ -364,6 +364,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     // pending even though the backend just stopped and finalized the transcript.
     // A successful backend stop is authoritative and must always queue synthesis;
     // otherwise the transcript is saved but the meeting remains permanently blank.
+    try {
     if (stopSucceeded && (wasRecording || backendConfirmedStop)) {
       // Reload persisted notes before synthesis. Automatic stop can arrive while
       // the newly mounted meeting view still has an empty notesMarkdown state;
@@ -378,9 +379,13 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       )
     }
 
-    await fetchNotes()
-    setLoadingState(threadId, false)
-    checkTranscriptSaved()
+    } finally {
+      // A failed generation must expose Retry immediately. Do not await a
+      // redundant refresh which could hang or replace a newer edit.
+      setLoadingState(threadId, false)
+      void checkTranscriptSaved().catch(error => logError(error instanceof Error ? error : new Error(String(error)), { additionalInfo: 'Refreshing saved transcript status' }))
+    }
+
   }, [isRecording, setIsRecording, setLoadingState, generateNotes])
 
   const pauseRecording = useCallback(async () => {

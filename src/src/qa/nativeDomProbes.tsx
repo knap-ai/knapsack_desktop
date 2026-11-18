@@ -150,13 +150,45 @@ function bootstrapStage(native:(payload:Ipc)=>void,phase:string){
  Object.defineProperty(window,key,{configurable:true,value:()=>Reflect.deleteProperty(window,key)})
  native({cmd:'tauri',callback,error:callback,__tauriModule:'Event',message:{cmd:'emit',event:'knapsack-qa-bootstrap',windowLabel:'main',payload:phase}})
 }
+type OperatorChallenge={run_id:string;bundle_id:string;nonce:string;expires_at_ms:number}
+function operatorControl(native:(payload:Ipc)=>void){
+ const panel=document.createElement('aside'),button=document.createElement('button'),status=document.createElement('p')
+ panel.id='qa-operator';button.textContent='Start checks';button.disabled=true
+ status.textContent='Waiting for isolated QA preflight. Keep this window foreground.'
+ panel.append(button,status);document.body.prepend(panel)
+ let challenge:OperatorChallenge|undefined,used=false,ready=false
+ const refresh=()=>{
+  button.disabled=!ready||used||!challenge||Date.now()>=challenge.expires_at_ms||document.visibilityState!=='visible'||!document.hasFocus()
+  if(!used)status.textContent=challenge&&Date.now()>=challenge.expires_at_ms?'Start checks expired. A fresh coordinated run is required.':!ready?'Loading isolated QA harness. Keep this window foreground.':!challenge?'Waiting for isolated QA preflight. Keep this window foreground.':'Click Start checks once, then keep this window foreground.'
+ }
+ const target=window as Window & {__knapsackQaArmOperator?:(value:OperatorChallenge)=>void}
+ target.__knapsackQaArmOperator=value=>{
+  if(used||challenge||!value||Object.keys(value).sort().join(',')!=='bundle_id,expires_at_ms,nonce,run_id'||typeof value.run_id!=='string'||typeof value.bundle_id!=='string'||typeof value.nonce!=='string'||!Number.isFinite(value.expires_at_ms)||value.expires_at_ms<=Date.now()||value.expires_at_ms-Date.now()>30000)return
+  challenge=Object.freeze({...value});refresh()
+ }
+ button.addEventListener('click',event=>{
+  refresh();if(!ready||!event.isTrusted||button.disabled||!challenge)return
+  used=true;refresh();status.textContent='Checks requested. Keep this window foreground.'
+  const callback=crypto.getRandomValues(new Uint32Array(1))[0],key=`_${callback}`
+  Object.defineProperty(window,key,{configurable:true,value:()=>Reflect.deleteProperty(window,key)})
+  native({cmd:'tauri',callback,error:callback,__tauriModule:'Event',message:{cmd:'emit',event:'knapsack-qa-operator-start',windowLabel:'main',payload:challenge}})
+ })
+ window.addEventListener('focus',refresh);window.addEventListener('blur',refresh);document.addEventListener('visibilitychange',refresh)
+ setInterval(refresh,100)
+ // Bootstrap alone releases readiness after both bridge and harness/dispatcher exist.
+ // A retained early challenge keeps its original expiry; readiness never rearms it.
+ return ()=>{ready=true;refresh()}
+}
 async function bootstrap(){
  const target=window as NativeWindow
  const bridge=target.__TAURI_IPC__
  if(typeof bridge==='function')bootstrapStage(bridge,'entry_loaded')
  if(import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE!=='1'||window!==window.top||location.origin!=='http://127.0.0.1:1420'||location.pathname!=='/qa-dom.html'||typeof target.__TAURI_IPC__!=='function')return
  const container=document.getElementById('qa-root');if(!container)return
- const native=target.__TAURI_IPC__;bootstrapStage(native,'module_loaded');
+ const native=target.__TAURI_IPC__,operatorReady=operatorControl(native);bootstrapStage(native,'module_loaded');
+ // Prepare the result bridge before announcing readiness. Lazy module loading
+ // must not consume a component probe's fixed assertion/response deadline.
+ const {appWindow}=await import('@tauri-apps/api/window');bootstrapStage(native,'result_bridge_ready')
  let harness:Awaited<ReturnType<typeof createProbeHarness>>
  try{harness=await createProbeHarness(container,native);bootstrapStage(native,'harness_ready')}catch{bootstrapStage(native,'bootstrap_failed');return}
  const used=new Set<string>();let busy=false
@@ -164,7 +196,8 @@ async function bootstrap(){
   if(busy||!PROBES.includes(probe)||!/^[0-9a-f-]{36}$/.test(nonce)||used.has(nonce))return
   bootstrapStage(native,'dispatch_received');used.add(nonce);busy=true;let passed=false
   try{await harness.run(probe);passed=true}catch{container.textContent='Synthetic QA assertion failed.'}
-  finally{busy=false;const {appWindow}=await import('@tauri-apps/api/window');await appWindow.emit('knapsack-qa-dom-result',{nonce,probe,passed})}
+  finally{bootstrapStage(native,'probe_finished');busy=false;await appWindow.emit('knapsack-qa-dom-result',{nonce,probe,passed})}
  }
+ operatorReady()
 }
 void bootstrap()

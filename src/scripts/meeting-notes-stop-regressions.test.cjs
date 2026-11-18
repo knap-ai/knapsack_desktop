@@ -74,7 +74,7 @@ test('meeting navigation clears notes and rejects a late response from the previ
   assert.match(source, /const notesController = new AbortController\(\)/)
   assert.match(source, /void fetchNotes\(notesController\.signal\)/)
   assert.match(source, /notesController\.abort\(\)/)
-  assert.match(source, /signal,[\s\S]*?activeNotesThreadIdRef\.current !== requestedThreadId/)
+  assert.match(source, /signal\?\.aborted \|\| activeNotesThreadIdRef\.current !== requestedThreadId/)
 
   let activeThreadId = 1
   let renderedNotes = ''
