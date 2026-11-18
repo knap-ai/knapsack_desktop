@@ -98,7 +98,7 @@ fn script(probe: Probe, nonce: &str) -> String {
   // Both substitutions are serialized data; callers cannot supply JavaScript.
   format!("(() => {{ const end=Date.now()+4500; const call=()=>{{if(typeof window.__knapsackNativeQaProbe==='function'){{void window.__knapsackNativeQaProbe({},{});}}else if(Date.now()<end){{setTimeout(call,25);}}}};call(); }})()",serde_json::to_string(&probe).unwrap(),serde_json::to_string(nonce).unwrap())
 }
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Gate {
   run_id: String,
@@ -113,13 +113,92 @@ fn gate_matches(payload: &str) -> bool {
           && Some(gate.bundle_id.as_str()) == option_env!("KNAPSACK_QA_BUILD_BUNDLE_ID")
       })
 }
-async fn wait_for_preflight() -> bool {
+// A fixed operator event, separate from the component harness side-effect bridge.
+const OPERATOR_EVENT: &str = "knapsack-qa-operator-start";
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OperatorChallenge {
+  run_id: String,
+  bundle_id: String,
+  nonce: String,
+  expires_at_ms: u64,
+}
+fn wall_ms() -> u64 {
+  std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis() as u64).unwrap_or(u64::MAX)
+}
+impl OperatorChallenge {
+  fn valid(&self, now: u64) -> bool {
+    gate_matches(&serde_json::json!({"run_id": self.run_id, "bundle_id": self.bundle_id}).to_string())
+      && uuid::Uuid::parse_str(&self.nonce).is_ok()
+      && now < self.expires_at_ms && self.expires_at_ms.saturating_sub(now) <= 30_000
+  }
+}
+struct OperatorTicket {
+  challenge: OperatorChallenge,
+  deadline: Instant,
+}
+fn consume_operator(slot: &Mutex<Option<OperatorTicket>>, payload: &str, now: Instant, visible: bool, focused: bool) -> Option<Gate> {
+  if payload.len() > 1024 || !visible || !focused { return None; }
+  let answer = serde_json::from_str::<OperatorChallenge>(payload).ok()?;
+  let mut slot = slot.lock().ok()?;
+  let ticket = slot.as_ref()?;
+  let expected = &ticket.challenge;
+  if now >= ticket.deadline || !answer.valid(wall_ms()) || answer.run_id != expected.run_id
+    || answer.bundle_id != expected.bundle_id || answer.nonce != expected.nonce
+    || answer.expires_at_ms != expected.expires_at_ms { return None; }
+  let ticket = slot.take()?; // Consume before any marker I/O; failure cannot rearm.
+  Some(Gate { run_id: ticket.challenge.run_id, bundle_id: ticket.challenge.bundle_id })
+}
+fn write_visible_marker(gate: &Gate) -> std::io::Result<()> {
+  let folder = option_env!("KNAPSACK_QA_BUILD_STATE_DIR").ok_or(std::io::ErrorKind::NotFound)?;
+  let path = std::path::Path::new(folder).join("qa-visible-go.json");
+  let bytes = serde_json::to_vec(gate)?;
+  install_marker(&path, &bytes)
+}
+fn install_marker(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+  use std::io::Write;
+  let temporary = path.with_extension("native-tmp");
+  let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&temporary)?;
+  let result = file.write_all(bytes).and_then(|_| file.sync_all()).and_then(|_| {
+    // Atomic create-new publication: never expose partial JSON or replace a link.
+    std::fs::hard_link(&temporary, path)
+  });
+  let _ = std::fs::remove_file(temporary);
+  result
+}
+fn arm_operator(window: &Window, slot: &Mutex<Option<OperatorTicket>>, armed: &mut bool) {
+  if *armed || std::env::var("KNAPSACK_QA_VISIBLE_OPERATOR_GATE").as_deref() != Ok("1") { return; }
+  let Some(folder) = option_env!("KNAPSACK_QA_BUILD_STATE_DIR") else { return; };
+  let path = std::path::Path::new(folder).join("qa-visible-arm.json");
+  let Ok(meta) = std::fs::symlink_metadata(&path) else { return; };
+  if !meta.is_file() || meta.file_type().is_symlink() || meta.len() > 1024 { return; }
+  let Some(challenge) = std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str::<OperatorChallenge>(&s).ok()) else { return; };
+  let now = wall_ms();
+  if !challenge.valid(now) { return; }
+  let Ok(mut ticket) = slot.lock() else { return; };
+  let deadline = Instant::now() + Duration::from_millis(challenge.expires_at_ms - now);
+  *ticket = Some(OperatorTicket { deadline, challenge: challenge.clone() });
+  *armed = true;
+  // Fixed data-only dispatch, polled until the isolated fixture has loaded.
+  let fixed = format!("window.__knapsackQaArmOperator?.({})", serde_json::to_string(&challenge).unwrap());
+  let owner = window.clone();
+  std::thread::spawn(move || {
+    while Instant::now() < deadline && wall_ms() < challenge.expires_at_ms {
+      if owner.eval(&fixed).is_err() { break; }
+      std::thread::sleep(Duration::from_millis(100));
+    }
+  });
+}
+async fn wait_for_preflight(window: &Window, operator: &Mutex<Option<OperatorTicket>>) -> bool {
+  let mut armed = false;
   let Some(folder) = option_env!("KNAPSACK_QA_BUILD_STATE_DIR") else {
     return false;
   };
   let path = std::path::Path::new(folder).join("qa-dom-go.json");
   let end = Instant::now() + Duration::from_secs(45);
   while Instant::now() < end {
+    arm_operator(window, operator, &mut armed);
     if let Ok(meta) = std::fs::symlink_metadata(&path) {
       if meta.file_type().is_symlink() || meta.len() > 512 {
         return false;
@@ -165,6 +244,16 @@ pub(crate) fn start(window: Window) {
       eprintln!("[qa-bootstrap] {}", phase);
     }
   });
+  let operator = Arc::new(Mutex::new(None));
+  let incoming_operator = operator.clone();
+  let owner = window.clone();
+  window.listen(OPERATOR_EVENT, move |event| {
+    let visible = owner.is_visible().unwrap_or(false);
+    let focused = owner.is_focused().unwrap_or(false);
+    if let Some(gate) = event.payload().and_then(|payload| consume_operator(&incoming_operator, payload, Instant::now(), visible, focused)) {
+      if write_visible_marker(&gate).is_err() { owner.app_handle().exit(1); }
+    }
+  });
   let slot: Arc<Mutex<Option<Ticket>>> = Arc::new(Mutex::new(None));
   let incoming = slot.clone();
   let listener = window.listen(EVENT, move |event| {
@@ -183,7 +272,7 @@ pub(crate) fn start(window: Window) {
       return;
     };
     runtime.block_on(async {
-      if !wait_for_preflight().await {
+      if !wait_for_preflight(&window, &operator).await {
         save(vec![Row {
           probe: Probe::Transcript,
           status: Status::Watchdog,
@@ -255,6 +344,52 @@ pub(crate) fn start(window: Window) {
 #[cfg(test)]
 mod tests {
   use super::*;
+  #[test]
+  fn synthetic_qa_dom_operator_is_armed_identity_bound_focused_and_single_use() {
+    let now = Instant::now();
+    let challenge = OperatorChallenge {
+      run_id: option_env!("KNAPSACK_QA_BUILD_RUN_ID").unwrap().into(),
+      bundle_id: option_env!("KNAPSACK_QA_BUILD_BUNDLE_ID").unwrap().into(),
+      nonce: uuid::Uuid::new_v4().to_string(), expires_at_ms: wall_ms() + 20_000,
+    };
+    let payload = serde_json::to_string(&challenge).unwrap();
+    let slot = Mutex::new(None);
+    assert!(consume_operator(&slot, &payload, now, true, true).is_none());
+    *slot.lock().unwrap() = Some(OperatorTicket { challenge: challenge.clone(), deadline: now + Duration::from_secs(20) });
+    for (visible, focused) in [(false, true), (true, false), (false, false)] {
+      assert!(consume_operator(&slot, &payload, now, visible, focused).is_none());
+    }
+    for field in ["run_id", "bundle_id", "nonce", "expires_at_ms"] {
+      let mut bad = serde_json::to_value(&challenge).unwrap();
+      bad[field] = if field == "expires_at_ms" { serde_json::json!(wall_ms() - 1) } else { serde_json::json!("wrong") };
+      assert!(consume_operator(&slot, &bad.to_string(), now, true, true).is_none());
+    }
+    assert!(consume_operator(&slot, &"x".repeat(1025), now, true, true).is_none());
+    assert!(consume_operator(&slot, &payload, now + Duration::from_secs(20), true, true).is_none());
+    assert!(consume_operator(&slot, &payload, now, true, true).is_some());
+    assert!(consume_operator(&slot, &payload, now, true, true).is_none());
+  }
+  #[test]
+  fn synthetic_qa_dom_operator_marker_is_atomic_and_never_overwrites() {
+    let folder = std::env::temp_dir().join(format!("qa-operator-marker-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&folder).unwrap();
+    let path = folder.join("qa-visible-go.json");
+    let payload = br#"{"run_id":"fixture","bundle_id":"qa.fixture"}"#;
+    install_marker(&path, payload).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), payload);
+    assert!(install_marker(&path, b"replacement").is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), payload);
+    assert!(!path.with_extension("native-tmp").exists());
+    std::fs::remove_file(&path).unwrap();
+    #[cfg(unix)] {
+      let target = folder.join("target");
+      std::fs::write(&target, b"preserved").unwrap();
+      std::os::unix::fs::symlink(&target, &path).unwrap();
+      assert!(install_marker(&path, payload).is_err());
+      assert_eq!(std::fs::read(target).unwrap(), b"preserved");
+    }
+    std::fs::remove_dir_all(folder).unwrap();
+  }
   fn ticket(now: Instant) -> (Mutex<Option<Ticket>>, oneshot::Receiver<bool>) {
     let (s, r) = oneshot::channel();
     (

@@ -3,6 +3,8 @@ const { spawnSync } = require('node:child_process')
 const fs = require('node:fs')
 const { testPlan } = require('./qa-gateway-rust-tests.cjs')
 const required = [
+ 'synthetic_qa_dom_operator_marker_is_atomic_and_never_overwrites',
+ 'synthetic_qa_dom_operator_is_armed_identity_bound_focused_and_single_use',
  'synthetic_qa_dom_results_are_nonce_bound_allowlisted_and_single_use',
  'synthetic_qa_dom_expired_or_oversized_results_are_ignored',
  'synthetic_qa_dom_preflight_gate_requires_compiled_identity',

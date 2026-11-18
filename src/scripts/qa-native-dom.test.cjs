@@ -7,7 +7,7 @@ test('inspection watchdog is bounded independently of the UI dispatcher',()=>{as
 test('probe Rust module and window route are compiled-QA only; no command/eval endpoint exists',()=>{const main=source('src-tauri/src/main.rs');assert.match(main,/#\[cfg\(knapsack_synthetic_qa\)\]\s*mod qa_dom_probes/);assert.match(main,/#\[cfg\(knapsack_synthetic_qa\)\]\s*qa_dom_probes::start\(main_window.clone\(\)\)/);const rust=source('src-tauri/src/qa_dom_probes.rs');assert.doesNotMatch(rust,/#\[tauri::command\]|#\[(?:get|post)\(/);assert.match(rust,/window.label\(\)\s*!=\s*"main"/);assert.match(rust,/Duration::from_secs\(5\)/);assert.match(rust,/Duration::from_secs\(30\)/);assert.match(rust,/deny_unknown_fields/);assert.match(rust,/spawn_blocking/);assert.match(source('src-tauri/build.rs'),/KNAPSACK_QA_BUILD_BUNDLE_ID[\s\S]*rustc-cfg=knapsack_synthetic_qa/)})
 test('production frontend entry/build inputs exclude fixture page; bootstrap seals boundaries before component imports',()=>{const main=source('src/main.tsx'),vite=source('vite.config.ts');assert.doesNotMatch(main,/nativeDomProbes/);const fixture=source('src/qa/nativeDomProbes.tsx');assert.match(fixture,/VITE_KNAPSACK_LOCAL_QA_SAFE/);assert.match(fixture,/location.pathname!=='\/qa-dom.html'/);assert.ok(fixture.indexOf('window.fetch=')<fixture.indexOf("import('src/components/organisms/TranscriptView')"));assert.match(fixture,/window.XMLHttpRequest=/);assert.match(fixture,/window.WebSocket=/);assert.match(fixture,/mediaDevices/);assert.doesNotMatch(fixture,/originalFetch|\.getUserMedia\(/)})
 
-test('fixed probes wait for reviewed empty-state and listener preflight',()=>{const launcher=source('scripts/qa-dev-run.cjs');const gate=launcher.indexOf('fs.renameSync(gateTemporary, gatePath)');assert.ok(gate>launcher.lastIndexOf('assertSyntheticDatabaseClean();'));assert.ok(gate<launcher.indexOf('console.log(`[qa-dev-run] isolated synthetic runtime ready'));const rust=source('src-tauri/src/qa_dom_probes.rs');assert.ok(rust.indexOf('if !wait_for_preflight().await')<rust.indexOf('let deadline = Instant::now() + SUITE_LIMIT'));assert.match(rust,/window.app_handle\(\).exit/);const pkg=require('../package.json');assert.match(pkg.scripts['test:qa-harness'],/qa-native-dom.test.cjs/);assert.equal(pkg.scripts['test:qa-dom-rust'],'node scripts/qa-dom-rust-tests.cjs')})
+test('fixed probes wait for reviewed empty-state and listener preflight',()=>{const launcher=source('scripts/qa-dev-run.cjs');const gate=launcher.indexOf('fs.renameSync(gateTemporary, gatePath)');assert.ok(gate>launcher.lastIndexOf('assertSyntheticDatabaseClean();'));assert.ok(gate<launcher.indexOf('console.log(`[qa-dev-run] isolated synthetic runtime ready'));const rust=source('src-tauri/src/qa_dom_probes.rs');assert.ok(rust.indexOf('if !wait_for_preflight(&window, &operator).await')<rust.indexOf('let deadline = Instant::now() + SUITE_LIMIT'));assert.match(rust,/window.app_handle\(\).exit/);const pkg=require('../package.json');assert.match(pkg.scripts['test:qa-harness'],/qa-native-dom.test.cjs/);assert.equal(pkg.scripts['test:qa-dom-rust'],'node scripts/qa-dom-rust-tests.cjs')})
 
 test('reports reject extra fields, oversized files and symbolic links',()=>{const bad={...report(),script:'not allowed'};assert.equal(validateReport(bad,'fictional','qa.fixture'),false);const os=require('node:os');const folder=fs.mkdtempSync(path.join(os.tmpdir(),'qa-dom-report-test-'));try{const file=path.join(folder,'result.json');fs.writeFileSync(file,JSON.stringify(report()));assert.equal(readReportFile(file).passed,true);fs.writeFileSync(file,'x'.repeat(8193));assert.throws(()=>readReportFile(file));if(process.platform!=='win32'){const link=path.join(folder,'link.json');fs.symlinkSync(file,link);assert.throws(()=>readReportFile(link));}}finally{fs.rmSync(folder,{recursive:true,force:true})}})
 
@@ -25,7 +25,7 @@ test('native lifecycle evidence requires exact identity, fixed coverage and succ
  const {validateCaptureReport}=require('./qa-native-dom-run.cjs');const value={version:1,run_id:'fictional',bundle_id:'qa.fixture',coverage:'native_app_synthetic_callbacks_no_hardware',passed:true};
  assert.equal(validateCaptureReport(value,'fictional','qa.fixture'),true);
  for(const changed of [{run_id:'old'},{bundle_id:'production'},{passed:false},{coverage:'unit_test'},{extra:true}])assert.equal(validateCaptureReport({...value,...changed},'fictional','qa.fixture'),false);
- const rust=source('src-tauri/src/qa_dom_probes.rs');assert.ok(rust.indexOf('if !wait_for_preflight().await')<rust.indexOf('native_capture_probe()'));
+ const rust=source('src-tauri/src/qa_dom_probes.rs');assert.ok(rust.indexOf('if !wait_for_preflight(&window, &operator).await')<rust.indexOf('native_capture_probe()'));
  const callback=source('src-tauri/src/audio/macos.rs');assert.match(callback,/#\[cfg\(knapsack_synthetic_qa\)\]\s*pub\(crate\) fn native_tap_probe/);
 })
 
@@ -37,4 +37,26 @@ test('fixed native module preflight consumes transforms before launch and fails 
  await assert.rejects(warmQaModules(async()=>({ok:false,status:500})),/preflight failed/);
  await assert.rejects(warmQaModules(async()=>{throw Error('offline')}),/offline/);
  const launcher=source('scripts/qa-dev-run.cjs');assert.ok(launcher.indexOf('await warmQaModules();')<launcher.indexOf('app = spawn(appExecutable'));
+});
+
+
+test('operator control requires arming and a trusted visible focused unexpired single click',()=>{
+ const vm=require('node:vm'),ts=require('typescript');const fixture=source('src/qa/nativeDomProbes.tsx');
+ const helper=fixture.slice(fixture.indexOf('function operatorControl('),fixture.indexOf('async function bootstrap(){'));
+ function setup(){
+  let now=1000,focused=true;const elements=[],sent=[],timers=[];
+  const document={visibilityState:'visible',hasFocus:()=>focused,createElement:()=>{const e={disabled:false,textContent:'',listeners:{},append(){},addEventListener(name,fn){this.listeners[name]=fn}};elements.push(e);return e},body:{prepend(){}},addEventListener(){}};
+  const window={addEventListener(){}};
+  const context={document,window,Date:{now:()=>now},crypto:{getRandomValues:a=>a.fill(42)},setInterval:fn=>timers.push(fn),Object,Number,Reflect};
+  vm.runInNewContext(ts.transpile(helper,{target:ts.ScriptTarget.ES2020})+';operatorControl(p=>sent.push(p))',{...context,sent});
+  const button=elements[1],click=trusted=>button.listeners.click({isTrusted:trusted});
+  const arm=()=>window.__knapsackQaArmOperator({run_id:'qa',bundle_id:'qa.bundle',nonce:'nonce',expires_at_ms:2000});
+  return {button,sent,click,arm,document,focus:value=>{focused=value},expire:()=>{now=2000}};
+ }
+ let c=setup();c.click(true);assert.equal(c.sent.length,0);c.arm();c.click(false);assert.equal(c.sent.length,0);
+ c.focus(false);c.click(true);assert.equal(c.sent.length,0);c.focus(true);c.document.visibilityState='hidden';c.click(true);assert.equal(c.sent.length,0);
+ c.document.visibilityState='visible';c.click(true);c.click(true);c.arm();c.click(true);assert.equal(c.sent.length,1);assert.equal(c.sent[0].message.event,'knapsack-qa-operator-start');assert.equal(c.button.disabled,true);
+ c=setup();c.arm();c.expire();c.click(true);assert.equal(c.sent.length,0);
+ const launcher=source('scripts/qa-dev-run.cjs');assert.ok(launcher.indexOf('const armPath')>launcher.lastIndexOf('assertSyntheticDatabaseClean();'));assert.match(launcher,/expires_at_ms: end/);
+ const harness=fixture.slice(fixture.indexOf('export async function createProbeHarness'),fixture.indexOf('function bootstrapStage'));assert.doesNotMatch(harness,/knapsack-qa-operator-start/);
 });

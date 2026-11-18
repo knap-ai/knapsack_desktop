@@ -492,12 +492,15 @@ async function main() {
   }, 1_000);
   if (process.env.KNAPSACK_QA_DOM_PROBES === "1") {
     if (process.env.KNAPSACK_QA_VISIBLE_OPERATOR_GATE === "1") {
-      // The operator brings only this owned QA window forward with supported
-      // computer controls, then releases this identity-bound marker. Hidden
-      // WebKit windows throttle timers and cannot establish interactive QA.
+      // Arm only after ownership/empty-state preflight. The owned native window
+      // consumes one foreground operator click before this unchanged deadline.
       console.log(`[qa-dev-run] awaiting visible operator: ${qaAppBundle}`);
       const visiblePath = path.join(qaStateDir, "qa-visible-go.json");
       const end = Date.now() + 30_000;
+      const armPath = path.join(qaStateDir, "qa-visible-arm.json");
+      const armTemporary = path.join(qaStateDir, "qa-visible-arm.tmp");
+      writeJsonFile(armTemporary, { run_id: qaRunId, bundle_id: qaBundleId, nonce: crypto.randomUUID(), expires_at_ms: end });
+      fs.renameSync(armTemporary, armPath);
       let accepted = false;
       while (Date.now() < end) {
         if (visibleMarkerAccepted(visiblePath, qaRunId, qaBundleId)) {
