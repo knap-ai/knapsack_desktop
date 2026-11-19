@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -40,7 +39,7 @@ pub async fn build_user_message(
   let mut total_doc_knowledge = "".to_string();
 
   let mut ss_results = Vec::new();
-  if let Some(query) = semantic_search_query {
+  if let Some(query) = semantic_search_query.filter(|query| !query.trim().is_empty()) {
     let maybe_locked_semantic_service = semantic_service.lock().await;
     if let Some(locked_semantic_service) = maybe_locked_semantic_service.as_ref() {
       ss_results = match locked_semantic_service
@@ -100,13 +99,7 @@ pub async fn build_user_message(
 
   user_prompt = format!("{} Be informative but not wordy. Respond succintly. Give your entire response in Markdown, so that I can display it nicely.", user_prompt);
 
-  // Save prompt to debug file
-  if let Some(home_dir) = dirs::home_dir() {
-    let debug_path = home_dir.join(".knapsack").join("debug_user_prompt.txt");
-    if let Err(e) = fs::write(&debug_path, &user_prompt) {
-      log::error!("Failed to write debug prompt file: {}", e);
-    }
-  }
+  // Meeting/document content is never copied into a raw debug artifact.
 
   Message {
     sender: MessageSender::User,
@@ -136,5 +129,54 @@ You strictly avoid:
 
 When writing drafts of emails for me, try to match the tone of the conversation.
 ", user_name, user_name, user_email ),
+  }
+}
+
+#[cfg(test)]
+mod notes_preparation_tests {
+  use super::*;
+  #[tokio::test]
+  async fn blank_search_never_waits_for_indexing_and_keeps_explicit_sources() {
+    for query in [None, Some(String::new()), Some(" \n\t ".to_string())] {
+      let service = Arc::new(Mutex::new(None));
+      let _indexing = service.lock().await;
+      let result = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        build_user_message(
+          "Summarize the selected synthetic meeting.".into(),
+          query,
+          Some(vec![]),
+          service.clone(),
+          Some(vec![AdditionalDocument {
+            title: "Meeting Transcript".into(),
+            content: "Synthetic decision: review the pilot scope.".into(),
+            doc_type: None,
+          }]),
+        ),
+      )
+      .await;
+      assert!(result.is_ok(), "Blank search blocked on unrelated indexing");
+      assert!(result
+        .unwrap()
+        .content
+        .contains("Synthetic decision: review the pilot scope."));
+    }
+  }
+  #[tokio::test]
+  async fn a_real_search_still_observes_the_semantic_service_lock() {
+    let service = Arc::new(Mutex::new(None));
+    let _indexing = service.lock().await;
+    let result = tokio::time::timeout(
+      std::time::Duration::from_millis(20),
+      build_user_message(
+        "Synthetic".into(),
+        Some("pilot decision".into()),
+        None,
+        service.clone(),
+        None,
+      ),
+    )
+    .await;
+    assert!(result.is_err());
   }
 }

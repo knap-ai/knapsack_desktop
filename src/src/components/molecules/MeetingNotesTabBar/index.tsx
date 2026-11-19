@@ -46,6 +46,7 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
     <div className="meeting-notes-actions flex flex-row flex-wrap gap-x-6 gap-y-3 items-center">
       <Button
         label={templateLabel}
+        disabled={!canChangeTemplate}
         variant={ButtonVariant.regular}
         size={ButtonSize.medium}
         icon={<img className="mr-1.5" src="/assets/images/icons/MeetingTemplates.svg" />}

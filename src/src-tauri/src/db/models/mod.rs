@@ -23,3 +23,5 @@ pub mod transcript;
 pub mod user;
 pub mod user_connection;
 pub mod workspace;
+
+pub(crate) mod email_loop_signal;

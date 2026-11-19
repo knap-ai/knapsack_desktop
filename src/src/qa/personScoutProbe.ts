@@ -86,8 +86,15 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     await until(() => fileListeners() === 1, 'single_foreground')
     type('Unsent native person draft')
     await pause()
-    click('Back to Alex Example')
+    click('Minimize person chat')
     await until(() => fileListeners() === 0, 'hidden_unsubscribed')
+    assert(!Array.from(host.querySelectorAll('textarea')).some(visible), 'minimized_composer_hidden')
+    assert(
+      Array.from(host.querySelectorAll('h1')).some(
+        (heading) => visible(heading) && heading.textContent === 'Alex Example',
+      ),
+      'profile_remains_visible',
+    )
     click('Chat about Alex Example')
     await ready()
     assert(
@@ -96,12 +103,12 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     )
     click('320px')
     await pause()
-    const options = button('Scout options')
+    const options = button('Meeting chat settings')
     options.focus()
     options.click()
     await pause()
     assert(options.getAttribute('aria-expanded') === 'true', 'options_expanded')
-    const menu = host.querySelector<HTMLElement>('.ClawdChatActions--open')
+    const menu = host.querySelector<HTMLElement>('.ClawdChatActions--compact.ClawdChatActions--open')
     assert(menu, 'menu')
     if (globalThis.CSS?.supports?.('container-type', 'inline-size')) {
       assert(
@@ -141,8 +148,8 @@ export async function runPersonScoutProbe(container: HTMLElement) {
     await pause()
     if (globalThis.CSS?.supports?.('container-type', 'inline-size'))
       assert(
-        getComputedStyle(options).display === 'none',
-        'wide_disclosure_hidden',
+        getComputedStyle(options).display !== 'none',
+        'wide_scoped_disclosure_visible',
       )
     window.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'l', metaKey: true, bubbles: true }),

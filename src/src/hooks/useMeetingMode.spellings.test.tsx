@@ -98,3 +98,27 @@ it('does not reuse another user’s memory or invent a missing first name', asyn
   })
   h.unmount()
 })
+it('shows queued until dispatch, then writing; cancellation cannot restore writing', async () => {
+  const queue = vi.fn()
+  const h = renderHook(() => useMeetingSynthesis(null, queue, vi.fn(), template))
+  let result: Promise<void>
+  act(() => { result = h.result.current.synthesizeContent(44, '', undefined).catch(() => {}) })
+  await waitFor(() => expect(queue).toHaveBeenCalledOnce())
+  expect(h.result.current.synthesisPhase).toBe('queued')
+  const request = queue.mock.calls[0][0]
+  act(() => request.requestStartedCallback())
+  expect(h.result.current.synthesisPhase).toBe('writing')
+  await act(async () => { writeCorrections('synthetic-user', []); await result! })
+  expect(h.result.current.synthesisPhase).toBe('idle')
+  act(() => request.requestStartedCallback())
+  expect(h.result.current.synthesisPhase).toBe('idle')
+  h.unmount()
+})
+it('joins repeated recovery requests instead of cancelling and restarting the same meeting', async () => {
+  const queue=vi.fn(),firstFailure=vi.fn();const h=renderHook(()=>useMeetingSynthesis(null,queue,vi.fn(),template));
+  let first:Promise<void>, second:Promise<void>;
+  act(()=>{first=h.result.current.synthesizeContent(45,'',undefined).catch(firstFailure);second=h.result.current.synthesizeContent(45,'',undefined).catch(()=>{})});
+  await waitFor(()=>expect(queue).toHaveBeenCalled());
+  expect(queue).toHaveBeenCalledOnce();expect(firstFailure).not.toHaveBeenCalled();expect(queue.mock.calls[0][0].signal.aborted).toBe(false);
+  await act(async()=>{writeCorrections('synthetic-user',[]);await Promise.all([first!,second!])});h.unmount();
+})

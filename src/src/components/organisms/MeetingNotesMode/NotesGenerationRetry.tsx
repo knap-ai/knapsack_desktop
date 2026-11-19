@@ -43,3 +43,11 @@ export default function NotesGenerationRetry({
     </section>
   )
 }
+
+/** Recovery is offered from saved evidence, even without an in-memory error. */
+export function MissingMeetingNotesRecovery({transcriptAvailable,onRetry}:{transcriptAvailable:boolean;onRetry:()=>void}) {
+  return <section className="notetaker-note__retry" aria-label="Meeting notes recovery">
+    <div className="notetaker-note__retry-message"><strong>Meeting notes are not saved yet</strong><span>{transcriptAvailable ? 'Your saved transcript is available. Retry notes when you are ready.' : 'No saved transcript is available yet. Your recording is preserved.'}</span></div>
+    {transcriptAvailable && <button type="button" className="notetaker-note__retry-button" onClick={onRetry}>Retry notes</button>}
+  </section>
+}

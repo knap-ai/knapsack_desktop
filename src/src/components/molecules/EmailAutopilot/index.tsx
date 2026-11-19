@@ -1,4 +1,3 @@
-import EmailSyncNotice from './EmailSyncNotice'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import CircularProgress from '@mui/material/CircularProgress'
@@ -425,10 +424,6 @@ export const EmailAutopilot = ({
       }
       <div className="flex-1 p-4 h-full overflow-y-auto relative">
 
-        <EmailSyncNotice accounts={feed.emailAccounts}
-          error={feed.emailAutopilotStatus.status === 'error' ? feed.emailAutopilotStatus.message || 'Email refresh did not finish. Existing messages have been kept.' : undefined}
-          busy={['fetching-emails', 'classifying-emails', 'sync-email'].includes(feed.emailAutopilotStatus.status)}
-          onRetry={() => { void refreshEmails().catch(() => undefined) }} />
         {/* Settings Sidebar */}
         {showSettings && (
           <div className="fixed inset-0 z-50 flex justify-end">

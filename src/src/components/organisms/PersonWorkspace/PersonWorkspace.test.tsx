@@ -19,12 +19,15 @@ vi.mock('../ClawdChat', () => ({
     contextPrefix: string
     chatId: string
     foregroundActive: boolean
+    onBusyChange?: (busy: boolean) => void
   }) {
     mocks.chat(props)
     const [draft, setDraft] = useState('')
     return (
       <section aria-label={props.title}>
         <p>{props.contextPrefix}</p>
+        <button onClick={()=>props.onBusyChange?.(true)}>Start synthetic reply</button>
+        <button onClick={()=>props.onBusyChange?.(false)}>Finish synthetic reply</button>
         <textarea
           aria-label="Person chat draft"
           value={draft}
@@ -67,7 +70,7 @@ it('opens the person chat branch without sending and retains an unsent draft on 
   fireEvent.change(screen.getByRole('textbox', { name: 'Person chat draft' }), {
     target: { value: 'Unsent synthetic question' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'Back to Alex' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Minimize person chat' }))
   expect(mocks.chat.mock.calls[mocks.chat.mock.calls.length - 1][0].foregroundActive).toBe(false)
   fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
   expect(
@@ -96,7 +99,7 @@ it('uses the saved corrected person snapshot for title and identity without losi
   const { rerender } = render(<PersonWorkspace workspace={person} userEmail="owner@example.test" onBack={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Person chat draft' }), { target: { value: 'Keep synthetic draft' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Back to Alex' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Minimize person chat' }))
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   fireEvent.change(screen.getByDisplayValue('Alex'), { target: { value: corrected.name } })
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -108,7 +111,7 @@ it('uses the saved corrected person snapshot for title and identity without losi
   expect(props.contextPrefix).toContain('alex@example.test')
   expect(props.chatId).toBe('person:owner%40example.test:person-a')
   expect((screen.getByRole('textbox', { name: 'Person chat draft' }) as HTMLTextAreaElement).value).toBe('Keep synthetic draft')
-  expect(screen.getByRole('button', { name: 'Back to Alexa Corrected' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Minimize person chat' })).toBeTruthy()
   rerender(<PersonWorkspace workspace={person} userEmail="other@example.test" onBack={vi.fn()} />)
   expect(screen.queryByRole('textbox', { name: 'Person chat draft' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
@@ -116,7 +119,7 @@ it('uses the saved corrected person snapshot for title and identity without losi
   expect(other.chatId).toBe('person:other%40example.test:person-a')
   expect(other.contextPrefix).toContain('"name":"Alex"')
   expect(other.contextPrefix).not.toContain('Alexa Corrected')
-  fireEvent.click(screen.getByRole('button', { name: 'Back to Alex' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Minimize person chat' }))
   fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
   expect(mocks.chat.mock.calls[mocks.chat.mock.calls.length - 1][0].contextPrefix).not.toContain('Alexa Corrected')
 })
@@ -132,4 +135,15 @@ it('does not automatically reopen person chat after sign-out and return to the a
   expect(screen.queryByRole('textbox', { name: 'Person chat draft' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
   expect(screen.getByRole('textbox', { name: 'Person chat draft' })).toBeTruthy()
+})
+
+it('opens over the visible profile, preserves the mounted draft and restores launcher focus on minimize', () => {
+ mocks.get.mockResolvedValue({success:true,data:person});const onBack=vi.fn();render(<PersonWorkspace workspace={person} userEmail="owner@example.test" onBack={onBack}/>);
+ const launch=screen.getByRole('button',{name:'Chat about Alex'});fireEvent.click(launch);
+ const overlay=screen.getByRole('region',{name:'Person chat'});expect(overlay.className).toContain('notetaker-note__chat-overlay');expect(screen.getByRole('heading',{name:'Alex'})).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Start synthetic reply'}));fireEvent.click(screen.getByRole('button',{name:'Minimize person chat'}));
+ expect(document.activeElement).toBe(launch);expect(overlay.hasAttribute('hidden')).toBe(true);expect(screen.getByText('Person chat is still working').textContent).toContain('still working');expect(onBack).not.toHaveBeenCalled();
+ fireEvent.click(launch);expect(screen.getByRole('region',{name:'Person chat'})).toBe(overlay);
+ const props=mocks.chat.mock.calls[mocks.chat.mock.calls.length-1][0];expect(props.compact).toBe(true);expect(props.active).toBe(true);expect(props.foregroundActive).toBe(true);expect(props).not.toHaveProperty('initialInput');expect(props).not.toHaveProperty('submitRequest');
+ const handle=screen.getByRole('button',{name:'Resize person chat. Drag up to expand or down to collapse.'});fireEvent.keyDown(handle,{key:'ArrowUp'});expect(overlay.style.height).toBe('500px');
 })

@@ -1,3 +1,4 @@
+import { notificationBrief } from 'src/utils/notificationBrief'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
@@ -162,14 +163,8 @@ export const buildMeetingNotificationBrief = (
   const attendeeSummary = visibleAttendees.length
     ? `With ${visibleAttendees.join(', ')}${attendeeLabels.length > 3 ? ` +${attendeeLabels.length - 3}` : ''}`
     : ''
-  const description = (meeting.description || '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const contextSummary = description.length > 150
-    ? `${description.slice(0, 147).trimEnd()}…`
-    : description
-  return [attendeeSummary, contextSummary].filter(Boolean).join(' · ')
+  const contextSummary = notificationBrief(meeting.description || '', 180)
+  return contextSummary || (attendeeSummary ? attendeeSummary + '.' : '')
 }
 
 export interface IGoogleAuthControls {

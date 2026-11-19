@@ -28,6 +28,7 @@ function fixture(data, current = 44, responseOk = true, options = {}) {
     setNotesMarkdown: text => { state.notes = text }, setMarkdown: text => { state.synthesis = text },
     setIsInitialLoading: value => { state.loading = value },
     setRecordingMetadata: value => { state.recordingMetadata = value },
+    setNotesReadCompleteFor: value => { state.readCompleteThread = value },
     logError: () => {}, DOMException, Error,
   })
   return { state, read: exports.fetchNotes, changed:()=>{edits.current++}, accountRoundTrip:()=>{profileRevision+=2} }
@@ -94,16 +95,26 @@ test('failed synthesis rendering cannot enqueue an empty autosave after persiste
   assert.deepEqual(autosaves, ['Already persisted fictional notes'], 'successful insertion still updates the final notes state')
 })
 
-function utility(name) {
- const out={}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/utils/'+name+'.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:out,require:id=>id==='./profileScope'?{getProfileRevision:()=>0,PROFILE_CHANGED_EVENT:'fixture-profile-changed'}:notesUtility,Error,DOMException,AbortController,TextDecoder,setTimeout:(...args)=>setTimeout(...args),clearTimeout:(...args)=>clearTimeout(...args)});return out;
+function utility(name, context = {}, cache = new Map()) {
+ if(cache.has(name)) return cache.get(name);
+ const out={};cache.set(name,out);
+ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/utils/'+name+'.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{
+   exports:out,require:id=>{
+     if(id==='./profileScope') return {getProfileRevision:()=>0,PROFILE_CHANGED_EVENT:'fixture-profile-changed'};
+     assert.ok(id.startsWith('.'),'Only local utility dependencies are allowed: '+id);
+     return utility(path.posix.normalize(path.posix.join(path.posix.dirname(name),id)),context,cache);
+   },Error,DOMException,AbortController,TextDecoder,TextEncoder,setTimeout:(...args)=>setTimeout(...args),clearTimeout:(...args)=>clearTimeout(...args),...context,
+ });return out;
 }
 const notesUtility=utility('notesGeneration');
 const postMeetingUtility=utility('postMeetingSource');
 const streamUtility=utility('completionStream');
 function incidentHook(options = {}) {
   const states = []; let cursor = 0, queued; const refs=[]; let refCursor=0
-  const effects = { writes: [], deleted: 0, finished: 0 }
+  const effects = { writes: [], deleted: 0, finished: 0, diagnostics: [], queued: 0 }
   const modules = {
+    'src/utils/notesGenerationAdmission': utility('notesGenerationAdmission'),
+    'src/utils/frontendLog': { pushFrontendLog: (...args) => effects.diagnostics.push(args) },
     'src/utils/profileScope':{getProfileRevision:()=>0,PROFILE_CHANGED_EVENT:'fixture-profile-changed'},'src/utils/nameCorrections':{readCorrections:()=>[],spellingContext:()=>'',CORRECTIONS_CHANGED:'fixture-spellings'},'src/utils/meetingSpeakerIdentity': utility('meetingSpeakerIdentity'),
     'src/utils/notesSave':utility('notesSave'),
     'src/utils/notesGeneration': notesUtility,
@@ -124,7 +135,7 @@ function incidentHook(options = {}) {
     window:{addEventListener:()=>{},removeEventListener:()=>{}}, exports: out, require: id => { assert.ok(modules[id], id); return modules[id] }, Error,
     fetch: async (_url, init) => { effects.writes.push(JSON.parse(init.body)); if(options.save) return options.save(init); return { ok: true, json: async () => ({ success: true }) } },
   })
-  return { effects, queue: () => queued, render: () => { cursor = 0; refCursor=0; return out.useMeetingSynthesis(null, item => { queued = item }, () => { effects.finished++ }, { key: 'fixture', prompt: 'fixture' }) } }
+  return { effects, queue: () => queued, render: () => { cursor = 0; refCursor=0; return out.useMeetingSynthesis(null, item => { queued = item; effects.queued++ }, () => { effects.finished++ }, { key: 'fixture', prompt: 'fixture' }) } }
 }
 function incidentCompletion(failure, customFetcher) {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8').replace(/\r\n/g, '\n')
@@ -213,8 +224,10 @@ function inferenceClock(latency) {
   const fetcher = fs.readFileSync(path.join(__dirname, '../src/utils/data_fetch.tsx'), 'utf8')
   const start = fetcher.indexOf('  public async getChatCompletionStream('), end = fetcher.indexOf('\n  public async ', start + 10)
   const method = 'class Fixture {\n' + fetcher.slice(start, end) + '\n}\nexports.Fixture=Fixture;'
+  const completion = utility('completionFailure', context)
   vm.runInNewContext(ts.transpileModule(method, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    exports: out, Error, retryFetch: retry.retryFetch, HttpError: retry.HttpError,
+    exports: out, Error, retryFetch: retry.retryFetch, HttpError: retry.HttpError, ...completion,
+    ChatCompletionError: utility('exceptions/chat_completion').ChatCompletionError,
     KN_API_STREAM_LLM_COMPLETE: 'fixture-inference', logError: () => {}, throwChatCompletionError: () => { throw Error('synthetic completion failure') },
   })
   return {
@@ -254,9 +267,15 @@ test('other completion callers retain their existing60second retry policy', asyn
 })
 
 const flush = async () => { for(let i=0;i<40;i++) await Promise.resolve() };
-test('superseded notes generation cannot overwrite newer notes', {timeout:1000}, async () => {
+test('identical repeated notes generation joins one attempt and one save', {timeout:1000}, async () => {
+ const h=incidentHook();const first=h.render().synthesizeContent(39,'',undefined);await flush();
+ const repeated=h.render().synthesizeContent(39,'',undefined);assert.equal(first,repeated);await flush();
+ assert.equal(h.effects.queued,1);await h.queue().messageFinishCallback('Fictional joined notes');await first;
+ assert.equal(h.effects.writes.length,1);assert.equal(h.effects.finished,1);assert.equal(h.effects.writes[0].notes,'Fictional joined notes');
+});
+test('superseded meeting generation cannot overwrite newer meeting notes', {timeout:1000}, async () => {
  const h=incidentHook();const oldJob=h.render().synthesizeContent(39,'',undefined);oldJob.catch(()=>{});await flush();const old=h.queue();
- const newJob=h.render().synthesizeContent(39,'',undefined);await flush();
+ const newJob=h.render().synthesizeContent(40,'',undefined);await flush();
  await h.queue().messageFinishCallback('Newer fictional notes');await newJob;
  await old.messageFinishCallback('Stale fictional notes');assert.equal(h.effects.writes.length,1);await assert.rejects(oldJob);
  assert.equal(h.effects.writes.length,1);assert.equal(h.effects.writes[0].notes,'Newer fictional notes');
@@ -311,7 +330,8 @@ test('success-shaped HTTP200 save failure preserves transcript and settles retry
 for(const latency of [106000,200000])test(`actual notes fetch and queue consumer at ${latency}ms submit once and settle correctly`,async t=>{
  t.mock.timers.enable({apis:['setTimeout']});let requests=0,backendFinished=0;const out={};
  const source=fs.readFileSync(path.join(__dirname,'../src/utils/data_fetch.tsx'),'utf8');const start=source.indexOf('  public async getChatCompletionStream('),end=source.indexOf('\n  public async ',start+10);
- vm.runInNewContext(ts.transpileModule('class Fixture {\n'+source.slice(start,end)+'\n}\nexports.Fixture=Fixture;',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:out,Error,HttpError:class extends Error{},KN_API_STREAM_LLM_COMPLETE:'fixture',logError:()=>{},throwChatCompletionError:()=>{throw Error('synthetic request failure')},fetch:(_url,{signal})=>{requests++;return new Promise((resolve,reject)=>{signal.addEventListener('abort',()=>reject(signal.reason),{once:true});setTimeout(()=>{backendFinished++;let read=0;resolve({ok:true,body:{getReader:()=>({read:async()=>++read===1?{done:false,value:new TextEncoder().encode('data: {"choices":[{"text":"Fictional delayed notes"}]}\n\ndata: [DONE]\n\n')}:{done:true},cancel:async()=>{}})}})},latency)})}});
+ const fixtureFetch=(_url,{signal})=>{requests++;return new Promise((resolve,reject)=>{signal.addEventListener('abort',()=>reject(signal.reason),{once:true});setTimeout(()=>{backendFinished++;let read=0;resolve({ok:true,body:{getReader:()=>({read:async()=>++read===1?{done:false,value:new TextEncoder().encode('data: {"choices":[{"text":"Fictional delayed notes"}]}\n\ndata: [DONE]\n\n')}:{done:true},cancel:async()=>{}})}})},latency)})};
+ vm.runInNewContext(ts.transpileModule('class Fixture {\n'+source.slice(start,end)+'\n}\nexports.Fixture=Fixture;',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:out,Error,ChatCompletionError:utility('exceptions/chat_completion').ChatCompletionError,fetchCompletionOnce:(...args)=>utility('completionFailure',{fetch:fixtureFetch}).fetchCompletionOnce(...args),HttpError:class extends Error{},KN_API_STREAM_LLM_COMPLETE:'fixture',logError:()=>{},throwChatCompletionError:()=>{throw Error('synthetic request failure')},fetch:fixtureFetch});
  const h=incidentHook();const job=h.render().synthesizeContent(49,'',undefined);job.catch(()=>{});await flush();const consumer=incidentCompletion('actual',new out.Fixture())(h.queue());await flush();
  t.mock.timers.tick(latency===106000?106000:180000);await flush();await consumer;
  if(latency===106000){await job;assert.equal(h.effects.writes.length,1);assert.equal(h.effects.finished,1)}else{await assert.rejects(job,/timed out/);t.mock.timers.tick(20000);await flush();assert.equal(backendFinished,1);assert.equal(h.effects.writes.length,0);assert.equal(h.effects.deleted,0);assert.equal(h.effects.finished,0)}
@@ -325,6 +345,7 @@ test('saved metadata restores a hidden transcript control without another conten
  assert.equal(f.state.recordingMetadata.threadId,44)
  assert.equal(f.state.recordingMetadata.recorded,true)
  assert.equal(f.state.recordingMetadata.transcriptAvailable,true)
+ assert.equal(f.state.readCompleteThread,44)
  assert.equal(f.state.gets,1);assert.equal(f.state.writes,0)
 })
 test('late notes metadata cannot expose another meeting transcript control', async () => {

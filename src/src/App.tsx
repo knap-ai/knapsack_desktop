@@ -213,6 +213,7 @@ export interface HomeProps {
 }
 
 export type LLMParams = {
+  requestStartedCallback?: () => void
   diagnostic?: Diagnostic
   requestKind?: 'notes' | 'brief' | 'completion'
   diagnosticKind?: DiagnosticKind
@@ -491,6 +492,7 @@ function App() {
       diagnostic,
       diagnosticKind,
       requestKind,
+      requestStartedCallback,
       signal,
     }: LLMParams) => {
       const diagnosticStart = diagnosticNow()
@@ -518,6 +520,8 @@ function App() {
         diagnosticRequestStart = diagnosticNow()
         diagnosticRequestPending = true
         emitDiagnostic(diagnostic, 'request', 'started', diagnosticRequestStart)
+        if (signal?.aborted) throw signal.reason
+        requestStartedCallback?.()
         const reader = await waitForAbort(dataFetcher.getChatCompletionStream(
           userEmail,
           userName,

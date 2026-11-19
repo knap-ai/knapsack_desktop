@@ -71,8 +71,13 @@ export function buildRelationshipTimeline(
       week.setHours(0, 0, 0, 0)
       week.setDate(week.getDate() - ((week.getDay() + 6) % 7))
     }
-    const key =
-      date && topic.split(/\s+/).length >= 2 ? `${week?.getTime()}:${topic}` : `document:${doc.id}`
+    // Strong provider-thread identity, partitioned by account and month.
+    const mailThread = source.kind === 'email' && source.url?.includes('mail.google.com/')
+      ? source.url.match(/#all\/([^/?#]+)$/)?.[1] : null
+    const month = date ? new Date(date * 1000).toISOString().slice(0, 7) : ''
+    const key = mailThread && source.account && month
+      ? `mail:${source.account}:${mailThread}:${month}`
+      : date && topic.split(/\s+/).length >= 2 ? `${source.account || ''}:${week?.getTime()}:${topic}` : `document:${doc.id}`
     const rank = significance(doc)
     const current = groups.get(key)
     if (current) {
@@ -90,6 +95,19 @@ export function buildRelationshipTimeline(
         significance: rank,
         sources: [{ document: doc, evidence: source }],
       })
+  }
+  for (const chapter of groups.values()) {
+    const summaries = [...chapter.sources]
+      .sort((a, b) => (a.evidence.occurredAt || 0) - (b.evidence.occurredAt || 0))
+      .map(item => item.evidence.meetingSummary?.trim() || item.document.summary?.trim()).filter((value): value is string => !!value)
+    const distinct = [...new Set(summaries)]
+    // Source-grounded extractive prose; never infer a deal outcome.
+    const selected: string[] = []
+    for (const summary of distinct) {
+      if (selected.length === 3) break
+      if ([...selected, summary].join(' ').length <= 1000) selected.push(summary)
+    }
+    chapter.summary = selected.length ? selected.join(' ') : null
   }
   return [...groups.values()].sort(
     (a, b) => (a.date ?? Infinity) - (b.date ?? Infinity) || a.id.localeCompare(b.id),

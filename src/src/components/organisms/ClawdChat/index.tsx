@@ -2101,6 +2101,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   const [busy, setBusy] = useState(false)
   const [providerSelectionRefreshing, setProviderSelectionRefreshing] = useState(active)
   const providerSelectionRefreshRef = useRef<Promise<void> | null>(null)
+  const scopedInlineChat = compact || !!contextPrefix?.trim()
   const [showCompactControls, setShowCompactControls] = useState(false)
   const compactControlsRef = useRef<HTMLDivElement | null>(null)
   const compactControlsButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -2113,7 +2114,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
       if (event instanceof KeyboardEvent && event.key !== 'Escape') return
       if (
         event instanceof MouseEvent
-        && compactControlsRef.current?.contains(event.target as Node)
+        && (compactControlsRef.current?.contains(event.target as Node) || compactControlsButtonRef.current?.contains(event.target as Node))
       ) {
         return
       }
@@ -2489,7 +2490,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
     isChannelRuntimeConnected(channelStatus.genericChannels.irc) ||
     isChannelRuntimeConnected(channelStatus.genericChannels.googlechat)
   )
-  const showChannelBanner = hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
+  const showChannelBanner = !scopedInlineChat && hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
 
   // Build channel status tooltip and button color class
   const channelButtonInfo = useMemo(() => {
@@ -6578,16 +6579,18 @@ ${actualText}`
               onMouseDown={event => event.stopPropagation()}
               onClick={() => setShowCompactControls(prev => !prev)}
             >
-              <span aria-hidden="true">•••</span>
+              <span aria-hidden="true">⋮</span>
             </button>
           )}
         </div>
         <div
           ref={compactControlsRef}
+          role="region" aria-label="Assistant controls"
           className={`ClawdChatActions ${compact ? 'ClawdChatActions--compact' : 'ClawdChatActions--responsive'} ${showCompactControls ? 'ClawdChatActions--open' : ''}`}
           onMouseDown={compact ? event => event.stopPropagation() : undefined}
           onClick={compact ? () => setShowCompactControls(false) : undefined}
         >
+          <span className="ClawdControlsGroupLabel">Assistant</span>
           <button
             disabled={busy}
             onClick={() => enableAssistant(!status?.running)}
@@ -6595,6 +6598,7 @@ ${actualText}`
           >
             {status?.running ? '✓ Enabled' : '○ Disabled'}
           </button>
+          <span className="ClawdControlsGroupLabel">Connections</span>
           <button
             onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
             className={`${showChannelsPanel ? 'toggle-on' : ''} ${channelButtonInfo.colorClass}`}
@@ -6687,6 +6691,7 @@ ${actualText}`
             agentName={agentName} active={active}
             onDraft={text => setScheduleDraft({ text, key: Date.now() })}
           />}
+          <span className="ClawdControlsGroupLabel">Conversation</span>
           <button disabled={busy} onClick={clearHistory} title="Clear chat history and start fresh">
             Clear
           </button>
@@ -6885,7 +6890,7 @@ ${actualText}`
             </button>
           </div>
         )}
-        {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
+        {parsedMsgs.filter(({ msg }) => !scopedInlineChat || (!msg.id.startsWith('welcome-') && !msg.id.startsWith('example-'))).map(({ msg: m, cleaned, actions }) => (
           <div
             key={m.id}
             className={[
@@ -6913,7 +6918,7 @@ ${actualText}`
           </div>
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
-        {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
+        {!scopedInlineChat && skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
           msgs.every(m => m.id.startsWith('welcome-')) && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble">

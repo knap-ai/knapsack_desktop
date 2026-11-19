@@ -1,7 +1,14 @@
-.email-sync-notice { margin: 0 0 16px; color: #77716e; font-size: 12px; line-height: 1.5; }
-.email-sync-notice > p { margin-bottom: 4px; }
-.email-sync-notice summary { cursor: pointer; color: #586a9f; }
+.email-sync-notice { position: relative; color: #625d59; font-size: 12px; line-height: 1.5; }
+.email-sync-notice summary { display: flex; align-items: center; justify-content: center; list-style: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 18px; }
+.email-sync-notice summary::-webkit-details-marker { display: none; }
+.email-sync-notice summary:hover { background: #ece8e4; }
+.email-sync-notice summary:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }
+.email-sync-notice__popover { position: absolute; z-index: 30; left: 0; top: 38px; width: min(340px, calc(100vw - 48px)); padding: 16px; border: 1px solid #d9d3ce; border-radius: 12px; background: #faf9f8; color: #36322f; box-shadow: 0 8px 24px #0002; }
 .email-sync-notice ul { margin: 8px 0; list-style: none; }
-.email-sync-notice li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; }
-.email-sync-notice__warning { border: 1px solid #ead3ba; background: #fff9ed; border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+.email-sync-notice li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; overflow-wrap: anywhere; }
+.email-sync-notice__warning { border-top: 1px solid #d9c5b1; padding-top: 10px; margin-top: 8px; }
 .email-sync-notice__warning button { margin-top: 6px; color: #8c4a40; text-decoration: underline; }
+.email-autopilot-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: #36322f; }
+.email-autopilot-toolbar__tools { order: -1; display: flex; align-items: center; gap: 4px; }
+.email-autopilot-toolbar__tabs { flex: 1; min-width: 260px; }
+@media (prefers-color-scheme: dark) { .email-sync-notice { color: #c8c3bf; } .email-sync-notice__popover { background: #272625; color: #eee9e5; border-color: #55504b; } .email-sync-notice summary:hover { background: #3c3936; } .email-autopilot-toolbar { color: #eee9e5; } }

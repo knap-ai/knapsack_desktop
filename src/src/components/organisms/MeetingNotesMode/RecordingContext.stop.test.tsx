@@ -98,3 +98,18 @@ it('preserves stop failure without attempting generation', async () => {
   expect(read).not.toHaveBeenCalled()
   expect(synthesize).not.toHaveBeenCalled()
 })
+it('emits completion only once when repeated callers join the same notes request', async () => {
+  mocks.emit.mockResolvedValue(undefined)
+  let finish!: () => void
+  const request = new Promise<void>(resolve => { finish = resolve })
+  const synthesize = vi.fn(() => request)
+  const h = renderHook(() => useRecording(), { wrapper: RecordingProvider })
+  await act(async () => {
+    const a=h.result.current.generateNotes(9903,synthesize,vi.fn(),'',undefined)
+    const b=h.result.current.generateNotes(9903,synthesize,vi.fn(),'',undefined)
+    finish();await Promise.all([a,b])
+  })
+  expect(mocks.emit).toHaveBeenCalledOnce()
+  expect(mocks.emit.mock.calls[0][0]).toBe('notes_synthesized')
+  expect(h.result.current.hasSynthesized(9903)).toBe(true)
+})

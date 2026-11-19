@@ -1,3 +1,4 @@
+import { completionFailure, fetchCompletionOnce } from './completionFailure'
 import dayjs from 'dayjs'
 import { ConnectionKeys } from 'src/api/connections'
 import { IGoogleDriveItem } from 'src/App'
@@ -33,6 +34,7 @@ import { EmailDocument, SourceDocument } from '../utils/SourceDocument'
 import { logError } from './errorHandling'
 import {
   CHAT_COMPLETION_ERROR_MESSAGES_MAPPING,
+  ChatCompletionError,
   throwChatCompletionError,
 } from './exceptions/chat_completion'
 import KNDateUtils from './KNDateUtils'
@@ -111,11 +113,11 @@ export default class DataFetcher {
     }
 
     try {
-      const response = completionKind !== 'completion' && signal
-        ? await fetch(KN_API_STREAM_LLM_COMPLETE, {
+      const response = completionKind !== 'completion'
+        ? await fetchCompletionOnce(KN_API_STREAM_LLM_COMPLETE, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body_obj), signal,
-          })
+            body: JSON.stringify(body_obj),
+          }, signal)
         : await retryFetch(
         KN_API_STREAM_LLM_COMPLETE,
         {
@@ -136,11 +138,12 @@ export default class DataFetcher {
         },
       )
 
-      if (!response.ok) throw new HttpError(response.status, 'Note generation request failed')
+      if (!response.ok) throw await completionFailure(response)
       const reader = response.body?.getReader()
       return reader
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') throw error
+      if (error instanceof ChatCompletionError) throw error
+      if (error !== null && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error
       if (error instanceof HttpError) {
         logError(error, { additionalInfo: 'Error chat completion stream', error: error.message })
         throwChatCompletionError({

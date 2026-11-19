@@ -17,11 +17,13 @@ export function NameSpellingReview({
   text,
   onPreview,
   accountEmail,
+  managementOnly = false,
 }: {
   editor: Editor | null
   text: string
   onPreview: () => void
   accountEmail?: string
+  managementOnly?: boolean
 }) {
   const [user, setUser] = useState('')
   const [saved, setSaved] = useState<NameCorrection[]>([])
@@ -99,11 +101,13 @@ export function NameSpellingReview({
       setStatus(error instanceof Error ? error.message : 'Could not save spellings on this device.')
     }
   }
+  if (managementOnly && !saved.length) return null
   return (
     <details className="text-sm text-gray-600 my-2 border-b border-gray-200 pb-2">
       <summary className="cursor-pointer">
-        Review name spellings · {saved.filter(v => v.enabled).length} remembered
+        {managementOnly ? 'Manage remembered spellings' : 'Review name spellings'} · {saved.filter(v => v.enabled).length} remembered
       </summary>
+      {!managementOnly && <>
       <p className="my-2">
         Check names when useful. Suggestions may include ordinary words; they are not marked as
         errors. Remembered spellings guide future meeting notes on this device and may be sent to
@@ -188,6 +192,7 @@ export function NameSpellingReview({
           Remember spelling
         </button>
       </div>
+      </>}
       <p>Confirmed spellings:</p>
       <ul>
         {saved.map(v => (
@@ -221,6 +226,7 @@ export function NameSpellingReview({
           </li>
         ))}
       </ul>
+      {!managementOnly && <>
       <button
         type="button"
         className="underline"
@@ -233,6 +239,7 @@ export function NameSpellingReview({
         Preview, apply and undo use the saved-note review below. Remembering never changes this note
         automatically.
       </p>
+      </>}
       <p role="status">{status}</p>
     </details>
   )

@@ -35,3 +35,5 @@ pub mod slack_admin;
 pub(crate) mod mail_sender;
 
 mod google_capabilities;
+
+pub(crate) mod loop_email;

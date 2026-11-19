@@ -1,7 +1,8 @@
 .EmailTabView {
   display: flex;
   flex-direction: column;
-  background: var(--ks-bg-main);
+  background: var(--ks-bg-main, #faf9f8);
+  color: #36322f;
 
   &__header {
     padding: 24px 32px 16px;
@@ -12,7 +13,7 @@
     font-family: var(--font-serif);
     font-size: 28px;
     font-weight: 500;
-    color: var(--ks-warm-grey-950);
+    color: var(--ks-warm-grey-950, #36322f);
     margin: 0 0 4px;
   }
 
@@ -37,3 +38,5 @@
     padding: 0 16px;
   }
 }
+
+@media (prefers-color-scheme: dark) { .EmailTabView { background: #272625; color: #eee9e5; } .EmailTabView__title { color: #eee9e5; } }

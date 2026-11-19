@@ -1,3 +1,5 @@
+import { runNotesGenerationOnce } from 'src/utils/notesGenerationAdmission'
+import { pushFrontendLog } from 'src/utils/frontendLog'
 import { bindNotesSave as bindProfileNotesSave, BoundNotesSave } from 'src/utils/notesSave'
 import { getProfileRevision, PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
 import { CORRECTIONS_CHANGED, readCorrections, spellingContext } from 'src/utils/nameCorrections'
@@ -23,6 +25,7 @@ import { NotesGeneration, cancelNotesGeneration, waitForAbort } from 'src/utils/
 import { PROFILE_KEY } from './auth/useAuth'
 
 type LLMParams = {
+  requestStartedCallback?: () => void
   diagnosticKind?: 'notes' | 'completion'
   signal?: AbortSignal
   prompt: string
@@ -41,7 +44,7 @@ interface IMeetingSynthesis {
   content: string
   isLLMLoading: boolean
   streamingMarkdown: string
-  synthesisPhase: 'idle' | 'reading-transcript' | 'writing' | 'saving'
+  synthesisPhase: 'idle' | 'reading-transcript' | 'queued' | 'writing' | 'saving'
   error: Error | null
   errorThreadId: number | null
   synthesizeContent: (
@@ -170,7 +173,8 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
   }
 
   const synthesizeContent = useCallback(
-    async (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
+    (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
+      return runNotesGenerationOnce(threadId, JSON.stringify([displayIdentity, frameProfileRevision]), async () => {
       const saveBinding=bindNotesSave()
       if(!saveBinding.isCurrent()) {
         const admissionError = new Error('Account changed before note generation was admitted.')
@@ -182,6 +186,7 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
       activeGeneration.current?.cancel(new Error('Note generation replaced by a newer attempt.'))
       const generation = new NotesGeneration(threadId)
       activeGeneration.current = generation
+      const setPhase = (value: NotesGeneration['phase']) => { generation.phase=value; setSynthesisPhase(value) }
       generationSaves.current.set(generation,saveBinding)
       generationIdentity.current=displayIdentity
       setContent('')
@@ -197,7 +202,7 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
       const current = () => activeGeneration.current === generation && generation.current()
       setIsLLMLoading(true)
       setStreamingMarkdown('')
-      setSynthesisPhase('reading-transcript')
+      setPhase('reading-transcript')
       setError(null)
       setErrorThreadId(threadId)
 
@@ -239,10 +244,11 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
           const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting, identityRules) + spellingContext(transcript.content + '\n' + userNotes, readCorrections(profile?.uuid || ''))
 
           generation.check()
-          setSynthesisPhase('writing')
+          setPhase('queued')
           await new Promise<void>((resolve, reject) => {
             addToLLMQueue({
               diagnosticKind: 'notes',
+              requestStartedCallback: () => { if (current()) setPhase('writing') },
               signal: generation.signal,
               prompt: notesSynthesisPrompt,
               semanticSearchQuery: '',
@@ -256,14 +262,14 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
               // instead of leaving the user on a blank page until completion.
               messageStreamCallback: content => {
                 if (!current()) return
-                setSynthesisPhase('writing')
+                setPhase('writing')
                 setStreamingMarkdown(normalizeMeetingNotesMarkdown(content))
               },
               messageFinishCallback: async response => {
                 if (!current()) return response
                 const normalizedResponse = normalizeMeetingNotesMarkdown(response)
                 setStreamingMarkdown(normalizedResponse)
-                setSynthesisPhase('saving')
+                setPhase('saving')
                 try {
                   if (!normalizedResponse.trim()) {
                     throw new Error('No notes were returned. Retry from the saved meeting.')
@@ -331,6 +337,7 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
         })(), generation.signal)
       } catch (err) {
         if (activeGeneration.current !== generation) throw err
+        pushFrontendLog('error', 'Meeting note generation failed', JSON.stringify({ threadId, attemptId: generation.id, phase: generation.phase, outcome: generation.signal.aborted ? 'cancelled_or_timed_out' : 'failed' }))
         setError(err instanceof Error ? err : new Error('Unknown error occurred'))
         setIsLLMLoading(false)
         setSynthesisPhase('idle')
@@ -343,8 +350,9 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
         window.removeEventListener('storage', storageChanged)
         generation.finish()
       }
+      }, JSON.stringify([templatePrompt.key, templatePrompt.prompt, userNotes]))
     },
-    [markdown, speakerIdentityRules, accountEmail, displayIdentity, frameProfileRevision],
+    [markdown, speakerIdentityRules, accountEmail, displayIdentity, frameProfileRevision, templatePrompt.key, templatePrompt.prompt],
   )
 
   const sameIdentity=generationIdentity.current===displayIdentity

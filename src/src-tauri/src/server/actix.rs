@@ -613,6 +613,7 @@ pub async fn start_server<'a>(
       .service(heartbeat_api::get_heartbeat_logs)
       .service(heartbeat_api::trigger_heartbeat)
       // Workspace / Knowledge Base endpoints
+      .service(workspace_api::save_meeting_person)
       .service(workspace_api::create_workspace)
       .service(workspace_api::list_workspaces)
       .service(workspace_api::get_workspace)

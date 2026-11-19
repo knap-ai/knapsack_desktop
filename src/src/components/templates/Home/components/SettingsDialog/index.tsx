@@ -2334,6 +2334,12 @@ export const SettingsDialog = ({
                   key={`google-account-${account.accountEmail}`}
                 >
                   <Typography weight={TypographyWeight.medium}>{account.accountEmail}</Typography>
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                    {account.services.filter(({ grants }) => grants.some(connection => normalizeConnectionEmail(connection.ownerEmail) === normalizeConnectionEmail(googlePrimaryEmail))).map(({ service, grants }) =>
+                      <span key={service} className="rounded-full bg-zinc-100 px-2 py-1">{service}{grants.some(connection => normalizeConnectionEmail(connection.ownerEmail) === normalizeConnectionEmail(googlePrimaryEmail) && (liveConnectionStateById.get(connection.id) ?? connection.state) === ConnectionStates.FAILED) ? ' · needs attention' : ''}</span>)}
+                  </div>
+                  <details className="text-xs">
+                    <summary className="cursor-pointer py-2">Profile grants and service details</summary>
                   <div className="flex flex-col gap-1">
                     {account.services.map(({ service, grants }) => (
                       <div key={service} className="flex flex-col gap-1 pl-3">
@@ -2354,6 +2360,7 @@ export const SettingsDialog = ({
                       </div>
                     ))}
                   </div>
+                  </details>
                 </div>
               ))}
               {googleOauthMessage && (

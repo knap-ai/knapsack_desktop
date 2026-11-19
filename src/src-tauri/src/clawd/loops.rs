@@ -140,6 +140,8 @@ pub struct LoopCandidate {
   pub loop_id: String,
   pub signal_id: String,
   pub signal_type: String,
+  #[serde(default)]
+  pub source_subject: Option<String>,
   pub title: String,
   pub reason: String,
   pub confidence: f32,
@@ -423,52 +425,42 @@ pub fn kn_loop_list_definitions(brain_root: String) -> Result<Vec<LoopDefinition
 #[tauri::command]
 pub fn kn_loop_list_candidates(brain_root: String) -> Result<Vec<LoopCandidate>, String> {
   let mut candidates = read_store(&store_path(&brain_root)?)?.candidates;
+  candidates.retain(visible_email_candidate);
   candidates.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
   Ok(candidates)
 }
 
-fn email_needs_response(email: &Email) -> Option<f32> {
-  if email.account_email.trim().is_empty()
-    || email.is_deleted.unwrap_or(false)
-    || email.is_archived.unwrap_or(false)
-    || email
-      .sender
-      .to_lowercase()
-      .contains(&email.account_email.to_lowercase())
-  {
-    return None;
-  }
-  let text = format!("{} {}", email.subject, email.body).to_lowercase();
-  let direct_cues = [
-    "please",
-    "could you",
-    "can you",
-    "would you",
-    "let me know",
-    "action required",
-    "please review",
-    "please approve",
-    "please confirm",
-  ];
-  let direct_cue_count = direct_cues
-    .iter()
-    .filter(|cue| text.contains(**cue))
-    .count();
-  let has_question = text.contains('?');
-  if direct_cue_count == 0 && !(has_question && email.is_starred.unwrap_or(false)) {
-    return None;
-  }
-  let mut confidence: f32 = 0.64 + (direct_cue_count.min(3) as f32 * 0.08);
-  if has_question {
-    confidence += 0.04;
-  }
-  if email.is_starred.unwrap_or(false) {
-    confidence += 0.10;
-  }
-  if email.is_read == Some(false) {
-    confidence += 0.04;
-  }
-  Some(confidence.min(0.98))
+fn email_finding(email:&Email)->Option<super::loop_email::Finding> {
+ let conn=crate::db::db::get_db_conn();
+ let mut signals=crate::db::models::email_loop_signal::read(&conn,&email.account_email,&email.email_uid).ok()?;
+ if let Some(thread)=email.thread_id.as_deref() {signals.direct_history=crate::db::models::email_loop_signal::sent_history(&conn,&email.account_email,thread,email.date).unwrap_or(false);}
+ super::loop_email::classify(email,signals)
+}
+#[cfg(test)] fn email_needs_response(email:&Email)->Option<f32> {
+ super::loop_email::classify(email,super::loop_email::Signals::default()).filter(|f| f.action==super::loop_email::Action::Reply).map(|f|f.confidence)
+}
+fn visible_email_candidate(candidate:&LoopCandidate)->bool {
+ if candidate.status!=LoopCandidateStatus::Proposed || !candidate.id.starts_with("candidate-email-") || !candidate.signal_type.starts_with("inbound_email_") {return true;}
+ let Some(account)=candidate.account_identity.as_deref() else{return false;};
+ let Some(uid)=candidate.signal_id.strip_prefix(&format!("email:{}:",account)) else{return false;};
+ let Some(email)=Email::find_by_uid_and_account(uid,account).ok().flatten() else{return false;};
+ let Some(finding)=email_finding(&email) else{return false;};
+ return email_candidate_is_current(candidate,&email,&finding);
+}
+fn email_candidate_is_current(candidate:&LoopCandidate,email:&Email,finding:&super::loop_email::Finding)->bool {
+ let (loop_id,signal_type)=email_action_route(&finding.action);
+ candidate.loop_id==loop_id && candidate.signal_type==signal_type && candidate.source_subject.as_deref()==Some(email.subject.as_str()) && candidate.title==finding.title && candidate.reason==finding.reason && candidate.context.as_deref()==Some(email_candidate_context(&email,&finding.current).as_str())
+}
+
+fn email_action_route(action:&super::loop_email::Action)->(&'static str,&'static str) {
+ match action {
+ super::loop_email::Action::Reply => ("starter-inbox-response","inbound_email_needs_response"),
+ super::loop_email::Action::Review => ("starter-inbox-observation","inbound_email_document_review"),
+ super::loop_email::Action::Waiting => ("starter-inbox-observation","inbound_email_waiting"),
+ }
+}
+fn email_candidate_context(email:&Email,current:&str)->String {
+ format!("From: {}\nTo: {}\nCC: {}\nConnected account: {}\nDate: {}\nSubject: {}\n\n{}",email.sender,email.recipient,email.cc,email.account_email,email.date,email.subject,current.chars().take(24_000).collect::<String>())
 }
 
 #[tauri::command]
@@ -483,47 +475,31 @@ pub fn kn_loop_discover_email_candidates(
   let mut discovered = Vec::new();
 
   for email in Email::get_recent_emails(limit.unwrap_or(50).min(100)) {
-    let Some(confidence) = email_needs_response(&email) else {
+    let Some(finding) = email_finding(&email) else {
       continue;
     };
     let signal_id = format!("email:{}:{}", email.account_email, email.email_uid);
-    if let Some(existing) = store
-      .candidates
-      .iter()
-      .find(|row| row.loop_id == "starter-inbox-response" && row.signal_id == signal_id)
-    {
-      discovered.push(existing.clone());
-      continue;
-    }
-    let body_excerpt: String = email.body.chars().take(24_000).collect();
+    if let Some(existing)=store.candidates.iter().find(|row| row.signal_id==signal_id && row.id.starts_with("candidate-email-") && row.status!=LoopCandidateStatus::Proposed) {discovered.push(existing.clone());continue;}
+    let existing_index=store.candidates.iter().position(|row|row.signal_id==signal_id && row.id.starts_with("candidate-email-") && row.status==LoopCandidateStatus::Proposed);
+    let (loop_id,signal_type)=email_action_route(&finding.action);
+    let context=email_candidate_context(&email,&finding.current);
     let candidate = LoopCandidate {
-      id: format!("candidate-email-{}", Uuid::new_v4()),
-      loop_id: "starter-inbox-response".to_string(),
+      id: existing_index.map(|i|store.candidates[i].id.clone()).unwrap_or_else(||format!("candidate-email-{}", Uuid::new_v4())),
+      loop_id: loop_id.to_string(),
       signal_id,
-      signal_type: "inbound_email_needs_response".to_string(),
-      title: email.subject.clone(),
-      reason: format!(
-        "An inbound message from {} appears to request a response.",
-        email.sender
-      ),
-      confidence,
-      context: Some(format!(
-        "From: {}\nTo: {}\nCC: {}\nConnected account: {}\nDate: {}\nSubject: {}\n\n{}",
-        email.sender,
-        email.recipient,
-        email.cc,
-        email.account_email,
-        email.date,
-        email.subject,
-        body_excerpt
-      )),
+      signal_type: signal_type.to_string(),
+      source_subject: Some(email.subject.clone()),
+      title: finding.title,
+      reason: finding.reason,
+      confidence: finding.confidence,
+      context: Some(context),
       account_identity: Some(email.account_email),
       target_identity: Some(email.sender),
       status: LoopCandidateStatus::Proposed,
       observed_at,
       updated_at: observed_at,
     };
-    store.candidates.push(candidate.clone());
+    if let Some(i)=existing_index {store.candidates[i]=candidate.clone();} else {store.candidates.push(candidate.clone());}
     discovered.push(candidate);
   }
   write_store(&path, &store)?;
@@ -584,6 +560,9 @@ pub fn kn_loop_decide_candidate(
     .iter_mut()
     .find(|row| row.id == candidate_id)
     .ok_or("Loop candidate not found")?;
+  if decision==LoopCandidateStatus::Accepted && !visible_email_candidate(candidate) {
+    return Err("This automatic proposal is stale. Refresh Loops to review its current source and action.".into());
+  }
   candidate.status = decision;
   candidate.updated_at = now();
   let result = candidate.clone();
@@ -1068,6 +1047,7 @@ mod tests {
       loop_id: "starter-meeting-follow-up".to_string(),
       signal_id: "meeting-42".to_string(),
       signal_type: "completed_recording".to_string(),
+      source_subject: None,
       title: "Weekly review".to_string(),
       reason: "Recording ended".to_string(),
       confidence: 0.98,
@@ -1132,6 +1112,18 @@ mod tests {
     assert!(exported.contains("invoice-payment"));
     assert!(exported.contains("deleted"));
     let _ = std::fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn automatic_action_changes_cannot_fall_through_to_reply() {
+    let email=Email{id:Some(1),email_uid:"id".into(),thread_id:Some("thread".into()),subject:"Documents".into(),date:1,sender:"Sender <sender@example.test>".into(),recipient:"owner@example.test".into(),cc:String::new(),body:"Please review the documents in the portal by Friday".into(),is_starred:None,is_read:None,is_archived:Some(false),is_deleted:Some(false),account_email:"owner@example.test".into()};
+    let finding=super::super::loop_email::classify(&email,super::super::loop_email::Signals::default()).unwrap();
+    let mut candidate=LoopCandidate{id:"candidate-email-synthetic".into(),loop_id:"starter-inbox-response".into(),signal_id:"email:owner@example.test:id".into(),signal_type:"inbound_email_needs_response".into(),source_subject:Some(email.subject.clone()),title:finding.title.clone(),reason:finding.reason.clone(),confidence:0.84,context:Some(email_candidate_context(&email,&finding.current)),account_identity:Some(email.account_email.clone()),target_identity:Some(email.sender.clone()),status:LoopCandidateStatus::Proposed,observed_at:0,updated_at:0};
+    assert!(!email_candidate_is_current(&candidate,&email,&finding));
+    candidate.loop_id="starter-inbox-observation".into();candidate.signal_type="inbound_email_document_review".into();
+    assert!(email_candidate_is_current(&candidate,&email,&finding));
+    candidate.status=LoopCandidateStatus::Accepted;assert!(visible_email_candidate(&candidate));
+    candidate.status=LoopCandidateStatus::Proposed;candidate.id="manual-candidate".into();assert!(visible_email_candidate(&candidate));
   }
 
   #[test]

@@ -29,8 +29,8 @@ export default function RelationshipTimeline({
   onOpenCalendar?: (source: RelationshipSource) => Promise<void>
 }) {
   const [highlights, setHighlights] = useState(false)
-  const [newest, setNewest] = useState(false)
-  const [limit, setLimit] = useState(12)
+  const [newest, setNewest] = useState(true)
+  const [limit, setLimit] = useState(6)
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
   const milestones = useMemo(
@@ -82,7 +82,7 @@ export default function RelationshipTimeline({
       <div className="relationship-story__intro">
         <div>
           <p className="relationship-story__eyebrow">{person ? 'The story so far' : 'Project timeline'}</p>
-          <h2>Moments that moved things forward</h2>
+          <h2>{person ? 'Your shared history' : 'The project so far'}</h2>
           <p>
             {dates.length ? `${date(Math.min(...dates))} — ${date(Math.max(...dates))} · ` : ''}
             {milestones.length} {milestones.length === 1 ? 'moment' : 'moments'} from saved evidence
@@ -95,7 +95,7 @@ export default function RelationshipTimeline({
               checked={highlights}
               onChange={event => {
                 setHighlights(event.target.checked)
-                setLimit(12)
+                setLimit(6)
               }}
             />{' '}
             Highlights only
@@ -104,7 +104,7 @@ export default function RelationshipTimeline({
             type="button"
             onClick={() => {
               setNewest(value => !value)
-              setLimit(12)
+              setLimit(6)
             }}
           >
             {newest ? 'Newest first ↓' : 'Oldest first ↑'}
@@ -112,8 +112,7 @@ export default function RelationshipTimeline({
         </div>
       </div>
       <p className="relationship-story__caption">
-        Larger cards highlight suggested milestones from source titles and tags. Saved summaries are
-        context, not verified outcomes. Open the evidence to see the full story.
+        Related saved sources are grouped into chapters. Summaries reflect those sources; open them to verify decisions and unresolved threads.
       </p>
       {evidence?.truncated && (
         <p role="status">
@@ -160,7 +159,7 @@ export default function RelationshipTimeline({
                   {item.sources.map(({ document, evidence: source }, index) => {
                     const destination = safeTimelineDestination(source.url, document.documentType)
                     const key = `${source.kind}:${source.documentId}`
-                    const label = `${sourceLabel(source.kind)}${item.sources.length > 1 ? ` ${index + 1}` : ''}`
+                    const label = `${source.meetingSummary ? 'Meeting notes & calendar' : sourceLabel(source.kind)}${item.sources.length > 1 ? ` ${index + 1}` : ''}`
                     const isCalendar =
                       source.kind === 'calendar' && source.available && Boolean(onOpenCalendar)
                     const activate = async () => {
@@ -224,9 +223,9 @@ export default function RelationshipTimeline({
         <button
           type="button"
           className="relationship-story__more"
-          onClick={() => setLimit(value => value + 12)}
+          onClick={() => setLimit(value => value + 6)}
         >
-          Continue the story · {sorted.length - limit} more
+          {newest ? 'Show older history' : 'Continue timeline'} · {sorted.length - limit} more
         </button>
       )}
     </section>

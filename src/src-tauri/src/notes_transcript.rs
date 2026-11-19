@@ -9,7 +9,7 @@ const READ_ERROR: &str =
   "Could not read the saved meeting transcript. Your recording is preserved. Retry notes.";
 const ACCOUNT_ERROR: &str = "Account changed before the saved transcript could be read.";
 
-fn validate_profile(home: &Path, email: &str, uuid: &str) -> Result<(), String> {
+pub(crate) fn validate_profile(home: &Path, email: &str, uuid: &str) -> Result<(), String> {
   if email.trim().is_empty() || uuid.trim().is_empty() {
     return Err(ACCOUNT_ERROR.into());
   }
@@ -585,5 +585,21 @@ mod tests {
       exists
     )
     .is_err());
+  }
+}
+
+pub(crate) fn read_bound_notes(home: &Path, email: &str, uuid: &str, thread_id: u64) -> Result<Option<String>, String> {
+  validate_profile(home,email,uuid)?;
+  let filename=thread_id.to_string();
+  match std::fs::symlink_metadata(home.join(".knapsack/notes").join(&filename)) {
+    Err(error) if error.kind()==std::io::ErrorKind::NotFound => Ok(None),
+    Err(_) => Err(READ_ERROR.into()),
+    Ok(_) => read_bound_file(home,email,uuid,"notes",&filename,|path| {
+      // Timeline excerpts do not need unbounded full meeting documents.
+      let mut bytes=Vec::new();
+      std::fs::File::open(path).map_err(|_| READ_ERROR)?.take(256*1024+1).read_to_end(&mut bytes).map_err(|_| READ_ERROR)?;
+      if bytes.len()>256*1024 { return Err(READ_ERROR.into()); }
+      String::from_utf8(bytes).map_err(|_| READ_ERROR.into())
+    }).map(Some),
   }
 }
