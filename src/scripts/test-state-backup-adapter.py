@@ -31,6 +31,10 @@ zeroize = "1.8"
 ring = "=0.17.14"
 tempfile = "=3.10.1"
 walkdir = "=2.5.0"
+regex = "=1.11.1"
+mailparse = "0.15.0"
+html2text = "0.12.5"
+rusqlite = { version = "0.32.0", features = ["bundled"] }
 '''.replace('CORE_PATH', json.dumps(str(root / 'state-backup-core')))
     (test / "Cargo.toml").write_text(manifest)
     source = (root / 'src-tauri/src/state_backup_experimental.rs').read_text()
@@ -50,10 +54,14 @@ walkdir = "=2.5.0"
     conversations = (root / "src-tauri/src/state_backup_conversations.rs").read_text()
     conversations = "\n".join(line for line in conversations.splitlines() if not line.startswith("//!") and line != "#[tauri::command]")
     (test / "src/state_backup_conversations.rs").write_text(conversations)
-    for name in ["loops", "goals", "follow_through", "gbrain"]:
+    for name in ["loop_email", "loops", "goals", "follow_through", "gbrain"]:
         content = (root / f"src-tauri/src/clawd/{name}.rs").read_text()
         content = '\n'.join(line for line in content.splitlines() if not line.startswith('//!') and line != '#[tauri::command]')
         (test / f"src/{name}.rs").write_text(content)
+    signals = (root / "src-tauri/src/db/models/email_loop_signal.rs").read_text()
+    (test / "src/email_loop_signal.rs").write_text(
+        '\n'.join(line for line in signals.splitlines() if not line.startswith('//!'))
+    )
     service = (root / 'src-tauri/src/clawd/service.rs').read_text()
     begin = service.index('fn apply_knapsack_account_sign_in(')
     # Extract only the synchronous helper, never adjacent HTTP exchange code.
@@ -69,7 +77,14 @@ mod tauri {
   pub mod api { pub mod shell { pub fn open(_: &(), _: impl AsRef<str>, _: Option<()>) -> Result<(), &'static str> { Err("No browser access in fixtures") } } }
   pub mod async_runtime { pub fn spawn<F>(future: F) where F: std::future::Future<Output=()> + Send + 'static { tokio::spawn(future); } }
 }
-mod db { pub mod models {
+mod db {
+  pub mod db {
+    // Fixture-only memory connection: never open the installed app database.
+    pub fn get_db_conn() -> rusqlite::Connection {
+      rusqlite::Connection::open_in_memory().expect("synthetic database")
+    }
+  }
+  pub mod models {
   pub mod email {
     #[derive(Debug, Clone)] pub struct Email {
       pub id: Option<u64>, pub email_uid: String, pub thread_id: Option<String>, pub subject: String,
@@ -77,8 +92,13 @@ mod db { pub mod models {
       pub is_starred: Option<bool>, pub is_read: Option<bool>, pub is_archived: Option<bool>,
       pub is_deleted: Option<bool>, pub account_email: String,
     }
-    impl Email { pub fn get_recent_emails(_:usize)->Vec<Self>{vec![]} pub fn find_goal_evidence(_:usize)->Result<Vec<Self>,String>{Ok(vec![])} }
+    impl Email {
+      pub fn get_recent_emails(_:usize)->Vec<Self>{vec![]}
+      pub fn find_goal_evidence(_:usize)->Result<Vec<Self>,String>{Ok(vec![])}
+      pub fn find_by_uid_and_account(_: &str, _: &str)->Result<Option<Self>,String>{Err("No email access in adapter tests".into())}
+    }
   }
+  #[allow(dead_code)] pub mod email_loop_signal { include!("email_loop_signal.rs"); }
   pub mod drive_document {
     pub struct DriveDocument { pub filename:String, pub summary:String, pub url:String, pub drive_id:String, pub account_email:String, pub date_modified:u64 }
     impl DriveDocument { pub fn find_goal_evidence(_:usize)->Result<Vec<Self>,String>{Ok(vec![])} }
@@ -110,6 +130,7 @@ mod clawd {
     pub struct NativeGmailRead { pub action:String,pub account_email:Option<String>,pub connection_id:Option<u64>,pub expected_studio_owner:Option<String>,pub desktop_mailboxes:bool,pub message_id:Option<String>,pub query:Option<String>,pub max_results:Option<u32>,pub page_token:Option<String> }
     pub async fn native_gmail_read_impl(_: &NativeGmailRead)->Result<serde_json::Value,String>{Err("No email access in tests".into())}
   }
+  #[allow(dead_code)] pub mod loop_email { include!("loop_email.rs"); }
   #[allow(dead_code)] pub mod loops { include!("loops.rs"); }
   #[allow(dead_code)] pub mod goals { include!("goals.rs"); }
   #[allow(dead_code, unused_imports)] pub mod gbrain { use crate::tauri; include!("gbrain.rs"); }
