@@ -1,3 +1,4 @@
+import EmailSyncNotice from 'src/components/molecules/EmailAutopilot/EmailSyncNotice'
 import React, { Fragment, useState, useEffect, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { Workspace } from 'src/api/workspaces'
@@ -482,8 +483,8 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
       return (
         <Fragment>
           <div className="w-full">
-            <div className="relative w-full">
-              <div className="flex justify-center items-center">
+            <div className="email-autopilot-toolbar">
+              <div className="email-autopilot-toolbar__tabs">
                 <EmailCategoryTabs
                   selectedCategory={feed.selectedEmailCategory}
                   onSelectCategory={(category) => {
@@ -494,7 +495,11 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                   emailCounts={emailCategories}
                 />
               </div>
-              <div className="absolute right-6 top-1/2 transform -translate-y-1/2 flex items-center justify-center">
+              <div className="email-autopilot-toolbar__tools">
+                <EmailSyncNotice accounts={feed.emailAccounts}
+                  error={feed.emailAutopilotStatus.status === 'error' ? feed.emailAutopilotStatus.message || 'Email refresh did not finish. Existing messages have been kept.' : undefined}
+                  busy={['fetching-emails', 'classifying-emails', 'sync-email'].includes(feed.emailAutopilotStatus.status)}
+                  onRetry={() => { void feed.runEmailAutopilot().catch(() => undefined) }} />
                 <SettingsButton
                   onClick={() => setShowEmailSettings(true)}
                   title="Email Autopilot Settings"

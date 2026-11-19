@@ -1,3 +1,4 @@
+import { commitSpellingCorrection } from 'src/utils/commitSpellingCorrection'
 import MeetingPublicResearch from 'src/components/molecules/MeetingPublicResearch'
 import { publicPrepEvidence, type PublicPrepSource } from 'src/utils/meetingPublicResearch'
 import { readMeetingBrief, claimMeetingBrief, forgetMeetingBrief, meetingBriefAuthority, meetingBriefModelFingerprint, promoteMeetingBriefDisplay } from 'src/utils/meetingBriefCache'
@@ -7,7 +8,7 @@ import { PROFILE_CHANGED_EVENT, getProfileRevision } from 'src/utils/profileScop
 import { getSavedMeetingNotes } from 'src/api/meetingNotesRead'
 import { readCorrections } from 'src/utils/nameCorrections'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
-import { NameSpellingReview } from './NameSpellingReview'
+import InlineSpellingNotes from './InlineSpellingNotes'
 import { oneToOneParticipantName } from 'src/utils/oneToOneParticipant'
 import NotesGenerationRetry from './NotesGenerationRetry'
 import SavedAudioRecovery from './SavedAudioRecovery'
@@ -77,7 +78,7 @@ import { open as shellOpen } from '@tauri-apps/api/shell'
 import MeetingChatNotice from 'src/components/molecules/MeetingChatNotice'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
-import { listWorkspaces, Workspace } from 'src/api/workspaces'
+import { listWorkspaces, saveMeetingPerson, Workspace } from 'src/api/workspaces'
 
 interface MenuButtonProps<T = any> {
   isActive: boolean
@@ -325,6 +326,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [isEndingMeeting, setIsEndingMeeting] = useState(false)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
+  const personSaveLocks = useRef(new Set<string>())
+  const [personSaveBusy, setPersonSaveBusy] = useState<string | null>(null)
+  const [personSaveError, setPersonSaveError] = useState('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [meetingChatLifecycle, dispatchMeetingChatLifecycle] = useReducer(
     meetingChatLifecycleReducer,
@@ -431,8 +435,10 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [])
 
+  const spellingDraftRef = useRef<{ threadId: number; revision: number; key: string } | null>(null)
   const notesHydrationRevision = useRef(0)
   const notesReadTicket = useRef(0)
+  const [notesReadCompleteFor, setNotesReadCompleteFor] = useState<number | null>(null)
   const [notesReadError, setNotesReadError] = useState<string | null>(null)
   const activeNotesThreadIdRef = useRef(thread.id)
   activeNotesThreadIdRef.current = thread.id
@@ -448,17 +454,33 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const contextualUserEmail = meeting?.calendar_account_email?.trim() || userEmail || ''
 
   useEffect(() => {
+    let cancelled = false
+    const revision = getProfileRevision()
+    setPersonWorkspaces({}); setPersonSaveError(''); setPersonSaveBusy(null)
     listWorkspaces().then(res => {
-      if (!res.success) return
+      if (cancelled || revision !== getProfileRevision() || !res.success) return
       const map: Record<string, Workspace> = {}
-      res.data.forEach(ws => {
-        if (ws.entityType === 'person' && ws.entityKey) {
-          map[ws.entityKey.toLowerCase()] = ws
-        }
-      })
+      res.data.forEach(ws => { if (ws.entityType === 'person' && ws.entityKey) map[ws.entityKey.trim().toLowerCase()] = ws })
       setPersonWorkspaces(map)
     }).catch(() => {})
-  }, [])
+    const reset = () => { cancelled = true; setPersonWorkspaces({}); setPersonSaveError(''); setPersonSaveBusy(null) }
+    window.addEventListener(PROFILE_CHANGED_EVENT, reset)
+    return () => { cancelled = true; window.removeEventListener(PROFILE_CHANGED_EVENT, reset) }
+  }, [thread.id, userEmail])
+  const saveParticipant = async (participant: { name: string; email: string }) => {
+    const email = participant.email.trim().toLowerCase(), requestedThread = thread.id, revision = getProfileRevision()
+    if (!meeting || !userEmail || personSaveLocks.current.has(email) || personWorkspaces[email] || userEmailSet.has(email)) return
+    personSaveLocks.current.add(email); setPersonSaveBusy(email); setPersonSaveError('')
+    try {
+      const profile = await KNLocalStorage.getItem('KN_PROFILE')
+      if (revision !== getProfileRevision() || activeNotesThreadIdRef.current !== requestedThread || profile?.email?.toLowerCase() !== userEmail.toLowerCase() || !profile.uuid) throw new Error('Account changed')
+      const result = await saveMeetingPerson(Number(meeting.id), email, profile)
+      if (revision !== getProfileRevision() || activeNotesThreadIdRef.current !== requestedThread) return
+      if (!result.success || !result.data || result.data.entityType !== 'person' || result.data.entityKey?.toLowerCase() !== email) throw new Error('Save failed')
+      setPersonWorkspaces(current => ({ ...current, [email]: result.data! }))
+    } catch { if (revision === getProfileRevision() && activeNotesThreadIdRef.current === requestedThread) setPersonSaveError('Could not save this person. Check the meeting account and try again.') }
+    finally { personSaveLocks.current.delete(email); if (revision === getProfileRevision() && activeNotesThreadIdRef.current === requestedThread) setPersonSaveBusy(null) }
+  }
   const [showLiveBanner, setShowLiveBanner] = useState(false)
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
   const [isEditingTitle, setIsEditingTitle] = useState(
@@ -1014,6 +1036,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       setNotesMarkdown(markdownContent)
       setMarkdown(markdownContent)
       localStorage.setItem(`meeting-notes-draft:${thread.id}`, markdownContent)
+      const spellingDraft = spellingDraftRef.current
+      if (spellingDraft?.threadId === thread.id && spellingDraft.revision === getProfileRevision()) localStorage.setItem(spellingDraft.key, markdownContent)
       setSaveState('Saving…')
 
       if (thread.id) {
@@ -1071,6 +1095,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [saveState, setSaveState] = useState('')
   const debouncedSave = useMemo(() => createNotesAutosave({
     saved:(threadId,markdownContent)=>{
+      const spellingDraft = spellingDraftRef.current
+      if (spellingDraft?.threadId === threadId && spellingDraft.revision === getProfileRevision() && localStorage.getItem(spellingDraft.key) === markdownContent) { localStorage.removeItem(spellingDraft.key); spellingDraftRef.current = null }
       if(localStorage.getItem(`meeting-notes-draft:${threadId}`)===markdownContent){
         localStorage.removeItem(`meeting-notes-draft:${threadId}`)
         if(activeNotesThreadIdRef.current===threadId)setSaveState('Saved')
@@ -1116,6 +1142,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     // it before the browser paints the next meeting so private notes from the
     // previous selection cannot flash while the new request is in flight.
     setIsInitialLoading(true)
+    setNotesReadCompleteFor(null)
+    spellingDraftRef.current = null
     setNotesReadError(null)
     setNotesMarkdown('')
     setMarkdown('')
@@ -1458,14 +1486,17 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
           return null
         }
         setNotesReadError(null)
+        setNotesReadCompleteFor(requestedThreadId)
         const recording=data?.data?.recording
         if (typeof recording?.recorded==='boolean' && typeof recording?.transcriptAvailable==='boolean') {
           setRecordingMetadata({threadId:requestedThreadId,recorded:recording.recorded,transcriptAvailable:recording.transcriptAvailable})
         }
         const notesExist = data?.data?.exists === true
-        if (notesExist || localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`) !== null) {
+        if (notesExist || localStorage.getItem(`meeting-spelling-draft:${profile.uuid}:${requestedThreadId}`) !== null || localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`) !== null) {
           // Never replace an unsaved edit with a background read or generation refresh.
-          const draft = localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`)
+          const draft = localStorage.getItem(`meeting-spelling-draft:${profile.uuid}:${requestedThreadId}`) ?? localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`)
+          const spellingKey = `meeting-spelling-draft:${profile.uuid}:${requestedThreadId}`
+          if (localStorage.getItem(spellingKey) !== null) spellingDraftRef.current = { threadId: requestedThreadId, revision: profileRevision, key: spellingKey }
           const normalizedNotes = draft ?? normalizeMeetingNotesMarkdown(data?.data?.notes || '')
           if (draft !== null) { setIsEditing(true); setSaveState('Unsaved draft restored') }
           setNotesMarkdown(normalizedNotes)
@@ -1918,6 +1949,8 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         await save(editingThreadId, notesMarkdown)
         if(!save.isCurrent())return
         if(localStorage.getItem(`meeting-notes-draft:${editingThreadId}`)===notesMarkdown)localStorage.removeItem(`meeting-notes-draft:${editingThreadId}`)
+        const spellingDraft = spellingDraftRef.current
+        if (spellingDraft?.threadId === editingThreadId && spellingDraft.revision === getProfileRevision() && localStorage.getItem(spellingDraft.key) === notesMarkdown) { localStorage.removeItem(spellingDraft.key); spellingDraftRef.current = null }
         if (activeNotesThreadIdRef.current !== editingThreadId) return
         setSaveState('Saved')
       } catch { if(save.isCurrent() && activeNotesThreadIdRef.current===editingThreadId)setSaveState('Could not save. Your draft is kept on this device.'); return }
@@ -2093,8 +2126,8 @@ Be direct, specific, and concise. No filler text.`
                             const label = getAttendeeLabel(participant)
                             const workspace = personWorkspaces[participant.email?.toLowerCase()]
                             return (
+                              <div key={`${participant.email}-${index}`} className="flex items-center gap-1">
                               <button
-                                key={`${participant.email}-${index}`}
                                 type="button"
                                 className={`notetaker-note__attendee-row ${workspace ? '' : 'notetaker-note__attendee-row--disabled'}`}
                                 onClick={() => handleAttendeeSelect(participant)}
@@ -2112,9 +2145,14 @@ Be direct, specific, and concise. No filler text.`
                                   {workspace ? 'Open' : 'No entry'}
                                 </span>
                               </button>
+                              {!workspace && participant.name?.trim() && !participant.name.includes('@') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(participant.email) && !userEmailSet.has(participant.email.trim().toLowerCase()) && (
+                                <button type="button" className="notetaker-note__save-person" aria-label={`Save ${label} to People Library`} title={`Save ${label} to People Library`} disabled={personSaveBusy !== null} onClick={() => void saveParticipant(participant)}><span aria-hidden="true">＋</span></button>
+                              )}
+                              </div>
                             )
                           })}
                         </div>
+                        {personSaveError && <p role="alert" className="text-xs px-3 py-2">{personSaveError}</p>}
                       </div>
                     )}
                   </div>
@@ -2552,14 +2590,28 @@ Be direct, specific, and concise. No filler text.`
               </div>
             )}
             <div className="notetaker-note__document notetaker-note__document--editing text-left text-wrap min-h-[320px]">
-              <NameSpellingReview key={`${thread.id}:${userEmail || ''}`} editor={editor} text={notesMarkdown} accountEmail={userEmail || ''} onPreview={() => { expandMeetingChat(); dispatchMeetingChatLifecycle({ type: 'open' }); void notesEdit.prepareSpellings(readCorrections(activeSpellingUser)) }} />
               <EditorContent editor={editor} />
             </div>
           </div>
         ) : (
           <div>
-          <NameSpellingReview key={`${thread.id}:${userEmail || ''}`} editor={null} text={notesMarkdown} accountEmail={userEmail || ''} onPreview={() => { expandMeetingChat(); dispatchMeetingChatLifecycle({ type: 'open' }); void notesEdit.prepareSpellings(readCorrections(activeSpellingUser)) }} />
-          <MarkdownDisplay
+          <InlineSpellingNotes
+            onApplyCorrection={async updated => {
+              const requestedThread = thread.id, revision = getProfileRevision(), editRevision = notesHydrationRevision.current
+              const boundSave = bindNotesSave()
+              const current = () => revision === getProfileRevision() && editRevision === notesHydrationRevision.current && activeNotesThreadIdRef.current === requestedThread && boundSave.isCurrent()
+              const profile = await KNLocalStorage.getItem('KN_PROFILE')
+              if (!profile?.uuid || !userEmail || profile.email?.toLowerCase() !== userEmail.toLowerCase() || !current()) throw new Error('Account or meeting changed. Reopen the correction.')
+              const key = `meeting-spelling-draft:${profile.uuid}:${requestedThread}`
+              await commitSpellingCorrection({ markdown: updated, current,
+                save: () => boundSave(requestedThread, updated),
+                keepDraft: value => { localStorage.setItem(key, value); spellingDraftRef.current = { threadId: requestedThread, revision, key } },
+                clearMatchingDraft: value => { if (localStorage.getItem(key) === value) { localStorage.removeItem(key); spellingDraftRef.current = null } },
+                commit: value => { notesHydrationRevision.current++; setNotesMarkdown(value); setSaveState('Saved') },
+              })
+            }}
+            accountEmail={userEmail || ''}
+            names={(meeting?.participants || []).map(p => p.name || '').filter(Boolean)}
             markdown={notesMarkdown}
             className="notetaker-note__document notetaker-note__document--display"
             isTaskActionable={isMyActionItem}
@@ -2573,8 +2625,16 @@ Be direct, specific, and concise. No filler text.`
           </div>
         )}
 
-        {/* Meeting prep: shown when notes are empty and not recording */}
-        {!notesMarkdown.trim() &&
+        {!notesMarkdown.trim() && !isInitialLoading && notesReadCompleteFor === thread.id && !notesReadError &&
+          !recordingHandlers.isRecording(thread.id) && !isSynthesizing() &&
+          (wasRecorded || transcriptAvailable) && !(synthesisError && errorThreadId === thread.id) && (
+            <section className="notetaker-note__retry" aria-label="Meeting notes recovery">
+              <div><strong>Meeting notes are not saved yet</strong><p>{transcriptAvailable ? 'Your saved transcript is available. Generate notes when you are ready.' : 'No saved transcript is available yet. Your recording is preserved.'}</p></div>
+              {transcriptAvailable && <button type="button" onClick={() => void recordingHandlers.generateNotes(thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting)}>Generate notes</button>}
+            </section>
+          )}
+        {/* Prep belongs only to a meeting without a recording or saved transcript. */}
+        {!notesMarkdown.trim() && !wasRecorded && !transcriptAvailable && !notesReadError && notesReadCompleteFor === thread.id &&
           !recordingHandlers.isRecording(thread.id) &&
           !isSynthesizing() &&
           meeting && (

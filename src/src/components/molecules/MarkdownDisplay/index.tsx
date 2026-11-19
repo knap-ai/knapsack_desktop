@@ -1,3 +1,4 @@
+import { inlineSpellingPlugin } from 'src/utils/inlineSpelling'
 import React, { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -8,6 +9,8 @@ import './markdown-styles.css'
 
 interface MarkdownDisplayProps {
   markdown: string
+  spellingNames?: string[]
+  onSpellingClick?: (from: number, to: number) => void
   className?: string
   onChange?: (updatedMarkdown: string) => void
   isTaskActionable?: (taskText: string) => boolean
@@ -130,6 +133,8 @@ const splitOwnedActionItem = (
 
 const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
   markdown = '',
+  spellingNames = [],
+  onSpellingClick,
   className = '',
   onChange,
   isTaskActionable,
@@ -184,8 +189,14 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeMeetingTables, rehypeSanitize]}
+        rehypePlugins={[rehypeMeetingTables, rehypeSanitize, ...(onSpellingClick ? [inlineSpellingPlugin(content, spellingNames)] : [])]}
         components={{
+          span: ({ node, children, ...props }) => {
+            const from = Number(node?.properties?.dataSpellingFrom), to = Number(node?.properties?.dataSpellingTo)
+            return onSpellingClick && Number.isInteger(from) && Number.isInteger(to) && to > from
+              ? <button type="button" className="notes-name-highlight" aria-label={`Correct spelling: ${content.slice(from, to)}`} onClick={() => onSpellingClick(from, to)}>{children}</button>
+              : <span {...props}>{children}</span>
+          },
           h1: ({ node, ...props }) => <h1 className="text-lg font-InterTight font-bold mt-2 leading-7" {...props} />,
           h2: ({ node, ...props }) => <h2 className="uppercase font-InterTight text-sm font-bold leading-6 mt-2" {...props} />,
           h3: ({ node, ...props }) => <h3 className="text-base font-medium mt-2 mb-2" {...props} />,

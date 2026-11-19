@@ -1,3 +1,4 @@
+import EmailSyncNotice from 'src/components/molecules/EmailAutopilot/EmailSyncNotice'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConnectionKeys } from 'src/api/connections'
@@ -87,8 +88,8 @@ const EmailTabView = ({
       </div>
 
       <div className="EmailTabView__content">
-        <div className="relative w-full">
-          <div className="flex justify-center items-center">
+        <div className="email-autopilot-toolbar">
+          <div className="email-autopilot-toolbar__tabs">
             <EmailCategoryTabs
               selectedCategory={feed.selectedEmailCategory}
               onSelectCategory={(category) => {
@@ -99,7 +100,11 @@ const EmailTabView = ({
               emailCounts={emailCategories}
             />
           </div>
-          <div className="absolute right-6 top-1/2 transform -translate-y-1/2 flex items-center justify-center">
+          <div className="email-autopilot-toolbar__tools">
+            <EmailSyncNotice accounts={feed.emailAccounts}
+              error={feed.emailAutopilotStatus.status === 'error' ? feed.emailAutopilotStatus.message || 'Email refresh did not finish. Existing messages have been kept.' : undefined}
+              busy={['fetching-emails', 'classifying-emails', 'sync-email'].includes(feed.emailAutopilotStatus.status)}
+              onRetry={() => { void onRefresh().catch(() => undefined) }} />
             <SettingsButton
               onClick={() => setShowEmailSettings(true)}
               title="Email Autopilot Settings"

@@ -1,3 +1,4 @@
+import { notificationBrief } from 'src/utils/notificationBrief'
 import React, { useEffect, useState } from 'react'
 
 import dayjs from 'dayjs'
@@ -86,11 +87,21 @@ function NotificationWindow() {
     }
   }
 
+  return <MeetingNotificationCard title={title} time={time} brief={brief} buttonConfigs={buttonConfigs}
+    onClose={() => void invoke('close_notification_window')}
+    onAction={handler => void handleJoinMeeting(currentMeetingId, handler)} />
+}
+
+export function MeetingNotificationCard({ title, time, brief, buttonConfigs, onClose, onAction }: {
+  title: string; time: string; brief: string; buttonConfigs: ButtonConfig[]
+  onClose: () => void; onAction: (handler: string) => void
+}) {
   return (
     <div className="flex w-full bg-white rounded-lg overflow-visible">
-      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
+      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 grid grid-cols-[20px_minmax(0,1fr)] gap-x-3 gap-y-2 group overflow-visible">
         <button
-          onClick={() => invoke('close_notification_window')}
+          onClick={onClose}
+          aria-label="Dismiss notification"
           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
         >
           <svg
@@ -109,7 +120,7 @@ function NotificationWindow() {
           </svg>
         </button>
 
-        <div className="w-8 h-8 ml-1 flex-shrink-0 flex items-center justify-center">
+        <div className="w-5 h-5 mt-0.5 flex items-center justify-center">
           <img
             src="/assets/images/icons/notification-logo.png"
             alt="App Icon"
@@ -124,22 +135,22 @@ function NotificationWindow() {
           {time && (
             <p className="text-xs font-medium text-gray-500 mt-0.5">{stripMarkdown(time)}</p>
           )}
-          {brief && (
+          {notificationBrief(brief) && (
             <div className="mt-2 border-l-2 border-lime-700 pl-2.5">
-              <div className="text-[10px] uppercase tracking-[0.08em] font-semibold text-lime-800 mb-0.5">
+              <div className="text-[10px] font-medium text-gray-500 mb-0.5">
                 Your brief
               </div>
-              <p className="text-[12px] leading-[1.4] text-gray-700 line-clamp-3">
-                {stripMarkdown(brief)}
+              <p className="text-[12px] leading-[1.4] text-gray-700">
+                {notificationBrief(brief)}
               </p>
             </div>
           )}
         </div>
 
         {buttonConfigs.length > 0 && (
-          <div className="flex flex-col flex-shrink-0 items-stretch gap-1.5">
+          <div className="col-span-2 flex flex-row flex-wrap items-center gap-2 pt-1">
             <button
-              onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
+              onClick={() => onAction(buttonConfigs[0].buttonHandler)}
               className="h-7 px-3 py-1 bg-orange-800 hover:bg-red-900 active:bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
             >
               {buttonConfigs[0].buttonText}
@@ -147,7 +158,7 @@ function NotificationWindow() {
             {buttonConfigs.slice(1).map((config, index) => (
               <button
                 key={index}
-                onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
+                onClick={() => onAction(config.buttonHandler)}
                 className="h-7 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
               >
                 {config.buttonText}

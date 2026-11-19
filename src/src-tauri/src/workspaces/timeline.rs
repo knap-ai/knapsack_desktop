@@ -23,6 +23,8 @@ pub struct TimelineSource {
   pub url: Option<String>,
   pub account: Option<String>,
   pub available: bool,
+  pub meeting_summary: Option<String>,
+  pub meeting_thread_id: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -83,7 +85,7 @@ pub fn project_sources(conn: &Connection, entity_type: &str, entity_key: &str, s
     let kind = doc.kind.as_deref().unwrap_or("manual");
     let mut source = TimelineSource { document_id: doc.document_id, source_id: doc.source_id.clone(),
       kind: kind.to_string(), occurred_at: None, date_kind: "unknown".into(), url: None,
-      account: None, available: false };
+      account: None, available: false, meeting_summary: None, meeting_thread_id: None };
     let id = doc.source_id.as_deref().and_then(|value| value.parse::<u64>().ok());
     match (kind, id) {
       ("email", Some(id)) => {

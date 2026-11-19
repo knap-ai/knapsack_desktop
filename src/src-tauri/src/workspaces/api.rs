@@ -97,19 +97,50 @@ struct SearchResponse {
 #[get("/api/knapsack/workspaces/{uuid}/timeline")]
 pub async fn get_workspace_timeline(path: web::Path<String>) -> impl Responder {
   let uuid = path.into_inner();
-  let result = (|| -> Result<_, crate::error::Error> {
+  let result = web::block(move || -> Result<_, crate::error::Error> {
     let workspace = Workspace::find_by_uuid(uuid.clone())?.ok_or_else(|| crate::error::Error::KSError("Workspace not found".into()))?;
     let docs = WorkspaceDocument::find_by_workspace(uuid)?;
     let sources = docs.iter().filter_map(|doc| doc.id.map(|id| super::timeline::SavedSource {
       document_id: id, kind: doc.source_type.clone(), source_id: doc.source_id.clone(),
       path: doc.document_path.clone(), added_at: doc.created_at,
     })).collect::<Vec<_>>();
-    Ok(super::timeline::project_sources(&crate::db::db::get_db_conn(),
-      workspace.entity_type.as_deref().unwrap_or(""), workspace.entity_key.as_deref().unwrap_or(""), &workspace.name, &sources)?)
-  })();
+    let conn=crate::db::db::get_db_conn();
+    let mut data=super::timeline::project_sources(&conn,
+      workspace.entity_type.as_deref().unwrap_or(""), workspace.entity_key.as_deref().unwrap_or(""), &workspace.name, &sources)?;
+    // Enrich only attached events with a unique, current-profile-owned recorded
+    // meeting. Missing identity, grants, links or notes leaves metadata intact.
+    if let Some(home)=dirs::home_dir() {
+      let profile=std::fs::read(home.join(".knapsack/profile.dat")).ok().and_then(|bytes|serde_json::from_slice::<serde_json::Value>(&bytes).ok());
+      if let Some((email,uuid))=profile.as_ref().and_then(|v|Some((v["KN_PROFILE"]["email"].as_str()?,v["KN_PROFILE"]["uuid"].as_str()?))) {
+        if crate::notes_transcript::validate_profile(&home,email,uuid).is_ok() {
+          // Bound local enrichment independently of the full metadata history.
+          // Older sources remain navigable even when no excerpt is loaded.
+          let mut candidates: Vec<_> = data.sources.iter_mut().collect();
+          candidates.sort_by_key(|source| std::cmp::Reverse(source.occurred_at));
+          for source in candidates.into_iter().filter(|s| s.kind=="calendar" && s.available).take(24) {
+            if source.kind!="calendar" || !source.available { continue; }
+            let Some(id)=source.source_id.as_deref().and_then(|s|s.parse::<u64>().ok()) else { continue; };
+            let is_person=workspace.entity_type.as_deref()==Some("person");
+            if !is_person {
+              let name=workspace.name.trim().to_lowercase();
+              if name.split_whitespace().count()<2 || !docs.iter().any(|d|d.id==Some(source.document_id) && d.document_name.to_lowercase().contains(&name)) { continue; }
+            }
+            if let Ok(Some(thread_id))=super::timeline_notes::matching_note(&conn,id,email,if is_person {workspace.entity_key.as_deref()} else {None}) {
+              if let Ok(Some(notes))=crate::notes_transcript::read_bound_notes(&home,email,uuid,thread_id) {
+                source.meeting_summary=super::timeline_notes::chapter_excerpt(&notes);
+                if source.meeting_summary.is_some() { source.meeting_thread_id=Some(thread_id); }
+              }
+            }
+          }
+          if crate::notes_transcript::validate_profile(&home,email,uuid).is_err() { for source in &mut data.sources {source.meeting_summary=None;source.meeting_thread_id=None;} }
+        }
+      }
+    }
+    Ok(data)
+  }).await;
   match result {
-    Ok(data) => HttpResponse::Ok().json(json!({ "success": true, "data": data })),
-    Err(_) => HttpResponse::InternalServerError().json(json!({ "success": false, "error": "Saved relationship sources could not be loaded. Your documents have not changed." })),
+    Ok(Ok(data)) => HttpResponse::Ok().json(json!({ "success": true, "data": data })),
+    _ => HttpResponse::InternalServerError().json(json!({ "success": false, "error": "Saved relationship sources could not be loaded. Your documents have not changed." })),
   }
 }
 
@@ -570,4 +601,22 @@ pub async fn wipe_library(payload: Json<WipeLibraryRequest>) -> impl Responder {
     deleted_manual,
     error: None,
   })
+}
+
+#[derive(Deserialize)]
+pub struct SaveMeetingPersonRequest { pub calendar_event_id: u64, pub participant_email: String, pub expected_email: String, pub expected_uuid: String }
+#[post("/api/knapsack/workspaces/people/from-meeting")]
+pub async fn save_meeting_person(body: Json<SaveMeetingPersonRequest>) -> impl Responder {
+  let result = (|| -> Result<Workspace, String> {
+    let home=dirs::home_dir().ok_or("Profile unavailable")?;
+    let authority=||crate::notes_transcript::validate_profile(&home,&body.expected_email,&body.expected_uuid);
+    let mut conn=crate::db::db::get_db_conn();
+    let uuid=super::people::save_participant(&mut conn,body.calendar_event_id,&body.participant_email,&body.expected_email,authority)?;
+    authority()?;
+    Workspace::find_by_uuid(uuid).map_err(|_|"Saved person could not be loaded".to_string())?.ok_or("Saved person could not be loaded".into())
+  })();
+  match result {
+    Ok(workspace)=>HttpResponse::Ok().json(WorkspaceResponse{success:true,data:Some(workspace),error:None}),
+    Err(error)=>HttpResponse::BadRequest().json(WorkspaceResponse{success:false,data:None,error:Some(error)}),
+  }
 }

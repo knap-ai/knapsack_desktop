@@ -43,3 +43,12 @@ describe('meeting follow-up email quality', () => {
     expect(body).not.toMatch(/I(?:’|')ll|deadline|next steps separately/i)
   })
 })
+
+it('uses only the generated given name without changing notes or explicit signatures', () => {
+  const notes = 'Discussion with Alex Rivera. A quoted signoff was Sam Jones.'
+  const body = buildFollowUpEmailBody(notes, 'Review', 'Alex Rivera')
+  expect(body).toContain('Best regards,<br>Alex</p>')
+  expect(body).toContain('Alex Rivera')
+  expect(body).toContain('Sam Jones')
+  expect(buildFollowUpEmailBody(notes, 'Review', '')).not.toContain('Best regards')
+})

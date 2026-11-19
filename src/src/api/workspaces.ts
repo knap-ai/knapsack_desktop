@@ -151,6 +151,8 @@ export const getWorkspace = (uuid: string) =>
   get<WorkspaceResponse>(`/api/knapsack/workspaces/${uuid}`)
 
 export interface RelationshipSource {
+  meetingSummary?: string | null
+  meetingThreadId?: number | null
   documentId: number
   sourceId: string | null
   kind: string
@@ -319,3 +321,6 @@ export const wipeLibrary = (includeManual = false) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ include_manual: includeManual }),
   }).then(r => r.json() as Promise<{ success: boolean; deleted_auto: number; deleted_manual: number; error?: string }>)
+
+export const saveMeetingPerson = (calendarEventId: number, participantEmail: string, profile: { email: string; uuid: string }) =>
+  post<WorkspaceResponse>('/api/knapsack/workspaces/people/from-meeting', { calendar_event_id: calendarEventId, participant_email: participantEmail, expected_email: profile.email, expected_uuid: profile.uuid })

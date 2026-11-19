@@ -17,12 +17,14 @@ export default function EmailSyncNotice({
   const failed = accounts.filter(account => account.state === ConnectionStates.FAILED)
   return (
     <section className="email-sync-notice" aria-label="Email source status">
-      {accounts.length > 0 && (
-        <details>
-          <summary>
-            {accounts.length} saved {accounts.length === 1 ? 'inbox' : 'inboxes'}
-            {busy ? ' · refreshing view…' : ''}
+      <span className="sr-only" role="status">{busy ? 'Refreshing saved inboxes' : error || failed.length ? 'Inbox sync needs attention' : 'Saved inbox view ready'}</span>
+      <details>
+          <summary aria-label={busy ? 'Inbox status: refreshing' : error || failed.length ? 'Inbox status: needs attention' : 'Inbox status'} title="Inbox status">
+            <span aria-hidden="true">{error || failed.length ? '!' : busy ? '↻' : '▤'}</span>
           </summary>
+          <div className="email-sync-notice__popover">
+          <strong>{accounts.length} saved {accounts.length === 1 ? 'inbox' : 'inboxes'}</strong>
+          {busy && <p>Refreshing view…</p>}
           <p>Saved mail · past 7 days · unread or starred</p>
           <ul>
             {accounts.map(account => (
@@ -39,8 +41,6 @@ export default function EmailSyncNotice({
               </li>
             ))}
           </ul>
-        </details>
-      )}
       {(error || failed.length > 0) && (
         <div role="alert" className="email-sync-notice__warning">
           <p>
@@ -58,6 +58,8 @@ export default function EmailSyncNotice({
           )}
         </div>
       )}
+          </div>
+        </details>
     </section>
   )
 }

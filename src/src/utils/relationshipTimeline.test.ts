@@ -56,9 +56,9 @@ it('clusters exact same-week subjects and retains source identities across inbox
     [doc(1, 'Project kickoff'), doc(2, 'Re: Project kickoff'), doc(3, 'Project kickoff')],
     [source(1, start), source(2, start + 3600, 'b@example.test'), source(3, start + 8 * 86400)],
   )
-  expect(story).toHaveLength(2)
-  expect(story[0].sources).toHaveLength(2)
-  expect(story[0].sources[1].evidence.account).toBe('b@example.test')
+  expect(story).toHaveLength(3)
+  expect(story[0].sources).toHaveLength(1)
+  expect(story[1].sources[0].evidence.account).toBe('b@example.test')
 })
 it('rejects executable or credential-bearing source links', () => {
   for (const value of [

@@ -1,4 +1,4 @@
-import { initialMailSender, type MailSender } from 'src/utils/emailSenders'
+import { groupMailSenderOptions, initialMailSender, type MailSender } from 'src/utils/emailSenders'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ComposedEmailDraft } from 'src/hooks/feed/useFeed'
@@ -208,15 +208,17 @@ const EmailComposeDrawer = ({
         {/* From — the connected mailbox that will actually send this draft. */}
         <div style={fieldRowStyle}>
           <span style={labelStyle}>From</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+          {sender && <div className="text-sm mb-1" aria-label="Selected sender address">{sender.accountEmail}</div>}
           <select aria-label="Sender mailbox" value={senderId} disabled={sending} onChange={event => setSenderId(event.target.value)} style={inputStyle}>
             <option value="">Choose sender</option>
-            {senders.map(item => (
-              <option key={item.id} value={item.id}>
-                {item.accountEmail} ({item.provider === 'outlook' ? 'Outlook' : 'Gmail'}
-                {item.requiresSelection ? ` · connected as ${item.ownerEmail}` : ''})
-              </option>
-            ))}
+            {groupMailSenderOptions(senders).map(group => <optgroup key={group.email.toLowerCase()} label={group.email}>
+              {group.routes.map(item => <option key={item.id} value={item.id}>
+                {item.provider === 'outlook' ? 'Outlook' : 'Gmail'} · {item.requiresSelection ? `Knapsack profile: ${item.ownerEmail}` : 'Current Knapsack profile'}
+              </option>)}
+            </optgroup>)}
           </select>
+          </div>
         </div>
 
         {/* To */}

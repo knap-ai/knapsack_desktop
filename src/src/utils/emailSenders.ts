@@ -51,3 +51,14 @@ export function initialMailSender(senders: MailSender[], requested?: string): st
       ? eligible[0].id
       : ''
 }
+
+/** Presentation grouping only. Every exact route and selection id stays intact. */
+export function groupMailSenderOptions(senders: MailSender[]) {
+  const groups = new Map<string, { email: string; routes: MailSender[] }>()
+  for (const sender of senders) {
+    const key = sender.accountEmail.trim().toLowerCase()
+    const group = groups.get(key) || { email: sender.accountEmail, routes: [] }
+    group.routes.push(sender); groups.set(key, group)
+  }
+  return [...groups.values()].map(group => ({ ...group, routes: [...group.routes].sort((a, b) => Number(!!a.requiresSelection) - Number(!!b.requiresSelection)) }))
+}

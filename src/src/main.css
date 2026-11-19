@@ -285,7 +285,7 @@ html, body {
 .notetaker-note__title, .notetaker-note__title-input { overflow-wrap: anywhere; }
 .notetaker-note__heading .notetaker-note__meta { gap: 8px; }
 .notetaker-note__heading .notetaker-note__meta-item { min-height: 28px; padding: 4px 8px; }
-.meeting-notes-actions { gap: 4px !important; padding: 4px; border: 1px solid #e9e6e3; border-radius: 10px; background: #faf9f8; }
+.meeting-notes-actions { gap: 6px !important; padding: 4px 0; border: 0; border-radius: 0; background: transparent; }
 .meeting-notes-actions button { min-height: 32px; padding: 6px 8px; font-family: inherit; font-size: 12px; line-height: 1.3; font-weight: 500; text-transform: none; letter-spacing: normal; border-radius: 6px; }
 .meeting-notes-actions button:hover { background: #f0edeb; text-decoration: none; }
 .meeting-notes-actions button:focus-visible, .notetaker-note__title:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }
@@ -2076,7 +2076,7 @@ html, body {
   z-index: 15;
   background: #FAFAF9;
   padding: 14px 0;
-  border-bottom: 1px solid #E3E2E2;
+  border: 0;
 }
 .meeting-notes-save-status { font-size: 13px; color: #595653; }
 .notetaker-note__document .markdown-table-scroll { border: 0; border-radius: 0; }
@@ -2111,3 +2111,18 @@ html, body {
 }
 .transcription-reconnect:focus-visible { outline: 2px solid #626FA7; outline-offset: 3px; }
 .transcription-reconnect:disabled { opacity: .5; cursor: default; }
+
+.meeting-notes-actions > :last-child { padding-inline: 12px; }
+
+.notes-name-highlight { display: inline; color: inherit; font: inherit; background: transparent; border: 0; border-bottom: 1px dotted #9b7770; padding: 0; cursor: pointer; }
+.notes-name-highlight:hover { background: #91363110; }
+.notes-name-highlight:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }
+.notes-spelling-dialog { padding: 16px; margin-block: 12px; border: 1px solid #ccc5c0; border-radius: 10px; background: #faf9f8; color: #36322f; max-width: 480px; }
+.notes-spelling-dialog label { display: block; margin-bottom: 10px; }
+.notes-spelling-dialog input:not([type=checkbox]) { display: block; width: 100%; border: 1px solid #aaa; padding: 8px; margin-top: 4px; }
+.notes-spelling-dialog button { padding: 8px 12px; margin-right: 8px; }
+.notes-spelling-dialog p { font-size: 12px; margin-block: 8px; }
+
+.notetaker-note__save-person { display: inline-flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; border: 0; border-radius: 6px; color: #77716e; background: transparent; }
+.notetaker-note__save-person:hover { background: #ece8e4; }
+.notetaker-note__save-person:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }

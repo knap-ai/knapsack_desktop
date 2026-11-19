@@ -293,7 +293,8 @@ export function buildFollowUpEmailBody(
   }
 
   body += `<p>Please let me know if anything needs correcting or if I have missed an important point.</p>`
-  if (userName?.trim()) body += `<p>Best regards,<br>${escHtml(userName.trim())}</p>`
+  const signoff = userName?.includes('@') ? undefined : firstName(userName)
+  if (signoff) body += `<p>Best regards,<br>${escHtml(signoff)}</p>`
   return normalizeFollowUpEmailVoice(body)
 }
 

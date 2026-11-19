@@ -1,3 +1,4 @@
+import { PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { open } from '@tauri-apps/api/dialog'
 import RelationshipTimeline from './RelationshipTimeline'
@@ -35,12 +36,14 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
   const displayName = workspaceDisplayName(currentWorkspace, timeline?.displayName)
   useEffect(() => {
     const controller = new AbortController()
+    const invalidate = () => { controller.abort(); setTimeline(null); setTimelineError(true); setTimelineLoading(false) }
+    window.addEventListener(PROFILE_CHANGED_EVENT, invalidate)
     setTimelineLoading(true); setTimelineError(false); setTimeline(null)
     getWorkspaceTimeline(workspace.uuid, controller.signal).then(result => {
       if (!controller.signal.aborted) setTimeline(result)
     }).catch(() => { if (!controller.signal.aborted) setTimelineError(true) })
       .finally(() => { if (!controller.signal.aborted) setTimelineLoading(false) })
-    return () => controller.abort()
+    return () => { controller.abort(); window.removeEventListener(PROFILE_CHANGED_EVENT, invalidate) }
   }, [workspace.uuid, timelineRetry])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
@@ -382,8 +385,8 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
       ) : (
         <div className="mb-6">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{currentWorkspace.icon || '\uD83D\uDCC1'}</span>
-            <h1 className="font-semibold text-2xl">{displayName}</h1>
+            <span className="relationship-profile-avatar" aria-hidden="true">{currentWorkspace.entityType === 'person' ? displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toLocaleUpperCase() : currentWorkspace.icon || '\uD83D\uDCC1'}</span>
+            <div><h1 className="font-semibold text-2xl">{displayName}</h1>{currentWorkspace.entityType === 'person' && currentWorkspace.entityKey && <p className="text-sm text-gray-500 mt-1">{currentWorkspace.entityKey}</p>}</div>
             <button
               className="text-xs text-gray-400 hover:text-gray-600 ml-2 transition-colors"
               onClick={() => { setEditName(displayName === 'Unnamed contact' ? '' : displayName); setIsEditing(true) }}
@@ -395,13 +398,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
             <div className="mt-4 flex flex-col items-start gap-1">
               <button type="button" className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2"
                 onClick={() => onOpenPersonChat({ ...currentWorkspace, name: displayName })}>Chat about {displayName}</button>
-              <p className="text-xs text-zinc-500">Ask about your meetings, conversations, and follow-ups. Nothing is sent until you submit a question.</p>
             </div>
-          )}
-          {currentWorkspace.entityType === 'person' && currentWorkspace.entityKey && (
-            <p className="text-sm text-gray-400 mt-0.5 ml-10">
-              {currentWorkspace.entityKey}
-            </p>
           )}
           {currentWorkspace.description && (
             <p className="text-sm text-gray-500 mt-1 ml-10">
@@ -441,7 +438,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
       )}
 
       {['person', 'project'].includes(currentWorkspace.entityType || '') && <nav className="relationship-workspace__switcher" aria-label="Workspace view">
-        <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>{currentWorkspace.entityType === 'person' ? 'Relationship timeline' : 'Timeline'}</button>
+        <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>Timeline</button>
         <button type="button" aria-pressed={view === 'documents'} onClick={() => setView('documents')}>Documents · {documents.length}</button>
       </nav>}
       {/* Tag filter bar */}
