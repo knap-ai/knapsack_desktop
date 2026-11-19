@@ -275,6 +275,8 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     }
   }, [setIsRecording])
 
+  const completedNoteRequests = useRef(new WeakSet<Promise<void>>())
+
   const generateNotes = useCallback(async (
     threadId: number,
     synthesizeContent: (
@@ -288,7 +290,10 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   ) => {
       try {
         KNAnalytics.trackEvent('Synthesizing notes', {})
-        await synthesizeContent(threadId, notesMarkdown, meeting)
+        const request = synthesizeContent(threadId, notesMarkdown, meeting)
+        await request
+        if (completedNoteRequests.current.has(request)) return
+        completedNoteRequests.current.add(request)
         setHasSynthesized(threadId, true)
         setIsRecording(threadId, false)
         setActiveRecordingThreadId(prev => prev === threadId ? null : prev)

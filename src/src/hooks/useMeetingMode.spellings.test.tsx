@@ -114,3 +114,11 @@ it('shows queued until dispatch, then writing; cancellation cannot restore writi
   expect(h.result.current.synthesisPhase).toBe('idle')
   h.unmount()
 })
+it('joins repeated recovery requests instead of cancelling and restarting the same meeting', async () => {
+  const queue=vi.fn(),firstFailure=vi.fn();const h=renderHook(()=>useMeetingSynthesis(null,queue,vi.fn(),template));
+  let first:Promise<void>, second:Promise<void>;
+  act(()=>{first=h.result.current.synthesizeContent(45,'',undefined).catch(firstFailure);second=h.result.current.synthesizeContent(45,'',undefined).catch(()=>{})});
+  await waitFor(()=>expect(queue).toHaveBeenCalled());
+  expect(queue).toHaveBeenCalledOnce();expect(firstFailure).not.toHaveBeenCalled();expect(queue.mock.calls[0][0].signal.aborted).toBe(false);
+  await act(async()=>{writeCorrections('synthetic-user',[]);await Promise.all([first!,second!])});h.unmount();
+})

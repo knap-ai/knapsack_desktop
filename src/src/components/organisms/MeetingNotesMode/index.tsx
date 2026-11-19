@@ -2350,7 +2350,7 @@ Be direct, specific, and concise. No filler text.`
               catch (error) { setSaveState('Could not copy. Try again.'); throw error }
             }}
             onShareClick={() => setSlackShareOpen(true)}
-            canChangeTemplate={true}
+            canChangeTemplate={!isSynthesizing()}
             isEditing={isEditing}
             onEditClick={onEditClick}
           />

@@ -16,14 +16,17 @@ const generations = new Map<number, NotesGeneration>()
 // A replacement waits for that write to settle before submitting its own write.
 const writes = new Map<number, Promise<unknown>>()
 
+let nextAttempt = 0
 export class NotesGeneration {
+  readonly id = `notes-${Date.now()}-${++nextAttempt}`
+  phase: 'reading-transcript' | 'queued' | 'writing' | 'saving' = 'reading-transcript'
   readonly controller = new AbortController()
   readonly signal = this.controller.signal
   private timer: ReturnType<typeof setTimeout>
   constructor(readonly threadId: number) {
     generations.get(threadId)?.cancel(new Error('Note generation replaced by a newer attempt.'))
     generations.set(threadId, this)
-    this.timer = setTimeout(() => this.cancel(new Error('Note generation timed out. Your transcript is saved. Retry notes.')), NOTES_GENERATION_DEADLINE_MS)
+    this.timer = setTimeout(() => this.cancel(new Error(`Note generation timed out during ${this.phase === 'queued' ? 'AI queue wait' : this.phase === 'writing' ? 'AI request or response' : this.phase === 'saving' ? 'note saving' : 'saved transcript preparation'}. Your transcript is saved. Retry notes.`)), NOTES_GENERATION_DEADLINE_MS)
   }
   current() { return generations.get(this.threadId) === this && !this.signal.aborted }
   check() {
