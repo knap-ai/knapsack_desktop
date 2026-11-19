@@ -2126,3 +2126,5 @@ html, body {
 .notetaker-note__save-person { display: inline-flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; border: 0; border-radius: 6px; color: #77716e; background: transparent; }
 .notetaker-note__save-person:hover { background: #ece8e4; }
 .notetaker-note__save-person:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }
+
+.person-chat-overlay { bottom: 16px; max-height: calc(100% - 32px); min-height: min(280px, calc(100% - 32px)); }

@@ -22,7 +22,7 @@ interface WorkspaceViewProps {
   workspace: Workspace
   onBack: () => void
   onOpenCalendarSource?: (source: RelationshipSource) => Promise<void>
-  onOpenPersonChat?: (workspace: Workspace) => void
+  onOpenPersonChat?: (workspace: Workspace, launcher?: HTMLElement) => void
 }
 
 function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSource }: WorkspaceViewProps) {
@@ -397,7 +397,7 @@ function WorkspaceView({ workspace, onBack, onOpenPersonChat, onOpenCalendarSour
           {currentWorkspace.entityType === 'person' && onOpenPersonChat && (
             <div className="mt-4 flex flex-col items-start gap-1">
               <button type="button" className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2"
-                onClick={() => onOpenPersonChat({ ...currentWorkspace, name: displayName })}>Chat about {displayName}</button>
+                onClick={event => onOpenPersonChat({ ...currentWorkspace, name: displayName }, event.currentTarget)}>Chat about {displayName}</button>
             </div>
           )}
           {currentWorkspace.description && (

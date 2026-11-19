@@ -53,7 +53,7 @@ it('opens selected person chat only on explicit click, without auto-sending a su
   expect(open).not.toHaveBeenCalled()
   expect(screen.queryByTitle('Send to Chat')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Chat about Alex' }))
-  expect(open).toHaveBeenCalledWith(workspace)
+  expect(open).toHaveBeenCalledWith(workspace, screen.getByRole('button', { name: 'Chat about Alex' }))
   expect(send).not.toHaveBeenCalled()
   window.removeEventListener('clawd-send-user', send)
 })
