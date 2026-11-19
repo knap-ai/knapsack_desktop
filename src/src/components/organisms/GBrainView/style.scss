@@ -1449,3 +1449,26 @@
 }
 .CommitmentCard { margin-top: 12px; padding: 14px; border-radius: 8px; border: 1px solid var(--brain-line); background: var(--brain-wash); }
 .CommitmentActions { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+
+// Use the actual card width, including a narrow split pane, not only viewport width.
+.LoopCandidateList article {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.LoopCandidateList article > div:first-child {
+  flex: 1 1 22rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.LoopCandidateActions { flex: 0 0 auto; }
+.LoopCandidateEvidence {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.5;
+}

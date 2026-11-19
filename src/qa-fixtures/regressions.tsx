@@ -1,3 +1,5 @@
+import LoopCandidateCard from 'src/components/organisms/GBrainView/LoopCandidateCard'
+import 'src/components/organisms/GBrainView/style.scss'
 // Synthetic presentation-only fixture: no native, provider, mailbox or send calls.
 import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -13,6 +15,7 @@ function Fixture() {
     <nav>{[360,560,720,1100].map(w=><button key={w} onClick={()=>setWidth(w)}>{w}px</button>)}<button onClick={()=>setDark(v=>!v)}>Toggle background</button></nav>
     <section style={{width,maxWidth:'100%',margin:'24px auto'}}>
       <h1 style={{fontSize:24}}>Synthetic Desktop QA</h1>
+      <div className="Brain" style={{height:'auto'}}><div className="LoopCandidateList"><LoopCandidateCard candidate={{id:'synthetic-review',loopId:'starter-inbox-observation',signalId:'synthetic-source',signalType:'inbound_email_document_review',title:'Review project documents',reason:'Portal: “Please review the uploaded documents by Friday”.',confidence:0.84,context:'From: portal@example.test\nSubject: Project documents\nPlease review the uploaded documents by Friday.',accountIdentity:'owner@example.test',status:'proposed',observedAt:1,updatedAt:1}} pending={false} onDismiss={()=>setAction('Synthetic dismiss')} onObserve={()=>setAction('Synthetic observation only')} /></div></div>
       <div className="email-autopilot-toolbar" style={{marginBlock:20}}><div className="email-autopilot-toolbar__tools"><EmailSyncNotice busy accounts={[{provider:'Gmail',account:'owner@example.test',queryAccount:'owner@example.test',state:'idle' as any}]} onRetry={()=>setAction('Retry')} /><button aria-label="Email settings">⚙</button></div><div className="email-autopilot-toolbar__tabs">Needs response · FYI · Marketing</div></div>
       <div className="meeting-notes-actions"><button>Transcript</button><button>Insights</button><button>Copy for Slack</button><button>Share to Slack…</button><button>Edit</button></div>
       <MarkdownDisplay markdown={'## Discussion\n\n**Alice Rivera** will review the proposal with Alice Rivera.\n\n| Owner | Next step |\n| --- | --- |\n| Alice Rivera | Confirm the launch date |'} spellingNames={['Alice Rivera']} onSpellingClick={()=>setAction('Correction opened')} />

@@ -1,3 +1,4 @@
+import LoopCandidateCard from './LoopCandidateCard'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Markdown from 'marked-react'
@@ -136,6 +137,18 @@ const STARTER_LOOPS: LoopDefinition[] = [
     ],
     createdAt: 0,
     updatedAt: 0,
+  },
+  {
+    schemaVersion: 1,
+    id: 'starter-inbox-observation',
+    name: 'Email review and waiting',
+    description: 'Keep explicit document-review requests and sender commitments visible without drafting a reply.',
+    category: 'Workday', maturity: 'observe', status: 'active',
+    trigger: { kind: 'event', source: 'Email', description: 'A current source explicitly requests review or promises a follow-up' },
+    desiredOutcome: 'The source is reviewed or the promised follow-up is verified by the user.',
+    approvalPolicy: { requiredBeforeExecution: true, description: 'Observation only. No document access, reply or external action is authorized.' },
+    verificationRules: [{ id: 'source-reviewed', label: 'Review or follow-up verified by the user', method: 'human_approval', source: 'Source email', required: true }],
+    createdAt: 0, updatedAt: 0,
   },
   {
     schemaVersion: 1,
@@ -585,7 +598,7 @@ const GBrainView: React.FC<{
           run.id,
           'gathering_context',
           [],
-          'Associated the completed recording, transcript, and saved meeting notes.',
+          'Associated the saved source evidence.',
           brainRoot,
         )
         activeRun = run
@@ -605,9 +618,19 @@ const GBrainView: React.FC<{
             run.id,
             'blocked',
             [],
-            'Missing context: this recording has no transcript or saved meeting notes.',
+            'Saved source evidence is unavailable. No action was prepared.',
             brainRoot,
           )
+          activeRun = run
+          replaceRun(run)
+          return
+        }
+
+        if (candidate.loopId === 'starter-inbox-observation') {
+          run = await transitionLoopRun(run.id, 'blocked', [],
+            candidate.signalType === 'inbound_email_waiting'
+              ? 'Waiting on the sender’s stated follow-up. No reply or external action was prepared.'
+              : 'Review the source document through its existing trusted route. No document was opened and no reply was prepared.', brainRoot)
           activeRun = run
           replaceRun(run)
           return
@@ -621,7 +644,7 @@ const GBrainView: React.FC<{
               `The reply must be from the confirmed connected account: ${candidate.accountIdentity}.`,
               'Return email-ready Markdown only, with a Suggested subject line followed by the reply body.',
               'Do not send anything. Do not invent commitments, attachments, dates, or facts.',
-              `Inbound subject: ${candidate.title}`,
+              `Inbound subject: ${candidate.sourceSubject || candidate.title}`,
               candidate.context,
             ].join('\n\n')
           : [
@@ -645,7 +668,7 @@ const GBrainView: React.FC<{
         run = await setPreparedArtifact(
           run.id,
           {
-            title: isEmail ? `Re: ${candidate.title}` : `${candidate.title} follow-up`,
+            title: isEmail ? `Re: ${candidate.sourceSubject || candidate.title}` : `${candidate.title} follow-up`,
             body: data.reply,
             format: isEmail ? 'email_markdown' : 'slack_mrkdwn',
             createdAt: 0,
@@ -1283,34 +1306,7 @@ const GBrainView: React.FC<{
                 {loopCandidates
                   .filter(candidate => candidate.status === 'proposed')
                   .map(candidate => (
-                    <article key={candidate.id}>
-                      <div>
-                        <span className="LoopSignal">
-                          {candidate.signalType === 'completed_recording'
-                            ? 'Completed recording'
-                            : `Inbound email · ${candidate.accountIdentity || 'account unknown'}`}
-                        </span>
-                        <h3>{candidate.title}</h3>
-                        <p>{candidate.reason}</p>
-                        <span className="LoopConfidence">
-                          {Math.round(candidate.confidence * 100)}% confidence · signal:{' '}
-                          {candidate.signalId}
-                        </span>
-                        {candidate.targetIdentity && (
-                          <span className="LoopConfidence">Target: {candidate.targetIdentity}</span>
-                        )}
-                      </div>
-                      <div className="LoopCandidateActions">
-                        <button onClick={() => dismissCandidate(candidate)}>Dismiss</button>
-                        <button
-                          className="is-primary"
-                          disabled={processingRunId !== null}
-                          onClick={() => acceptCandidate(candidate)}
-                        >
-                          {processingRunId ? 'Preparing…' : 'Observe & prepare'}
-                        </button>
-                      </div>
-                    </article>
+                    <LoopCandidateCard key={candidate.id} candidate={candidate} pending={processingRunId !== null} onDismiss={() => void dismissCandidate(candidate)} onObserve={() => void acceptCandidate(candidate)} />
                   ))}
               </div>
             </section>

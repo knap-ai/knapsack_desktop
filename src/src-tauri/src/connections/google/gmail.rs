@@ -235,6 +235,18 @@ pub async fn upsert_email_by_uid(
     is_deleted: Some(false),
     account_email: account_email.to_string(),
   };
+  // Preserve authoritative classification for local loop discovery without
+  // retaining raw transport headers or changing provider labels.
+  let labels=message.label_ids.as_deref().unwrap_or(&[]);
+  let signals=crate::clawd::loop_email::Signals {
+    junk: labels.iter().any(|v|v=="SPAM" || v=="TRASH"),
+    promotions: labels.iter().any(|v|v=="CATEGORY_PROMOTIONS"),
+    direct_history: false,
+    bulk: hashed_headers.contains_key("list-unsubscribe") || hashed_headers.contains_key("list-id") || hashed_headers.get("precedence").is_some_and(|v|v.eq_ignore_ascii_case("bulk") || v.eq_ignore_ascii_case("list")),
+  };
+  if crate::db::models::email_loop_signal::store(&crate::db::db::get_db_conn(),account_email,email_uid,signals).is_err() {
+    log::warn!("Could not retain local email classification metadata");
+  }
   let email_message_creation_response = email_message.create();
   if let Err(error) = email_message_creation_response {
     log::error!("Failed to create email message {:?}", error);

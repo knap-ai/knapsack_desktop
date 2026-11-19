@@ -79,6 +79,7 @@ export interface LoopCandidate {
   loopId: string
   signalId: string
   signalType: string
+  sourceSubject?: string
   title: string
   reason: string
   confidence: number
