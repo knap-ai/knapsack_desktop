@@ -1697,6 +1697,8 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
   )
   const endingMeetingStatusText = synthesisPhase === 'saving'
     ? 'Saving your notes…'
+    : synthesisPhase === 'queued'
+      ? 'Waiting for AI…'
     : synthesisPhase === 'writing'
       ? 'Writing your notes…'
       : synthesisPhase === 'reading-transcript'

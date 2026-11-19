@@ -23,6 +23,7 @@ import { NotesGeneration, cancelNotesGeneration, waitForAbort } from 'src/utils/
 import { PROFILE_KEY } from './auth/useAuth'
 
 type LLMParams = {
+  requestStartedCallback?: () => void
   diagnosticKind?: 'notes' | 'completion'
   signal?: AbortSignal
   prompt: string
@@ -41,7 +42,7 @@ interface IMeetingSynthesis {
   content: string
   isLLMLoading: boolean
   streamingMarkdown: string
-  synthesisPhase: 'idle' | 'reading-transcript' | 'writing' | 'saving'
+  synthesisPhase: 'idle' | 'reading-transcript' | 'queued' | 'writing' | 'saving'
   error: Error | null
   errorThreadId: number | null
   synthesizeContent: (
@@ -239,10 +240,11 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
           const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting, identityRules) + spellingContext(transcript.content + '\n' + userNotes, readCorrections(profile?.uuid || ''))
 
           generation.check()
-          setSynthesisPhase('writing')
+          setSynthesisPhase('queued')
           await new Promise<void>((resolve, reject) => {
             addToLLMQueue({
               diagnosticKind: 'notes',
+              requestStartedCallback: () => { if (current()) setSynthesisPhase('writing') },
               signal: generation.signal,
               prompt: notesSynthesisPrompt,
               semanticSearchQuery: '',

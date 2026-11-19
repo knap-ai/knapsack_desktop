@@ -98,3 +98,19 @@ it('does not reuse another user’s memory or invent a missing first name', asyn
   })
   h.unmount()
 })
+it('shows queued until dispatch, then writing; cancellation cannot restore writing', async () => {
+  const queue = vi.fn()
+  const h = renderHook(() => useMeetingSynthesis(null, queue, vi.fn(), template))
+  let result: Promise<void>
+  act(() => { result = h.result.current.synthesizeContent(44, '', undefined).catch(() => {}) })
+  await waitFor(() => expect(queue).toHaveBeenCalledOnce())
+  expect(h.result.current.synthesisPhase).toBe('queued')
+  const request = queue.mock.calls[0][0]
+  act(() => request.requestStartedCallback())
+  expect(h.result.current.synthesisPhase).toBe('writing')
+  await act(async () => { writeCorrections('synthetic-user', []); await result! })
+  expect(h.result.current.synthesisPhase).toBe('idle')
+  act(() => request.requestStartedCallback())
+  expect(h.result.current.synthesisPhase).toBe('idle')
+  h.unmount()
+})
