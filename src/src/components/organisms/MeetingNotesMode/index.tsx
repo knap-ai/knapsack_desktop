@@ -10,7 +10,7 @@ import { readCorrections } from 'src/utils/nameCorrections'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import InlineSpellingNotes from './InlineSpellingNotes'
 import { oneToOneParticipantName } from 'src/utils/oneToOneParticipant'
-import NotesGenerationRetry from './NotesGenerationRetry'
+import NotesGenerationRetry, { MissingMeetingNotesRecovery } from './NotesGenerationRetry'
 import SavedAudioRecovery from './SavedAudioRecovery'
 import { useNotesEditReview } from './useNotesEditReview'
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
@@ -2630,10 +2630,7 @@ Be direct, specific, and concise. No filler text.`
         {!notesMarkdown.trim() && !isInitialLoading && notesReadCompleteFor === thread.id && !notesReadError &&
           !recordingHandlers.isRecording(thread.id) && !isSynthesizing() &&
           (wasRecorded || transcriptAvailable) && !(synthesisError && errorThreadId === thread.id) && (
-            <section className="notetaker-note__retry" aria-label="Meeting notes recovery">
-              <div><strong>Meeting notes are not saved yet</strong><p>{transcriptAvailable ? 'Your saved transcript is available. Generate notes when you are ready.' : 'No saved transcript is available yet. Your recording is preserved.'}</p></div>
-              {transcriptAvailable && <button type="button" onClick={() => void recordingHandlers.generateNotes(thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting)}>Generate notes</button>}
-            </section>
+            <MissingMeetingNotesRecovery transcriptAvailable={transcriptAvailable} onRetry={() => void recordingHandlers.generateNotes(thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting)} />
           )}
         {/* Prep belongs only to a meeting without a recording or saved transcript. */}
         {!notesMarkdown.trim() && !wasRecorded && !transcriptAvailable && !notesReadError && notesReadCompleteFor === thread.id &&
