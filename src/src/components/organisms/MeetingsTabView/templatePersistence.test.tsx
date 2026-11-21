@@ -11,6 +11,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import CenterWorkspace from '../CenterWorkspace'
 import MeetingsTabView from './index'
 
+// Onboarding is an irrelevant transitive child of these parents. Its root-relative
+// logo import is not portable in the Windows test loader; keep it outside this fixture.
+vi.mock('src/pages/onboarding/template', () => ({
+  OnboardingPrimaryButton: () => null,
+  OnboardingTemplate: () => null,
+}))
 vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => undefined, emit: vi.fn() }))
 vi.mock('@tauri-apps/api/tauri', () => ({
   invoke: vi.fn(async () => ({ all_granted: true, microphone: true, screen_recording: true })),
