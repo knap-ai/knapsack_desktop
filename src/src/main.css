@@ -290,14 +290,14 @@ html, body {
 .meeting-notes-actions button:hover { background: #f0edeb; text-decoration: none; }
 .meeting-notes-actions button:focus-visible, .notetaker-note__title:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }
 .meeting-notes-actions button img, .meeting-notes-actions button svg { width: 16px; height: 16px; object-fit: contain; }
-.meeting-notes-actions > :last-child { margin-left: auto; }
+.meeting-notes-actions > :last-child:not(.meeting-notes-actions__edit) { margin-left: auto; }
 .notetaker-sidebar__calendar-more { align-self: flex-start; padding: 6px 8px; margin-top: 4px; border-radius: 6px; color: #586a9f; font-size: 12px; font-weight: 500; }
 .notetaker-sidebar__calendar-more:hover { background: #edf0f7; }
 .notetaker-sidebar__calendar-more:focus-visible { outline: 2px solid #6474ac; outline-offset: 2px; }
 @media (max-width: 600px) {
   .notetaker-note__container { padding: 24px 20px 16px; }
   .notetaker-note__heading .notetaker-note__title, .notetaker-note__heading .notetaker-note__title-input { font-size: 22px; }
-  .meeting-notes-actions > :last-child { margin-left: 0; }
+  .meeting-notes-actions > :last-child:not(.meeting-notes-actions__edit) { margin-left: 0; }
 }
 
 .notetaker-note__title {
@@ -2111,3 +2111,8 @@ html, body {
 }
 .transcription-reconnect:focus-visible { outline: 2px solid #626FA7; outline-offset: 3px; }
 .transcription-reconnect:disabled { opacity: .5; cursor: default; }
+
+/* Keep Edit/Done in a reserved trailing slot while secondary actions wrap. */
+.meeting-notes-actions--fixed-edit { display: grid; grid-template-columns: minmax(0, 1fr) 5.25rem; align-items: start; }
+.meeting-notes-actions__secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.meeting-notes-actions__edit > div { justify-content: flex-end; }

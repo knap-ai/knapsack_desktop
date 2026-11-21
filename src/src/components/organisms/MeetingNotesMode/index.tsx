@@ -14,6 +14,7 @@ import SavedAudioRecovery from './SavedAudioRecovery'
 import { useNotesEditReview } from './useNotesEditReview'
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import dayjs from 'dayjs'
+import { meetingDateLabel } from './meetingDateLabel'
 
 import { mergeAttributes } from '@tiptap/core'
 import { Color } from '@tiptap/extension-color'
@@ -57,6 +58,7 @@ import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
 import CalendarMeetingLink from 'src/components/molecules/CalendarMeetingLink'
 import { shouldSaveTranscript } from 'src/utils/settings'
 import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import { freshSlackSuggestion, SLACK_SUGGESTION_TTL, slackSuggestionScope, warmSlackSuggestion, type WarmSlackNotesSuggestion } from 'src/api/slackNotes'
 import SlackNotesShare from 'src/components/molecules/SlackNotesShare'
 import {
   INTERNAL_MEETING,
@@ -283,6 +285,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     return enterMeetingWindowLayout()
   }, [isMeetingRecording])
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const meetingDisplayDate = meetingDateLabel(meeting?.start)
   const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
   const [microphoneLevel, setMicrophoneLevel] = useState(0)
@@ -1061,12 +1064,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     error: synthesisError,
     errorThreadId,
     synthesizeContent,
+    retryPreview,
+    dismissRetryPreview,
     saveNotes,
     bindNotesSave,
     setContent,
     setMarkdown,
   } =
     useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) }, userEmail || '')
+
+  const currentRetryPreview=retryPreview?.threadId===thread.id?retryPreview:null
+  const previewRetryNotes=()=>{void synthesizeContent(thread.id,'',meeting,'preview').catch(()=>{})}
 
   const [saveState, setSaveState] = useState('')
   const debouncedSave = useMemo(() => createNotesAutosave({
@@ -1685,6 +1693,30 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
   }, [showNotesProcessing, thread.id])
 
   const notesSynthesisActive = isSynthesizing()
+  const [warmSlackDestination, setWarmSlackDestination] = useState<WarmSlackNotesSuggestion>()
+  const slackScope = slackSuggestionScope(thread.id, userEmail, meeting?.calendar_account_email)
+  const eligibleSlackWarmup = !isMeetingRecording && !notesSynthesisActive && !isInitialLoading && !!notesMarkdown.trim()
+  const inlineSlackSuggestion = eligibleSlackWarmup ? freshSlackSuggestion(warmSlackDestination, slackScope) : undefined
+  useEffect(() => {
+    let active = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const invalidate = () => { active = false; setWarmSlackDestination(undefined) }
+    setWarmSlackDestination(undefined)
+    window.addEventListener(PROFILE_CHANGED_EVENT, invalidate)
+    if (eligibleSlackWarmup) {
+      void warmSlackSuggestion(thread.id, userEmail, meeting?.calendar_account_email).then(value => {
+        if (!active || !freshSlackSuggestion(value, slackScope)) return
+        setWarmSlackDestination(value)
+        timer = setTimeout(() => setWarmSlackDestination(undefined), SLACK_SUGGESTION_TTL)
+      })
+    }
+    return () => {
+      active = false
+      if (timer) clearTimeout(timer)
+      window.removeEventListener(PROFILE_CHANGED_EVENT, invalidate)
+    }
+  }, [slackScope, eligibleSlackWarmup, thread.id, userEmail, meeting?.calendar_account_email])
+
   useEffect(() => {
     if (notesSynthesisActive && !synthTimedOut) {
       // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner
@@ -1736,15 +1768,15 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                   </h1>
                 )}
                 <div className="notetaker-note__meta">
-                  <span className="notetaker-note__meta-item">
+                  {meetingDisplayDate && <span className="notetaker-note__meta-item">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                       <line x1="16" y1="2" x2="16" y2="6" />
                       <line x1="8" y1="2" x2="8" y2="6" />
                       <line x1="3" y1="10" x2="21" y2="10" />
                     </svg>
-                    {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
-                  </span>
+                    {meetingDisplayDate}
+                  </span>}
                   {wasRecorded && !meeting && sameDayMeetings.length > 0 && (
                     <div className="notetaker-note__link-event-wrap" ref={calendarPickerRef}>
                       <button
@@ -2035,15 +2067,15 @@ Be direct, specific, and concise. No filler text.`
                     Recording
                   </span>
                 )}
-                <span className="notetaker-note__meta-item">
+                {meetingDisplayDate && <span className="notetaker-note__meta-item">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                     <line x1="16" y1="2" x2="16" y2="6" />
                     <line x1="8" y1="2" x2="8" y2="6" />
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
-                  {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
-                </span>
+                  {meetingDisplayDate}
+                </span>}
                 {hasStoredMeetingChat && (
                   <button
                     type="button"
@@ -2309,15 +2341,22 @@ Be direct, specific, and concise. No filler text.`
               try { await copyMeetingNotesForSlack(notesMarkdown, meeting?.title || thread.subtitle, { start: meeting?.start || timestamp.getTime()/1000, end: meeting?.end, participants: meeting?.participants }); setSaveState('Copied for Slack') }
               catch (error) { setSaveState('Could not copy. Try again.'); throw error }
             }}
-            onShareClick={() => setSlackShareOpen(true)}
             canChangeTemplate={true}
             isEditing={isEditing}
             onEditClick={onEditClick}
           />
         )}
 
+        {eligibleSlackWarmup && (
+          <div className="flex flex-wrap items-center gap-2 text-xs py-2" aria-label="Slack destination">
+            {inlineSlackSuggestion && <span>Suggested: {inlineSlackSuggestion.workspace.name} › #{inlineSlackSuggestion.channel.name}</span>}
+            <button type="button" className="underline" onClick={() => setSlackShareOpen(true)}>
+              {inlineSlackSuggestion ? 'Change' : 'Choose Slack destination'}
+            </button>
+          </div>
+        )}
         {saveState && <p className="meeting-notes-save-status" role="status">{saveState}</p>}
-        {slackShareOpen && <SlackNotesShare key={`${thread.id}:${userEmail}`} threadId={thread.id} userEmail={userEmail} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle,metadata:{start:meeting?.start||timestamp.getTime()/1000,end:meeting?.end,participants:meeting?.participants}})} onClose={()=>setSlackShareOpen(false)}/>}
+        {slackShareOpen && <SlackNotesShare key={JSON.stringify([thread.id, userEmail, meeting?.calendar_account_email])} threadId={thread.id} userEmail={userEmail} calendarAccountEmail={meeting?.calendar_account_email} warmSuggestion={inlineSlackSuggestion} reusePreflight={eligibleSlackWarmup} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle,metadata:{start:meeting?.start||timestamp.getTime()/1000,end:meeting?.end,participants:meeting?.participants}})} onClose={()=>setSlackShareOpen(false)}/>}
 
         {/* Meeting brief drawer — auto-generated on open and kept available while recording */}
         {meeting && !wasRecorded && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating || briefError) && (
@@ -2444,10 +2483,13 @@ Be direct, specific, and concise. No filler text.`
         )}
 
         {synthesisError && errorThreadId === thread.id && !isSynthesizing() && (
-          <NotesGenerationRetry error={synthesisError} onRetry={() => void recordingHandlers.generateNotes(
-            thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
-          )} />
+          <NotesGenerationRetry error={synthesisError} onRetry={previewRetryNotes} />
         )}
+
+        {currentRetryPreview && <section className="notetaker-note__retry" aria-label="Generated notes preview">
+          <div className="notetaker-note__retry-message"><strong>Generated notes preview</strong><span>Nothing was saved. Review and copy any useful text into your notes yourself.</span><pre className="whitespace-pre-wrap break-words">{currentRetryPreview.markdown}</pre></div>
+          <button type="button" className="notetaker-note__retry-button" onClick={dismissRetryPreview}>Dismiss preview</button>
+        </section>}
 
         {/* Stream synthesized notes into the page as they arrive. */}
         {showNotesProcessing ? (

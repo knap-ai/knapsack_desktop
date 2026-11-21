@@ -1,3 +1,4 @@
+import { runNotesGenerationOnce } from 'src/utils/notesGenerationAdmission'
 import { bindNotesSave as bindProfileNotesSave, BoundNotesSave } from 'src/utils/notesSave'
 import { getProfileRevision, PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
 import { CORRECTIONS_CHANGED, readCorrections, spellingContext } from 'src/utils/nameCorrections'
@@ -48,7 +49,10 @@ interface IMeetingSynthesis {
     threadId: number,
     userNotes: string,
     meeting: Meeting | undefined,
+    mode?: 'save' | 'preview',
   ) => Promise<void>
+  retryPreview: { threadId: number; markdown: string } | null
+  dismissRetryPreview: () => void
   saveNotes: (threadId: number, notes: string) => Promise<void>
   bindNotesSave: () => BoundNotesSave
   setContent: (content: string) => void
@@ -71,6 +75,9 @@ export const useMeetingSynthesis = (
   const [synthesisPhase, setSynthesisPhase] = useState<IMeetingSynthesis['synthesisPhase']>('idle')
   const [error, setError] = useState<Error | null>(null)
   const [errorThreadId, setErrorThreadId] = useState<number | null>(null)
+
+  const [retryPreview, setRetryPreview] = useState<{threadId:number;markdown:string;identity:string;profileRevision:number;bindingRevision:number}|null>(null)
+  useEffect(() => {const clear=()=>setRetryPreview(null);window.addEventListener(PROFILE_CHANGED_EVENT,clear);return()=>window.removeEventListener(PROFILE_CHANGED_EVENT,clear)},[])
 
   const displayIdentity = JSON.stringify([accountEmail ?? speakerIdentity?.email ?? '', speakerIdentity?.name ?? ''])
   const generationIdentity = useRef(displayIdentity)
@@ -170,7 +177,9 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
   }
 
   const synthesizeContent = useCallback(
-    async (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
+    (threadId: number, userNotes: string, meeting: Meeting | undefined, mode: 'save' | 'preview' = 'save') => {
+      if(mode==='preview')userNotes=''
+      return runNotesGenerationOnce(threadId,JSON.stringify([displayIdentity,frameProfileRevision]),async()=>{
       const saveBinding=bindNotesSave()
       if(!saveBinding.isCurrent()) {
         const admissionError = new Error('Account changed before note generation was admitted.')
@@ -196,6 +205,7 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
       window.addEventListener('storage', storageChanged)
       const current = () => activeGeneration.current === generation && generation.current()
       setIsLLMLoading(true)
+      setRetryPreview(null)
       setStreamingMarkdown('')
       setSynthesisPhase('reading-transcript')
       setError(null)
@@ -230,7 +240,7 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
           }
 
           generation.check()
-          const shouldSave = await shouldSaveTranscript()
+          const shouldSave = mode === 'preview' || await shouldSaveTranscript()
           KNAnalytics.trackEvent('Synthesize: user notes stats', { length: userNotes.length })
 
           await checkProfile()
@@ -257,17 +267,22 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
               messageStreamCallback: content => {
                 if (!current()) return
                 setSynthesisPhase('writing')
-                setStreamingMarkdown(normalizeMeetingNotesMarkdown(content))
+                if(mode==='save')setStreamingMarkdown(normalizeMeetingNotesMarkdown(content))
               },
               messageFinishCallback: async response => {
                 if (!current()) return response
                 const normalizedResponse = normalizeMeetingNotesMarkdown(response)
-                setStreamingMarkdown(normalizedResponse)
-                setSynthesisPhase('saving')
                 try {
                   if (!normalizedResponse.trim()) {
                     throw new Error('No notes were returned. Retry from the saved meeting.')
                   }
+                  if(mode==='preview'){
+                    await checkProfile()
+                    if(!current()||!saveBinding.isCurrent())throw new Error('Account or meeting changed before preview completion.')
+                    setRetryPreview({threadId,markdown:normalizedResponse,identity:displayIdentity,profileRevision:frameProfileRevision,bindingRevision:frameBindingRevision})
+                    setIsLLMLoading(false);setSynthesisPhase('idle');resolve();return response
+                  }
+                  setStreamingMarkdown(normalizedResponse);setSynthesisPhase('saving')
                   await saveNotes(threadId, normalizedResponse, generation)
                   generation.check()
                   // Rendering cannot prevent durable notes from being saved.
@@ -343,8 +358,9 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
         window.removeEventListener('storage', storageChanged)
         generation.finish()
       }
+      },JSON.stringify([templatePrompt.key,templatePrompt.prompt,userNotes,mode]))
     },
-    [markdown, speakerIdentityRules, accountEmail, displayIdentity, frameProfileRevision],
+    [markdown, speakerIdentityRules, accountEmail, displayIdentity, frameProfileRevision,templatePrompt.key,templatePrompt.prompt],
   )
 
   const sameIdentity=generationIdentity.current===displayIdentity
@@ -356,6 +372,8 @@ Keep company names grounded in explicit evidence. Do not infer participant roles
     error: sameIdentity ? error : null,
     errorThreadId: sameIdentity ? errorThreadId : null,
     synthesizeContent,
+    retryPreview: retryPreview?.identity===displayIdentity && retryPreview.profileRevision===frameProfileRevision && retryPreview.bindingRevision===frameBindingRevision ? retryPreview : null,
+    dismissRetryPreview:()=>setRetryPreview(null),
     saveNotes,
     bindNotesSave,
     setContent,

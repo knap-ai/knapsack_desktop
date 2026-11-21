@@ -100,10 +100,12 @@ function utility(name) {
 const notesUtility=utility('notesGeneration');
 const postMeetingUtility=utility('postMeetingSource');
 const streamUtility=utility('completionStream');
+const admissionUtility=utility('notesGenerationAdmission');
 function incidentHook(options = {}) {
   const states = []; let cursor = 0, queued; const refs=[]; let refCursor=0
   const effects = { writes: [], deleted: 0, finished: 0 }
   const modules = {
+    'src/utils/notesGenerationAdmission': admissionUtility,
     'src/utils/profileScope':{getProfileRevision:()=>0,PROFILE_CHANGED_EVENT:'fixture-profile-changed'},'src/utils/nameCorrections':{readCorrections:()=>[],spellingContext:()=>'',CORRECTIONS_CHANGED:'fixture-spellings'},'src/utils/meetingSpeakerIdentity': utility('meetingSpeakerIdentity'),
     'src/utils/notesSave':utility('notesSave'),
     'src/utils/notesGeneration': notesUtility,
@@ -254,8 +256,9 @@ test('other completion callers retain their existing60second retry policy', asyn
 })
 
 const flush = async () => { for(let i=0;i<40;i++) await Promise.resolve() };
-test('superseded notes generation cannot overwrite newer notes', {timeout:1000}, async () => {
+test('cancelled generation cannot overwrite newer notes after explicit retry', {timeout:1000}, async () => {
  const h=incidentHook();const oldJob=h.render().synthesizeContent(39,'',undefined);oldJob.catch(()=>{});await flush();const old=h.queue();
+ notesUtility.cancelNotesGeneration(39,new Error('Synthetic explicit replacement'));await assert.rejects(oldJob,/replacement/);await flush();
  const newJob=h.render().synthesizeContent(39,'',undefined);await flush();
  await h.queue().messageFinishCallback('Newer fictional notes');await newJob;
  await old.messageFinishCallback('Stale fictional notes');assert.equal(h.effects.writes.length,1);await assert.rejects(oldJob);
