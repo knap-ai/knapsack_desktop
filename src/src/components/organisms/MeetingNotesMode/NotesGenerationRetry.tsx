@@ -19,7 +19,7 @@ export default function NotesGenerationRetry({
         <span>
           {needsAccount
             ? 'The account identity for saved notes is unavailable. Studio may still be connected. Your transcript and notes are unchanged.'
-            : 'Try generating notes again from this saved meeting.'}
+            : 'Generate a preview from the saved transcript. Existing notes will not change.'}
         </span>
       </div>
       <button type="button" className="notetaker-note__retry-button" onClick={onRetry}>
@@ -38,7 +38,7 @@ export default function NotesGenerationRetry({
           <path d="M20 7v5h-5" />
           <path d="M19.1 12a7.2 7.2 0 1 0-1.8 4.8M20 12l-2.7-3" />
         </svg>
-        Retry notes
+        Preview notes
       </button>
     </section>
   )

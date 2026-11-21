@@ -1061,12 +1061,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     error: synthesisError,
     errorThreadId,
     synthesizeContent,
+    retryPreview,
+    dismissRetryPreview,
     saveNotes,
     bindNotesSave,
     setContent,
     setMarkdown,
   } =
     useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) }, userEmail || '')
+
+  const currentRetryPreview=retryPreview?.threadId===thread.id?retryPreview:null
+  const previewRetryNotes=()=>{void synthesizeContent(thread.id,'',meeting,'preview').catch(()=>{})}
 
   const [saveState, setSaveState] = useState('')
   const debouncedSave = useMemo(() => createNotesAutosave({
@@ -2444,10 +2449,13 @@ Be direct, specific, and concise. No filler text.`
         )}
 
         {synthesisError && errorThreadId === thread.id && !isSynthesizing() && (
-          <NotesGenerationRetry error={synthesisError} onRetry={() => void recordingHandlers.generateNotes(
-            thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
-          )} />
+          <NotesGenerationRetry error={synthesisError} onRetry={previewRetryNotes} />
         )}
+
+        {currentRetryPreview && <section className="notetaker-note__retry" aria-label="Generated notes preview">
+          <div className="notetaker-note__retry-message"><strong>Generated notes preview</strong><span>Nothing was saved. Review and copy any useful text into your notes yourself.</span><pre className="whitespace-pre-wrap break-words">{currentRetryPreview.markdown}</pre></div>
+          <button type="button" className="notetaker-note__retry-button" onClick={dismissRetryPreview}>Dismiss preview</button>
+        </section>}
 
         {/* Stream synthesized notes into the page as they arrive. */}
         {showNotesProcessing ? (
