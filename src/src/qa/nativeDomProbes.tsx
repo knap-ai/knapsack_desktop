@@ -25,6 +25,7 @@ function select(label:string,value:string){const el=document.querySelector<HTMLS
 
 export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)=>void){
  const root=createRoot(container)
+ const qaOwner=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('qa@example.invalid'))),b=>b.toString(16).padStart(2,'0')).join('')
  const state={clipboard:'',opens:[] as string[],forbidden:0,forbiddenOperations:[] as string[],posts:[] as {requestId:string;teamId:string;channelId:string}[],notes:BASE,revision:1,revoked:false,sourceJump:'',transcripts:new Map<string,()=>Promise<Response>>()}
  const target=window as NativeWindow
  const fail=(operation='unrecognized')=>{state.forbidden++;state.forbiddenOperations.push(operation);throw new Error('qa_boundary_blocked')}
@@ -55,10 +56,10 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    state.notes=body.restore_revision?BASE:body.notes;state.revision++
    return json({success:true,data:{thread_id:900101,revision_id:'qa-receipt',revision:String(state.revision),notes:state.notes}})
   }
-  if(u.pathname==='/api/clawd/slack-notes/workspaces')return json({success:true,data:{owner:'qa-user',accounts:[{accountId:'qa-work',teamId:'T-QA1',name:'Fictional workspace'},{accountId:'qa-other',teamId:'T-QA2',name:'Fictional workspace'}]}})
+  if(u.pathname==='/api/clawd/slack-notes/workspaces')return json({success:true,data:{owner:qaOwner,accounts:[{accountId:'qa-work',teamId:'T-QA1',name:'Fictional workspace'},{accountId:'qa-other',teamId:'T-QA2',name:'Fictional workspace'}]}})
   if(u.pathname==='/api/clawd/slack-notes/channels')return state.revoked?json({success:false,error:'Synthetic revoked connection'},403):json({success:true,data:{channels:[{id:'C-QA1',name:'same-name',private:false},{id:'C-QA2',name:'same-name',private:true}]}})
   if(u.pathname==='/api/clawd/slack-notes/send'){
-   const b=JSON.parse(String(init?.body));if(b.owner!=='qa-user'||b.teamId!=='T-QA1'||b.channelId!=='C-QA1')return fail()
+   const b=JSON.parse(String(init?.body));if(b.owner!==qaOwner||b.teamId!=='T-QA1'||b.channelId!=='C-QA1')return fail()
    check(b.blocks.some((block:{type:string})=>block.type==='table'));state.posts.push(b)
    return json({success:true,data:{state:'sent',channelId:b.channelId,teamId:b.teamId,ts:'qa-fictional'}})
   }
@@ -84,7 +85,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
   return <><button onClick={()=>void review.request('You swapped me and Frida')}>Correct attribution</button>{review.review}<output data-qa="notes">{notes}</output></>
  }
  const meeting=(id:string,url:string)=>({id,event_id:id,start:1,calendar_account_email:'qa@example.invalid',google_meet_url:url}) as Meeting
- const share=()=> <SlackNotesShare threadId={900101} userEmail="qa@example.invalid" notes={async()=>({markdown:TABLE,title:'Fictional notes'})} onClose={()=>render(null)}/>
+ const share=()=> <SlackNotesShare threadId={900101} userEmail="qa@example.invalid" calendarAccountEmail="qa-calendar@example.invalid" notes={async()=>({markdown:TABLE,title:'Fictional notes'})} onClose={()=>render(null)}/>
  async function run(probe:Probe){
   check(PROBES.includes(probe));render(null);await tick()
   if(probe==='transcript'){
@@ -131,11 +132,13 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
    state.notes+='\nConcurrent fictional edit';state.revision++;click('Apply to saved notes');await until(()=>container.textContent?.includes('Synthetic revision conflict')===true);await readyButton('Apply to saved notes');check(state.notes.includes('Concurrent fictional edit'))
   }
   if(probe==='slack_share'){
-   state.revoked=false;localStorage.removeItem('slack-notes-destination:v1:qa-user');render(share());await until(()=>!!container.querySelector('option[value="qa-work"]'));click('Copy for Slack');await until(()=>state.clipboard.includes('Visa review'));check(!state.posts.length)
+   const {KNLocalStorage}=await import('src/utils/KNLocalStorage');await KNLocalStorage.setItem('KN_PROFILE',{email:'qa@example.invalid',uuid:'qa-slack-profile'});
+   state.revoked=false;render(share());await until(()=>!!container.querySelector('option[value="qa-work"]'));click('Copy for Slack');await until(()=>state.clipboard.includes('Visa review'));check(!state.posts.length)
    select('Slack workspace','qa-work');await until(()=>!!container.querySelector('option[value="C-QA1"]'));select('Slack channel','C-QA1');click('Preview send to channel');await until(()=>!!container.querySelector('table'));check(!state.posts.length);click('Send these notes to #same-name');await until(()=>container.textContent?.includes('Sent to Fictional workspace')===true);check(state.posts.length===1)
+   const rememberedEnd=Date.now()+700;while(!await slack.confirmedSlackDestination(qaOwner,'qa-calendar@example.invalid')){check(Date.now()<rememberedEnd);await tick()}
    render(null);render(share());await until(()=>container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.value==='C-QA1');check(state.posts.length===1)
-   const d={owner:'qa-user',accountId:'qa-work',teamId:'T-QA1',channelId:'C-QA1'},m=format.buildSlackNotesMessage(TABLE);check(await slack.slackNotesSendId(d,m)===await slack.slackNotesSendId(d,m))
-   render(null);state.revoked=true;render(share());await until(()=>container.textContent?.includes('Synthetic revoked connection')===true);check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.value==='');check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.disabled===true);check(container.textContent?.includes('No channels available')===true);state.clipboard='';click('Copy for Slack');await until(()=>state.clipboard.includes('Visa review'));check(!button('Close').disabled);check(state.posts.length===1)
+   const d={owner:qaOwner,accountId:'qa-work',teamId:'T-QA1',channelId:'C-QA1'},m=format.buildSlackNotesMessage(TABLE);check(await slack.slackNotesSendId(d,m)===await slack.slackNotesSendId(d,m))
+   render(null);state.revoked=true;render(share());await until(()=>container.textContent?.includes('Synthetic revoked connection')===true);check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.value==='');check(container.querySelector<HTMLSelectElement>('[aria-label="Slack channel"]')?.disabled===true);check(container.textContent?.includes('Synthetic revoked connection')===true);state.clipboard='';click('Copy for Slack');await until(()=>state.clipboard.includes('Visa review'));check(!button('Close').disabled);check(state.posts.length===1)
   }
   if(probe==='person_scout'){const {runPersonScoutProbe}=await import('./personScoutProbe');await runPersonScoutProbe(container)}
   if(probe==='boundaries'){check(state.forbidden===0);check(state.posts.length===1);check(state.opens.length===4);check(state.sourceJump==='qa-message')}

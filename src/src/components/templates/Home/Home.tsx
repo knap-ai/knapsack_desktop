@@ -34,7 +34,6 @@ import { safeInvoke } from 'src/utils/tauriIpcBridge'
 import { ProviderSignInDialog } from './components/ProviderSignInDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { SignInDialog } from './components/SigninDialog'
-import { ButtonVariant } from 'src/components/atoms/button'
 import AutomationLabModal from 'src/components/molecules/AutomationLabModal'
 import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
@@ -638,15 +637,11 @@ function Home({
       )}
       <Header
         leftComponent={
-          feed.getRecordingFeedItemTitle() && (
-            <HeaderRecording
-              label="recording in progress"
-              buttonLabel="go to meeting"
-              hasSelectedRecordingFeedItem={
-                feed.currentFeedItem()?.getTitle() !== feed.getRecordingFeedItemTitle()
-              }
-              buttonOnClick={feed.handleClickRecording}
-              buttonVariant={ButtonVariant.inProgressMeeting}
+          recordingHandlers.activeRecordingThreadId !== null && (
+            <HeaderRecording key={recordingHandlers.activeRecordingThreadId} isPaused={recordingHandlers.isPaused}
+              onOpenMeeting={feed.currentFeedItem()?.threads?.some((thread: { id: number }) => thread.id === recordingHandlers.activeRecordingThreadId) ? undefined : () => {
+                void feed.handleClickRecording(recordingHandlers.activeRecordingThreadId).catch(() => {})
+              }}
             />
           )
         }

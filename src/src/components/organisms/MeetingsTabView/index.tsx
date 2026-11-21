@@ -294,7 +294,7 @@ const MeetingsTabView = ({
             </button>
           </div>
           <div className="MeetingsTabView__topbar-center">
-            {isCurrentRecording ? <span role="status">Recording privately</span> : <button className="MeetingsTabView__topbar-summary" onClick={() => { if (notesThread) handleOpenTemplates(notesThread) }} title="Choose summary template">
+            {!isCurrentRecording && <button className="MeetingsTabView__topbar-summary" onClick={() => { if (notesThread) handleOpenTemplates(notesThread) }} title="Choose summary template">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
@@ -305,7 +305,7 @@ const MeetingsTabView = ({
             </button>}
           </div>
           <div className="MeetingsTabView__topbar-right" style={{ position: 'relative' }}>
-            {slackShareOpen && notesThread && <SlackNotesShare key={`${notesThread.id}:${userEmail}`} threadId={notesThread.id} userEmail={userEmail} onClose={()=>setSlackShareOpen(false)} notes={async()=>{
+            {slackShareOpen && notesThread && <SlackNotesShare key={JSON.stringify([notesThread.id, userEmail, selectedMeeting?.getCalendarEvent()?.calendar_account_email])} threadId={notesThread.id} userEmail={userEmail} calendarAccountEmail={selectedMeeting?.getCalendarEvent()?.calendar_account_email} onClose={()=>setSlackShareOpen(false)} notes={async()=>{
               const response=await fetch(`${KN_API_NOTES}/${notesThread.id}`);const body=await response.json()
               if(!response.ok||!body.data?.exists||body.data.thread_id!==notesThread.id)throw new Error('Notes are unavailable for this meeting.')
               return {markdown:body.data.notes,title:selectedMeeting?.getTitle?.(),metadata:selectedMeeting?.getCalendarEvent()}
