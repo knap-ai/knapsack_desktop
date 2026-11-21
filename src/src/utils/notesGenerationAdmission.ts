@@ -31,3 +31,12 @@ export function runNotesGenerationOnce(
   void promise.then(release, release)
   return promise
 }
+
+/** Wait without starting, replacing or joining a differently scoped generation. */
+export async function waitForNotesGenerationIdle(threadId: number): Promise<void> {
+  for (;;) {
+    const active = pending.get(threadId)
+    if (!active) return
+    await active.promise.catch(() => undefined)
+  }
+}
