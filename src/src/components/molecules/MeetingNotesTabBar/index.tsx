@@ -43,7 +43,8 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
 }) => {
 
   return (
-    <div className="meeting-notes-actions flex flex-row flex-wrap gap-x-6 gap-y-3 items-center">
+    <div className="meeting-notes-actions meeting-notes-actions--fixed-edit">
+      <div className="meeting-notes-actions__secondary">
       <Button
         label={templateLabel}
         variant={ButtonVariant.regular}
@@ -95,7 +96,10 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
       )}
       <CopyButton onClick={onCopyClick} showCopyStatus={!copyOpensShare} />
       {onShareClick && <button type="button" className="text-xxs uppercase font-semibold font-InterTight tracking-[0.08em] text-ks-warm-grey-800 hover:underline" onClick={onShareClick}>Share to Slack…</button>}
-      <EditDisplayToggleButton isEditing={isEditing} onClick={onEditClick} />
+      </div>
+      <div className="meeting-notes-actions__edit">
+        <EditDisplayToggleButton isEditing={isEditing} onClick={onEditClick} />
+      </div>
     </div>
   )
 }
