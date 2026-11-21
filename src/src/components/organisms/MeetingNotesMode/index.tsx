@@ -58,6 +58,7 @@ import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
 import CalendarMeetingLink from 'src/components/molecules/CalendarMeetingLink'
 import { shouldSaveTranscript } from 'src/utils/settings'
 import { copyMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
+import { freshSlackSuggestion, SLACK_SUGGESTION_TTL, slackSuggestionScope, warmSlackSuggestion, type WarmSlackNotesSuggestion } from 'src/api/slackNotes'
 import SlackNotesShare from 'src/components/molecules/SlackNotesShare'
 import {
   INTERNAL_MEETING,
@@ -1692,6 +1693,30 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
   }, [showNotesProcessing, thread.id])
 
   const notesSynthesisActive = isSynthesizing()
+  const [warmSlackDestination, setWarmSlackDestination] = useState<WarmSlackNotesSuggestion>()
+  const slackScope = slackSuggestionScope(thread.id, userEmail, meeting?.calendar_account_email)
+  const eligibleSlackWarmup = !isMeetingRecording && !notesSynthesisActive && !isInitialLoading && !!notesMarkdown.trim()
+  const inlineSlackSuggestion = eligibleSlackWarmup ? freshSlackSuggestion(warmSlackDestination, slackScope) : undefined
+  useEffect(() => {
+    let active = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const invalidate = () => { active = false; setWarmSlackDestination(undefined) }
+    setWarmSlackDestination(undefined)
+    window.addEventListener(PROFILE_CHANGED_EVENT, invalidate)
+    if (eligibleSlackWarmup) {
+      void warmSlackSuggestion(thread.id, userEmail, meeting?.calendar_account_email).then(value => {
+        if (!active || !freshSlackSuggestion(value, slackScope)) return
+        setWarmSlackDestination(value)
+        timer = setTimeout(() => setWarmSlackDestination(undefined), SLACK_SUGGESTION_TTL)
+      })
+    }
+    return () => {
+      active = false
+      if (timer) clearTimeout(timer)
+      window.removeEventListener(PROFILE_CHANGED_EVENT, invalidate)
+    }
+  }, [slackScope, eligibleSlackWarmup, thread.id, userEmail, meeting?.calendar_account_email])
+
   useEffect(() => {
     if (notesSynthesisActive && !synthTimedOut) {
       // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner
@@ -2316,15 +2341,22 @@ Be direct, specific, and concise. No filler text.`
               try { await copyMeetingNotesForSlack(notesMarkdown, meeting?.title || thread.subtitle, { start: meeting?.start || timestamp.getTime()/1000, end: meeting?.end, participants: meeting?.participants }); setSaveState('Copied for Slack') }
               catch (error) { setSaveState('Could not copy. Try again.'); throw error }
             }}
-            onShareClick={() => setSlackShareOpen(true)}
             canChangeTemplate={true}
             isEditing={isEditing}
             onEditClick={onEditClick}
           />
         )}
 
+        {eligibleSlackWarmup && (
+          <div className="flex flex-wrap items-center gap-2 text-xs py-2" aria-label="Slack destination">
+            {inlineSlackSuggestion && <span>Suggested: {inlineSlackSuggestion.workspace.name} › #{inlineSlackSuggestion.channel.name}</span>}
+            <button type="button" className="underline" onClick={() => setSlackShareOpen(true)}>
+              {inlineSlackSuggestion ? 'Change' : 'Choose Slack destination'}
+            </button>
+          </div>
+        )}
         {saveState && <p className="meeting-notes-save-status" role="status">{saveState}</p>}
-        {slackShareOpen && <SlackNotesShare key={`${thread.id}:${userEmail}`} threadId={thread.id} userEmail={userEmail} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle,metadata:{start:meeting?.start||timestamp.getTime()/1000,end:meeting?.end,participants:meeting?.participants}})} onClose={()=>setSlackShareOpen(false)}/>}
+        {slackShareOpen && <SlackNotesShare key={JSON.stringify([thread.id, userEmail, meeting?.calendar_account_email])} threadId={thread.id} userEmail={userEmail} calendarAccountEmail={meeting?.calendar_account_email} warmSuggestion={inlineSlackSuggestion} reusePreflight={eligibleSlackWarmup} notes={async()=>({markdown:notesMarkdown,title:meeting?.title||thread.subtitle,metadata:{start:meeting?.start||timestamp.getTime()/1000,end:meeting?.end,participants:meeting?.participants}})} onClose={()=>setSlackShareOpen(false)}/>}
 
         {/* Meeting brief drawer — auto-generated on open and kept available while recording */}
         {meeting && !wasRecorded && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating || briefError) && (
