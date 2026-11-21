@@ -12,6 +12,7 @@ import { oneToOneParticipantName } from 'src/utils/oneToOneParticipant'
 import NotesGenerationRetry from './NotesGenerationRetry'
 import SavedAudioRecovery from './SavedAudioRecovery'
 import { useNotesEditReview } from './useNotesEditReview'
+import { useTemplateNotesGeneration } from './useTemplateNotesGeneration'
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import dayjs from 'dayjs'
 import { meetingDateLabel } from './meetingDateLabel'
@@ -1214,26 +1215,16 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [thread.id, editor, isLLMLoading, synthesisState])
 
-  // Track the previous promptTemplate to detect changes
-  const previousPromptTemplateRef = React.useRef(thread.promptTemplate)
-
-  useEffect(() => {
-    if (
-      previousPromptTemplateRef.current !== thread.promptTemplate &&
-      thread.id &&
-      wasRecorded
-    ) {
-      recordingHandlers.generateNotes(
-        thread.id,
-        synthesizeContent,
-        saveNotes,
-        notesMarkdown,
-        meeting,
-      )
-    }
-
-    previousPromptTemplateRef.current = thread.promptTemplate
-  }, [thread.promptTemplate])
+  const templateChangePending = useTemplateNotesGeneration({
+    template: thread.promptTemplate,
+    scope: JSON.stringify([thread.id, userEmail, getProfileRevision()]),
+    threadId: thread.id,
+    enabled: !!wasRecorded,
+    blocked: isEditing,
+    generate: () => recordingHandlers.generateNotes(
+      thread.id, synthesizeContent, saveNotes, notesMarkdown, meeting,
+    ),
+  })
 
   useEffect(() => {
     setIsEditing(!wasRecorded)
@@ -2320,13 +2311,17 @@ Be direct, specific, and concise. No filler text.`
           </div>
         )}
 
+        {templateChangePending && <p role="status" className="meeting-notes-save-status">
+          Template change pending. These notes may use an earlier template.
+        </p>}
+
         {/* Tab bar for template, transcript, tasks - hidden during active recording for clean view */}
         {!recordingHandlers.isRecording(thread.id) && !isEndingMeetingState && (
           <MeetingNotesTabBar
             thread={thread}
             feedItemId={feedItemId}
             feed={feed}
-            templateLabel={templatePrompt.title}
+            templateLabel={templateChangePending ? `${templatePrompt.title} (pending)` : templatePrompt.title}
             transcriptAvailable={transcriptAvailable}
             hasActionItems={hasActionItems()}
             onOpenTemplatesClick={handleOpenTemplates}
