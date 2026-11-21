@@ -38,6 +38,8 @@ jobs:
           done
       - name: Dormant shared-context consent and review regressions
         run: ./node_modules/.bin/vitest run src/components/organisms/SharedContextReview.test.tsx
+      - name: Token cost loading and recovery fixtures
+        run: ./node_modules/.bin/vitest run src/components/organisms/ActivityPanel/useTokenCosts.test.tsx src/components/organisms/ActivityPanel/TokenCostsView.test.tsx
       - name: Provider catalogs retain hosted defaults
         run: node --test scripts/refresh-public-provider-models.test.mjs scripts/anthropic-opus55-compat.test.mjs
       - name: Sender, meeting chat, and transcript interaction regressions
