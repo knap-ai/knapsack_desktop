@@ -2083,26 +2083,26 @@ export function useFeed(
     }
 
     try {
+      const replaceThread = (feedItem: FeedItem): FeedItem => {
+        if (feedItem.id !== feedItemId || !feedItem.threads?.some(thread => thread.id === updatedThread.id)) {
+          return feedItem
+        }
+        return Object.assign(Object.create(Object.getPrototypeOf(feedItem)) as FeedItem, feedItem, {
+          threads: feedItem.threads.map(thread =>
+            thread.id === updatedThread.id ? updatedThread : thread,
+          ),
+        })
+      }
       setFeedContent(prevState => {
         const updatedState = { ...prevState }
 
         for (const [timelineKey, feedItems] of Object.entries(prevState)) {
-          updatedState[timelineKey] = feedItems.map(feedItem => {
-            if (feedItem.id !== feedItemId) return feedItem
-
-            feedItem.threads?.map(thread => {
-              if (updatedThread && thread.id === updatedThread.id) {
-                return updatedThread
-              }
-              return thread
-            })
-
-            return feedItem
-          })
+          updatedState[timelineKey] = feedItems.map(replaceThread)
         }
         return updatedState
       })
 
+      setSelectedFeedItem(previous => (previous ? replaceThread(previous) : previous))
       await updateThread(updatedThread.id, updatedThread!)
     } catch (error) {
       if (error instanceof HttpError) {
