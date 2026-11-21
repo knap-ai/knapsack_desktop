@@ -1,6 +1,7 @@
 import { hasPendingNotesWrite } from './notesGeneration'
 
 /** In-flight deduplication only. Never share work across a changed account origin. */
+const templateWrites = new Set<number>()
 const pending = new Map<number, { origin: string; requestKey: string; promise: Promise<void> }>()
 export function runNotesGenerationOnce(
   threadId: number,
@@ -36,7 +37,23 @@ export function runNotesGenerationOnce(
 
 /** Synchronous guard before a template can be persisted; includes preflight and save. */
 export function assertNotesTemplateChangeAllowed(threadId: number): void {
-  if (pending.has(threadId) || hasPendingNotesWrite(threadId)) {
-    throw new Error('Notes generation or saving is still running. Wait for it to finish, then choose a template.')
+  if (pending.has(threadId) || hasPendingNotesWrite(threadId) || templateWrites.has(threadId)) {
+    throw new Error(
+      'Notes generation or saving is still running. Wait for it to finish, then choose a template.',
+    )
+  }
+}
+
+/** A template write remains reserved across picker unmounts until its backend reply. */
+export async function withNotesTemplateWrite<T>(
+  threadId: number,
+  work: () => Promise<T>,
+): Promise<T> {
+  assertNotesTemplateChangeAllowed(threadId)
+  templateWrites.add(threadId)
+  try {
+    return await work()
+  } finally {
+    templateWrites.delete(threadId)
   }
 }

@@ -1,6 +1,6 @@
 import { assertNotesTemplateChangeAllowed } from 'src/utils/notesGenerationAdmission'
-import { getProfileRevision } from 'src/utils/profileScope'
-import React, { Fragment, useState, useEffect, useMemo } from 'react'
+import { getProfileRevision, PROFILE_CHANGED_EVENT } from 'src/utils/profileScope'
+import React, { Fragment, useState, useEffect, useMemo, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { Workspace } from 'src/api/workspaces'
 
@@ -233,7 +233,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
 
   useEffect(() => {
     closeTemplatesView()
-  }, [feed.currentFeedItem])
+  }, [feed.currentFeedItem, userEmail])
 
   const handleOpenTemplates = async (thread: IThread) => {
     if (tasksState.isOpen) {
@@ -555,15 +555,46 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
     }
   }
 
+  const templateSelectionContext = useRef({ feed, userEmail, mounted: true })
+  templateSelectionContext.current.feed = feed
+  templateSelectionContext.current.userEmail = userEmail
+  useEffect(() => {
+    templateSelectionContext.current.mounted = true
+    const changed = () => setTemplatesState({ isOpen: false })
+    window.addEventListener(PROFILE_CHANGED_EVENT, changed)
+    return () => {
+      templateSelectionContext.current.mounted = false
+      window.removeEventListener(PROFILE_CHANGED_EVENT, changed)
+    }
+  }, [])
   const setMeetingTemplatePrompt = async (meetingTemplate: MeetingTemplatePrompt) => {
-    const selectedThread = templatesState.thread
-    if (!selectedThread || !userEmail || templatesState.profileRevision !== getProfileRevision() ||
-        templatesState.accountEmail !== userEmail ||
-        !feed.currentFeedItem()?.threads?.some(t => t.id === selectedThread.id)) {
+    const liveItem = templateSelectionContext.current.feed.currentFeedItem()
+    const selectedThread = liveItem?.threads?.find(t => t.id === templatesState.thread?.id)
+    const itemId = liveItem?.id
+    const current = () => {
+      const live = templateSelectionContext.current
+      return (
+        live.mounted &&
+        !!selectedThread &&
+        !!userEmail &&
+        templatesState.profileRevision === getProfileRevision() &&
+        templatesState.accountEmail === userEmail &&
+        live.userEmail === userEmail &&
+        live.feed.currentFeedItem()?.id === itemId &&
+        !!live.feed.currentFeedItem()?.threads?.some(t => t.id === selectedThread.id)
+      )
+    }
+    if (!selectedThread || !current()) {
       throw new Error('Meeting or account changed. Reopen templates before choosing.')
     }
     assertNotesTemplateChangeAllowed(selectedThread.id)
-    await feed.setThread({ ...selectedThread, promptTemplate: meetingTemplate.key }, feed.currentFeedItem()?.id)
+    const saved = await feed.setThread(
+      { ...selectedThread, promptTemplate: meetingTemplate.key },
+      itemId,
+      current,
+    )
+    if (!saved || !current())
+      throw new Error('Template change was not confirmed. Reopen templates to check it.')
   }
 
   return (
@@ -679,6 +710,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
         )}
         {templatesState.isOpen && templatesState.thread && (
           <TemplatesView
+            key={JSON.stringify([templatesState.thread.id, templatesState.accountEmail, templatesState.profileRevision])}
             thread={templatesState.thread}
             onClose={() => closeTemplatesView()}
             setMeetingTemplatePrompt={setMeetingTemplatePrompt}

@@ -59,9 +59,11 @@ function fixture(legacy = false) {
     getCalendarEvent: () => undefined,
   }
   const originalThread = item.threads[0]
-  const persist = vi.fn((thread: IThread) => {
+  const persist = vi.fn(async (thread: IThread, _itemId?: number, current = () => true) => {
+    if (!current()) return false
     Object.assign(snapshot, thread)
     item.threads = [{ ...snapshot }]
+    return true
   })
   const feed = {
     currentFeedItem: () => item,
@@ -94,6 +96,13 @@ function fixture(legacy = false) {
     originalThread,
     props,
     remount,
+    updateMetadata: () => {
+      item.threads = [{ ...snapshot, title: 'New live metadata', hideFollowUp: true }]
+    },
+    acknowledge: (thread: IThread) => {
+      Object.assign(snapshot, thread)
+      item.threads = [{ ...snapshot }]
+    },
     changeMeeting: () => {
       item.threads = [{ ...snapshot, id: 9999 }]
     },
@@ -152,15 +161,15 @@ it.each(['header', 'notes'])(
     expect(f.snapshot.promptTemplate).toBe('CLIENT_DISCOVERY_MEETING')
   },
 )
-it('refuses an account change after the picker opened', async () => {
+it('closes a picker whose account context changed before selection', async () => {
   const f = fixture()
   await open('header')
   act(() => window.dispatchEvent(new Event(PROFILE_CHANGED_EVENT)))
-  await chooseB()
+  expect(screen.queryByText('Client Discovery Meeting')).toBeNull()
   expect(f.persist).not.toHaveBeenCalled()
   expect(f.snapshot.promptTemplate).toBe('INTERNAL_MEETING')
-  expect(screen.getByRole('alert')).toBeTruthy()
 })
+
 it('persists a new thread object after an idle selection', async () => {
   const f = fixture()
   await open('notes')
@@ -295,5 +304,83 @@ it('blocks before the admitted generation preflight has even started', async () 
   await act(async () => {
     finish()
     await work
+  })
+})
+
+function delayedWrite(f: ReturnType<typeof fixture>) {
+  let resolve!: () => void
+  const gate = new Promise<void>(r => {
+    resolve = r
+  })
+  f.persist.mockImplementationOnce(async (thread, _item, current = () => true) => {
+    await gate
+    if (!current()) return false
+    f.acknowledge(thread)
+    return true
+  })
+  return async () => {
+    await act(async () => {
+      resolve()
+      await gate
+    })
+  }
+}
+function highlightedTemplate() {
+  return screen
+    .getByPlaceholderText('Add any specific instructions here...')
+    .closest('.cursor-pointer')?.textContent
+}
+it.each(['reject', 'false'])(
+  'a %s persistence result leaves the old choice highlighted and allows explicit retry',
+  async kind => {
+    const f = fixture()
+    await open('header')
+    if (kind === 'reject') f.persist.mockRejectedValueOnce(new Error('Synthetic rejection'))
+    else f.persist.mockResolvedValueOnce(false)
+    await chooseB()
+    expect(f.snapshot.promptTemplate).toBe('INTERNAL_MEETING')
+    expect(highlightedTemplate()).toContain('Internal Meeting')
+    expect(screen.getByRole('alert')).toBeTruthy()
+    await chooseB()
+    expect(f.snapshot.promptTemplate).toBe('CLIENT_DISCOVERY_MEETING')
+  },
+)
+it('a rapid second click cannot overtake a pending selection', async () => {
+  const f = fixture()
+  await open('header')
+  const finish = delayedWrite(f)
+  fireEvent.click(screen.getByText('Client Discovery Meeting'))
+  fireEvent.click(screen.getByText('Onboarding / Data Gathering'))
+  expect(f.persist).toHaveBeenCalledOnce()
+  expect(highlightedTemplate()).toContain('Internal Meeting')
+  await finish()
+  expect(f.snapshot.promptTemplate).toBe('CLIENT_DISCOVERY_MEETING')
+  expect(highlightedTemplate()).toContain('Client Discovery Meeting')
+})
+it.each(['meeting', 'account', 'unmount'])(
+  'a %s change during persistence cannot apply an old UI choice',
+  async kind => {
+    const f = fixture()
+    await open('header')
+    const finish = delayedWrite(f)
+    fireEvent.click(screen.getByText('Client Discovery Meeting'))
+    if (kind === 'meeting') f.changeMeeting()
+    if (kind === 'account') act(() => window.dispatchEvent(new Event(PROFILE_CHANGED_EVENT)))
+    if (kind === 'unmount') f.remount()
+    await finish()
+    expect(f.snapshot.promptTemplate).toBe('INTERNAL_MEETING')
+    if (kind === 'meeting') expect(highlightedTemplate()).toContain('Internal Meeting')
+    if (kind === 'account') expect(screen.queryByText('Client Discovery Meeting')).toBeNull()
+  },
+)
+it('serializes the live scoped thread metadata rather than the picker-open snapshot', async () => {
+  const f = fixture()
+  await open('header')
+  f.updateMetadata()
+  await chooseB()
+  expect(f.persist.mock.calls[0][0]).toMatchObject({
+    title: 'New live metadata',
+    hideFollowUp: true,
+    promptTemplate: 'CLIENT_DISCOVERY_MEETING',
   })
 })

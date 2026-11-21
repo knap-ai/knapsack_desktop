@@ -1,3 +1,4 @@
+import { withNotesTemplateWrite } from 'src/utils/notesGenerationAdmission'
 import { canAutomaticallyRecord } from 'src/utils/autoRecordPreference'
 import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -233,7 +234,7 @@ export interface IFeed {
   createMeetingNotes: (feedItem: FeedItem) => Promise<Thread | undefined>
   currentMeetId: () => number | undefined
   getNextMeetId: () => number | undefined
-  setThread: (updatedThread: IThread, feedItemId?: number) => void
+  setThread: (updatedThread: IThread, feedItemId?: number, isCurrent?: () => boolean) => Promise<boolean>
   selectEmailCategory: () => void
   getTodayKey: () => string
 }
@@ -2077,33 +2078,48 @@ export function useFeed(
     }
   }
 
-  const setThread = async (updatedThread: IThread, feedItemId?: number) => {
+  const setThread = async (
+    updatedThread: IThread,
+    feedItemId?: number,
+    isCurrent = () => true,
+  ): Promise<boolean> => {
     if (!updatedThread || !updatedThread.id || !feedItemId) {
-      return
+      return false
     }
 
     try {
-      const replaceThread = (feedItem: FeedItem): FeedItem => {
-        if (feedItem.id !== feedItemId || !feedItem.threads?.some(thread => thread.id === updatedThread.id)) {
-          return feedItem
+      return await withNotesTemplateWrite(updatedThread.id, async () => {
+        if (!isCurrent()) return false
+        const saved = await updateThread(updatedThread.id, updatedThread)
+        if (!saved || !isCurrent()) return false
+        const replaceThread = (feedItem: FeedItem): FeedItem => {
+          if (
+            feedItem.id !== feedItemId ||
+            !feedItem.threads?.some(thread => thread.id === updatedThread.id)
+          ) {
+            return feedItem
+          }
+          return Object.assign(Object.create(Object.getPrototypeOf(feedItem)) as FeedItem, feedItem, {
+            threads: feedItem.threads.map(thread =>
+              thread.id === updatedThread.id ? updatedThread : thread,
+            ),
+          })
         }
-        return Object.assign(Object.create(Object.getPrototypeOf(feedItem)) as FeedItem, feedItem, {
-          threads: feedItem.threads.map(thread =>
-            thread.id === updatedThread.id ? updatedThread : thread,
-          ),
+        setFeedContent(prevState => {
+          if (!isCurrent()) return prevState
+          const updatedState = { ...prevState }
+
+          for (const [timelineKey, feedItems] of Object.entries(prevState)) {
+            updatedState[timelineKey] = feedItems.map(replaceThread)
+          }
+          return updatedState
         })
-      }
-      setFeedContent(prevState => {
-        const updatedState = { ...prevState }
 
-        for (const [timelineKey, feedItems] of Object.entries(prevState)) {
-          updatedState[timelineKey] = feedItems.map(replaceThread)
-        }
-        return updatedState
+        setSelectedFeedItem(previous =>
+          isCurrent() && previous ? replaceThread(previous) : previous,
+        )
+        return true
       })
-
-      setSelectedFeedItem(previous => (previous ? replaceThread(previous) : previous))
-      await updateThread(updatedThread.id, updatedThread!)
     } catch (error) {
       if (error instanceof HttpError) {
         logError(new Error('setThread failed'), {
@@ -2112,9 +2128,9 @@ export function useFeed(
         })
         handleErrorContact('Error updating Thread, please try again.')
       }
+      return false
     }
   }
-
   const updateFeedItemTitle = useCallback(
     async (_key: string, itemId: number, newTitle: string) => {
       if (itemId === undefined || itemId < 0) return

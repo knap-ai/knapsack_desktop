@@ -9,6 +9,7 @@ import { ThreadType, type IThread } from 'src/api/threads'
 import {
   assertNotesTemplateChangeAllowed,
   runNotesGenerationOnce,
+  withNotesTemplateWrite,
 } from 'src/utils/notesGenerationAdmission'
 import { HttpError } from 'src/utils/retryUtils'
 import ts from 'typescript'
@@ -36,6 +37,7 @@ const factory = new Function(
   'logError',
   'handleErrorContact',
   'FeedItem',
+  'withNotesTemplateWrite',
   code + '\nreturn setThread',
 ) as (
   feed: Dispatch<SetStateAction<Record<string, FeedItem[]>>>,
@@ -45,7 +47,8 @@ const factory = new Function(
   log: ReturnType<typeof vi.fn>,
   error: ReturnType<typeof vi.fn>,
   item: typeof FeedItem,
-) => (thread: IThread, id?: number) => Promise<void>
+  reserve: typeof withNotesTemplateWrite,
+) => (thread: IThread, id?: number, current?: () => boolean) => Promise<boolean>
 function fixture(fail = false) {
   const originalThread: IThread = {
     id: 8701,
@@ -70,11 +73,13 @@ function fixture(fail = false) {
   })
   const update = vi.fn(async () => {
       if (fail) throw new HttpError(500, 'Synthetic failure')
+      return true
     }),
     jobs = vi.fn(),
     error = vi.fn(),
     log = vi.fn()
-  let pending: Promise<void> | undefined
+  let pending: Promise<boolean> | undefined
+  let guardedUpdate!: (current: () => boolean) => Promise<boolean>
   let seen: FeedItem | null = null
   let timeline: Record<string, FeedItem[]> = {}
   function Harness() {
@@ -84,7 +89,22 @@ function fixture(fail = false) {
     const previous = useRef(selected?.threads?.[0].promptTemplate)
     seen = selected
     timeline = feed
-    const setThread = factory(setFeed, setSelected, update, HttpError, log, error, FeedItem)
+    const setThread = factory(
+      setFeed,
+      setSelected,
+      update,
+      HttpError,
+      log,
+      error,
+      FeedItem,
+      withNotesTemplateWrite,
+    )
+    guardedUpdate = current =>
+      setThread(
+        { ...originalThread, promptTemplate: 'CLIENT_DISCOVERY_MEETING' },
+        original.id,
+        current,
+      )
     const template = selected?.threads?.[0].promptTemplate
     useEffect(() => {
       if (previous.current !== template) jobs(template)
@@ -124,8 +144,18 @@ function fixture(fail = false) {
     done: async () => {
       await pending
     },
+    guardedUpdate: (current: () => boolean) => guardedUpdate(current),
     invalid: async () => {
-      const f = factory(vi.fn(), vi.fn(), update, HttpError, log, error, FeedItem)
+      const f = factory(
+        vi.fn(),
+        vi.fn(),
+        update,
+        HttpError,
+        log,
+        error,
+        FeedItem,
+        withNotesTemplateWrite,
+      )
       await f(originalThread, undefined)
     },
   }
@@ -179,5 +209,50 @@ it('keeps invalid-input no-write behavior and existing HttpError reporting witho
   await act(f.done)
   expect(f.update).toHaveBeenCalledOnce()
   expect(f.error).toHaveBeenCalledExactlyOnceWith('Error updating Thread, please try again.')
+  expect(f.selected()).toBe(f.original)
+  expect(f.jobs).not.toHaveBeenCalled()
   expect(f.originalThread.promptTemplate).toBe('INTERNAL_MEETING')
+})
+
+it('a pending thread write is reserved until acknowledgement even for a remounted caller', async () => {
+  const f = fixture()
+  let resolve!: (value: boolean) => void
+  f.update.mockImplementationOnce(
+    () =>
+      new Promise<boolean>(r => {
+        resolve = r
+      }),
+  )
+  const first = f.guardedUpdate(() => true)
+  await act(async () => undefined)
+  const second = await f.guardedUpdate(() => true)
+  expect(second).toBe(false)
+  expect(f.update).toHaveBeenCalledOnce()
+  await act(async () => {
+    resolve(true)
+    await first
+  })
+})
+it('scope invalidation while backend acknowledgement is pending refuses local publication', async () => {
+  const f = fixture()
+  let resolve!: (value: boolean) => void,
+    current = true
+  f.update.mockImplementationOnce(
+    () =>
+      new Promise<boolean>(r => {
+        resolve = r
+      }),
+  )
+  const write = f.guardedUpdate(() => current)
+  await act(async () => undefined)
+  current = false
+  let saved: boolean | undefined
+  await act(async () => {
+    resolve(true)
+    saved = await write
+  })
+  expect(saved).toBe(false)
+  expect(f.update).toHaveBeenCalledOnce()
+  expect(f.selected()).toBe(f.original)
+  expect(f.jobs).not.toHaveBeenCalled()
 })
