@@ -10,7 +10,7 @@ import styles from './styles.module.scss'
 interface TemplatesViewProps {
   onClose: () => void;
   thread: IThread,
-  setMeetingTemplatePrompt: (meetingTemplate: MeetingTemplatePrompt) => void;
+  setMeetingTemplatePrompt: (meetingTemplate: MeetingTemplatePrompt) => void | Promise<void>;
 }
 
 const TemplatesView: React.FC<TemplatesViewProps> = ({
@@ -18,6 +18,7 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
   thread,
   setMeetingTemplatePrompt,
 }) => {
+  const [selectionError, setSelectionError] = useState('')
   const meetingTemplates: MeetingTemplatePrompt[] = [
     INTERNAL_MEETING, CLIENT_DISCOVERY_MEETING, ONBOARDING_DATA_GATHERING, FINANCIAL_PLAN_PRESENTATION, FINANCIAL_PLAN_IMPLEMENTATION
   ]
@@ -71,6 +72,7 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
         <img className="h-2.5 my-auto cursor-pointer" src="assets/images/icons/x_close.svg" onClick={() => onClose()} />
       </div>
       <>
+        {selectionError && <p role="alert">{selectionError}</p>}
         <div className="flex-1 flex flex-col overflow-hidden mt-6 mb-24">
           <div className={
               cn("space-y-4 flex-1 overflow-auto pl-1 pr-3",
@@ -80,9 +82,14 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
                 key={index}
                 className={`p-3 rounded-md cursor-pointer border-[1px] border-ks-warm-grey-200 hover:bg-ks-warm-grey-100 transition-colors ${selectedMeetingTemplate === index ? "bg-ks-warm-grey-100" : "bg-white "}`
                 }
-                onClick={() => {
-                  setSelectedMeetingTemplate(index)
-                  setMeetingTemplatePrompt(meetingTemplates[index])
+                onClick={async () => {
+                  try {
+                    await setMeetingTemplatePrompt(meetingTemplates[index])
+                    setSelectionError('')
+                    setSelectedMeetingTemplate(index)
+                  } catch (error) {
+                    setSelectionError(error instanceof Error ? error.message : 'Could not change template. Try again.')
+                  }
                 }}
               >
                 <p className="text-start text-ks-warm-grey-950 font-semibold text-xs leading-[18px] mb-2">

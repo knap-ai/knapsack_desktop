@@ -1,3 +1,5 @@
+import { assertNotesTemplateChangeAllowed } from 'src/utils/notesGenerationAdmission'
+import { getProfileRevision } from 'src/utils/profileScope'
 import SlackNotesShare from 'src/components/molecules/SlackNotesShare'
 import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
@@ -36,6 +38,8 @@ import './style.scss'
 
 interface TemplatesState {
   isOpen: boolean
+  profileRevision?: number
+  accountEmail?: string
   thread?: IThread
 }
 
@@ -202,6 +206,8 @@ const MeetingsTabView = ({
     setTemplatesState(prev => ({
       isOpen: !prev.isOpen,
       thread: thread,
+      profileRevision: getProfileRevision(),
+      accountEmail: userEmail,
     }))
   }
 
@@ -263,11 +269,14 @@ const MeetingsTabView = ({
   }
 
   const setMeetingTemplatePrompt = async (meetingTemplate: MeetingTemplatePrompt) => {
-    const updatedThread = templatesState.thread
-    if (updatedThread) {
-      updatedThread.promptTemplate = meetingTemplate.key
-      feed.setThread(updatedThread, feed.currentFeedItem()?.id)
+    const selectedThread = templatesState.thread
+    if (!selectedThread || !userEmail || templatesState.profileRevision !== getProfileRevision() ||
+        templatesState.accountEmail !== userEmail ||
+        !feed.currentFeedItem()?.threads?.some(t => t.id === selectedThread.id)) {
+      throw new Error('Meeting or account changed. Reopen templates before choosing.')
     }
+    assertNotesTemplateChangeAllowed(selectedThread.id)
+    await feed.setThread({ ...selectedThread, promptTemplate: meetingTemplate.key }, feed.currentFeedItem()?.id)
   }
 
   // --- End panel handlers ---

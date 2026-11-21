@@ -1,3 +1,5 @@
+import { hasPendingNotesWrite } from './notesGeneration'
+
 /** In-flight deduplication only. Never share work across a changed account origin. */
 const pending = new Map<number, { origin: string; requestKey: string; promise: Promise<void> }>()
 export function runNotesGenerationOnce(
@@ -30,4 +32,11 @@ export function runNotesGenerationOnce(
   }
   void promise.then(release, release)
   return promise
+}
+
+/** Synchronous guard before a template can be persisted; includes preflight and save. */
+export function assertNotesTemplateChangeAllowed(threadId: number): void {
+  if (pending.has(threadId) || hasPendingNotesWrite(threadId)) {
+    throw new Error('Notes generation or saving is still running. Wait for it to finish, then choose a template.')
+  }
 }

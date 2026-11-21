@@ -56,7 +56,7 @@
     "tauri": "node scripts/load-env-and-run.cjs tauri",
     "postinstall": "node scripts/fix-rollup-native.cjs",
     "release": "bash scripts/release.sh",
-    "test:meeting-notes-edit": "vitest run src/utils/meetingSpeakerIdentity.test.ts src/utils/meetingNotesEdits.test.ts src/components/organisms/MeetingNotesMode/useNotesEditReview.test.tsx",
+    "test:meeting-notes-edit": "vitest run src/utils/meetingSpeakerIdentity.test.ts src/utils/meetingNotesEdits.test.ts src/components/organisms/MeetingNotesMode/useNotesEditReview.test.tsx src/components/organisms/MeetingsTabView/templatePersistence.test.tsx",
     "test:meeting-notes-rust": "node scripts/meeting-notes-rust-tests.cjs",
     "test:slack-notes": "vitest run src/utils/slackMeetingNotes.test.ts src/components/molecules/SlackNotesShare/SlackNotesShare.test.tsx",
     "test:slack-notes-rust": "node scripts/slack-notes-rust-tests.cjs",

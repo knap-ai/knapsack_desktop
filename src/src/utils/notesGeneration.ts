@@ -50,3 +50,6 @@ export function serializeNotesWrite<T>(threadId: number, save: () => Promise<T>)
 export function cancelNotesGeneration(threadId: number, reason: Error) {
   generations.get(threadId)?.cancel(reason)
 }
+
+/** Submitted local saves can outlive a cancelled generation or unmounted view. */
+export const hasPendingNotesWrite = (threadId: number): boolean => writes.has(threadId)
