@@ -22,6 +22,7 @@ pub struct GoogleUserInfoResponse {
   email: String,
   picture: Option<String>,
   name: Option<String>,
+  given_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -30,6 +31,7 @@ pub struct UserInfoResponse {
   pub email: Option<String>,
   pub profile_image: Option<String>,
   pub name: Option<String>,
+  pub given_name: Option<String>,
   pub message: Option<String>,
   pub uuid: Option<String>,
 }
@@ -92,6 +94,7 @@ pub async fn fetch_google_profile(
     email: Some(info.email),
     profile_image: info.picture,
     name: info.name,
+    given_name: info.given_name,
     uuid: user_uuid,
     message: None,
   })
@@ -123,8 +126,35 @@ async fn fetch_google_profile_api(req: HttpRequest) -> impl Responder {
       email: None,
       profile_image: None,
       name: None,
+      given_name: None,
       message: Some(format!("Failed to fetch Google profile: {:?}", e)),
       uuid: None,
     }),
+  }
+}
+
+#[cfg(test)]
+mod given_name_tests {
+  use super::GoogleUserInfoResponse;
+
+  #[test]
+  fn preserves_provider_given_name_without_splitting_display_name() {
+    for given in ["Alex", "Mary Jane", "小明"] {
+      let info: GoogleUserInfoResponse = serde_json::from_value(serde_json::json!({
+        "email": "sender@example.invalid", "name": "Display Family", "given_name": given
+      }))
+      .unwrap();
+      assert_eq!(info.given_name.as_deref(), Some(given));
+      assert_eq!(info.name.as_deref(), Some("Display Family"));
+    }
+  }
+
+  #[test]
+  fn absent_given_name_stays_absent() {
+    let info: GoogleUserInfoResponse = serde_json::from_value(serde_json::json!({
+      "email": "sender@example.invalid", "name": "Display Family"
+    }))
+    .unwrap();
+    assert_eq!(info.given_name, None);
   }
 }

@@ -10,6 +10,8 @@ export type Profile = {
   email: string
   profile_image?: string
   name?: string
+  /** Provider-declared given name; never derived from display name or email. */
+  given_name?: string
   uuid: string
   provider?: string
   sharing_permission?: number
