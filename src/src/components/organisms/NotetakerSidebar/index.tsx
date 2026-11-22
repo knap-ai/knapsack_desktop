@@ -1,3 +1,4 @@
+import { useSearchResultInteraction } from './useSearchResultInteraction'
 import { workspaceDisplayName } from 'src/utils/relationshipTimeline'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -262,6 +263,7 @@ function NotetakerSidebar({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
+  const searchInteraction = useSearchResultInteraction(() => setSearchFocused(false))
   const resetSearch = useCallback(() => { setSearchQuery(''); setSearchFocused(false) }, [])
   const { results: libraryResults, loading: searchLoading, error: searchError } = useScopedLibrarySearch(searchQuery, resetSearch)
   const [composerMode, setComposerMode] = useState<TeamComposerMode | null>(null)
@@ -634,9 +636,12 @@ function NotetakerSidebar({
       </button>
 
       {/* Search */}
-      <div className="notetaker-sidebar__search" onBlur={event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSearchFocused(false)
-      }} onKeyDown={event => {
+      <div className="notetaker-sidebar__search" ref={searchInteraction.root}
+        onPointerDownCapture={searchInteraction.onPointerDownCapture}
+        onMouseDownCapture={searchInteraction.onMouseDownCapture}
+        onClickCapture={searchInteraction.onClickCapture}
+        onKeyDownCapture={searchInteraction.onKeyDownCapture}
+        onBlur={searchInteraction.onBlur} onKeyDown={event => {
         if (event.key === 'Escape') { event.preventDefault(); setSearchFocused(false); searchInputRef.current?.blur() }
         if (event.key === 'ArrowDown' && event.target === searchInputRef.current) {
           event.preventDefault(); event.currentTarget.querySelector<HTMLButtonElement>('.notetaker-sidebar__search-overlay button')?.focus()
@@ -693,11 +698,11 @@ function NotetakerSidebar({
           )}
         </div>
         {searchFocused && searchQuery.trim() && <section id="sidebar-search-results" role="region" aria-label="Search results" className="notetaker-sidebar__search-overlay">
-          {matchingMeetings.length > 0 && <><h2>Meetings</h2>{matchingMeetings.map(({item,key}) => <button type="button" key={`${key}:${item.id}`} onClick={() => {
+          {matchingMeetings.length > 0 && <><h2>Meetings</h2>{matchingMeetings.map(({item,key}) => <button type="button" data-search-result key={`${key}:${item.id}`} onClick={() => {
             if (item.id == null) return
             feed.selectFeedItem(key,item.id); onMeetingSelect?.(); onTabChange(TabChoices.Meeting,'meetings'); setSearchQuery(''); setSearchFocused(false)
           }}><strong>{item.getTitle?.() || item.title || 'Meeting'}</strong><span>{dayjs(item.timestamp).format('MMM D, h:mm A')}</span></button>)}</>}
-          {libraryResults.length > 0 && <><h2>Library</h2>{libraryResults.map(ws => <button type="button" key={ws.uuid} onClick={() => {
+          {libraryResults.length > 0 && <><h2>Library</h2>{libraryResults.map(ws => <button type="button" data-search-result key={ws.uuid} onClick={() => {
             onTabChange(TabChoices.Library); onLibraryWorkspaceOpen?.(ws); setSearchQuery(''); setSearchFocused(false)
           }}><strong>{workspaceDisplayName(ws)}</strong>{ws.description && <span>{ws.description}</span>}</button>)}</>}
           {searchLoading && <p role="status">Searching library…</p>}
