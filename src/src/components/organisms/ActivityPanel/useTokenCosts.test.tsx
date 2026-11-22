@@ -130,3 +130,24 @@ it('times out even when the fetch transport ignores abort', async () => {
   expect(result.current.error).toContain('could not be loaded')
   expect(result.current.summary).toBeNull()
 })
+
+it.each([
+  { byModel: [{ model: 'synthetic', totalCostUsd: 'invalid' }] },
+  { records: [{ id: 1, inputTokens: null, outputTokens: 0, costUsd: 0 }] },
+])('rejects malformed ledger rows before the view formats them', async malformed => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) => {
+      if ('byModel' in malformed && url.includes('summary'))
+        return Promise.resolve(response({ ...summary, ...malformed }))
+      if ('records' in malformed && url.includes('recent'))
+        return Promise.resolve(response({ success: true, ...malformed }))
+      return good(url)
+    }),
+  )
+  const { result } = renderHook(() => useTokenCosts())
+  await waitFor(() => expect(result.current.isLoading).toBe(false))
+  expect(result.current.error).toContain('could not be loaded')
+  if ('byModel' in malformed) expect(result.current.summary).toBeNull()
+  else expect(result.current.records).toBeNull()
+})

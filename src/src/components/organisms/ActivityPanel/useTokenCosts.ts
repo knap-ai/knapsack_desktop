@@ -46,6 +46,27 @@ async function usageRequest(url: string, signal: AbortSignal) {
 }
 const number = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0
+const row = (value: unknown): Record<string, unknown> | undefined =>
+  value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+const modelRow = (value: unknown) => {
+  const v = row(value)
+  return (
+    !!v &&
+    typeof v.provider === 'string' &&
+    typeof v.model === 'string' &&
+    [v.requestCount, v.totalInputTokens, v.totalOutputTokens, v.totalCostUsd].every(number)
+  )
+}
+const usageRow = (value: unknown) => {
+  const v = row(value)
+  return (
+    !!v &&
+    typeof v.provider === 'string' &&
+    typeof v.model === 'string' &&
+    (v.requestType === undefined || typeof v.requestType === 'string') &&
+    [v.id, v.inputTokens, v.outputTokens, v.costUsd, v.timestamp].every(number)
+  )
+}
 export function useTokenCosts<T>() {
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [records, setRecords] = useState<T[] | null>(null)
@@ -94,13 +115,15 @@ export function useTokenCosts<T>() {
               data.totalInputTokens,
               data.totalOutputTokens,
             ].every(number) ||
-            !Array.isArray(data.byModel)
+            !Array.isArray(data.byModel) ||
+            !data.byModel.every(modelRow)
           )
             throw new Error('Invalid usage')
           if (current()) setSummary(data as unknown as UsageSummary)
         }),
         usageRequest(`${KN_API_TOKEN_USAGE_RECENT}?limit=100`, signal).then(data => {
-          if (!Array.isArray(data.records)) throw new Error('Invalid usage')
+          if (!Array.isArray(data.records) || !data.records.every(usageRow))
+            throw new Error('Invalid usage')
           if (current()) setRecords(data.records as T[])
         }),
         usageRequest(KN_API_TOKEN_USAGE_BUDGET, signal).then(data => {
