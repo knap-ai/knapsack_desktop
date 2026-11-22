@@ -50,6 +50,7 @@ pub async fn fetch_microsoft_profile_api(req: HttpRequest) -> impl Responder {
       email: None,
       profile_image: None,
       name: None,
+      given_name: None,
       message: Some(format!("Failed to fetch Microsoft profile: {:?}", e)),
     }),
   }

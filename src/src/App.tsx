@@ -707,6 +707,7 @@ function App() {
             auth.updateProfile({
               email: response.profile.email,
               name: response.profile.name,
+              given_name: response.profile.given_name,
               profile_image: response.profile.profile_image,
               uuid: response.profile.uuid,
               provider: ConnectionKeys.GOOGLE_PROFILE,

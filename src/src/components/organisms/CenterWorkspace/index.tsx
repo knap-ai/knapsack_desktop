@@ -61,6 +61,7 @@ interface CenterWorkspaceProps {
   userEmail: string
   userEmails?: string[]
   userName: string
+  senderGivenName?: string
   onConnectAccountClick: (key: ConnectionKeys[]) => void
   profileProvider?: string
   handleErrorContact: (message: string) => void
@@ -113,6 +114,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   userEmail,
   userEmails,
   userName,
+  senderGivenName,
   onConnectAccountClick,
   profileProvider,
   handleErrorContact,
@@ -450,7 +452,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                         const body = buildFollowUpEmailBody(
                           notesMarkdown,
                           meeting?.title,
-                          userName,
+                          senderGivenName,
                           primaryRecipient?.name || primaryRecipient?.email,
                         )
                         feed.setComposedEmailDraft({ to: toEmails, subject, body, senderEmail: userEmail })

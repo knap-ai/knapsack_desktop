@@ -254,7 +254,7 @@ function conversationalActionItem(item: string): string {
 export function buildFollowUpEmailBody(
   notesMarkdown: string,
   meetingTitle?: string,
-  userName?: string,
+  senderGivenName?: string,
   recipientName?: string,
 ): string {
   const lines = notesMarkdown.split('\n')
@@ -293,7 +293,7 @@ export function buildFollowUpEmailBody(
   }
 
   body += `<p>Please let me know if anything needs correcting or if I have missed an important point.</p>`
-  if (userName?.trim()) body += `<p>Best regards,<br>${escHtml(userName.trim())}</p>`
+  if (senderGivenName?.trim()) body += `<p>Best regards,<br>${escHtml(senderGivenName.trim())}</p>`
   return normalizeFollowUpEmailVoice(body)
 }
 

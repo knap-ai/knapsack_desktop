@@ -343,6 +343,7 @@ export async function getGoogleProfile(email: string) {
     email: data.email,
     profile_image: data.profile_image,
     name: data.name,
+    given_name: data.given_name,
     uuid: data.uuid,
     provider: ConnectionKeys.GOOGLE_PROFILE,
     sharing_permission: data.sharing_permission,
@@ -462,6 +463,7 @@ export async function getMicrosoftProfile(email: string) {
     email: data.email,
     profile_image: data.profile_image,
     name: data.name,
+    given_name: data.given_name,
     provider: ConnectionKeys.MICROSOFT_PROFILE,
   } as Profile
 }

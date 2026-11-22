@@ -4,11 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { getFrontendLogs, clearFrontendLogs, FrontendLogEntry } from 'src/utils/frontendLog'
-import {
-  KN_API_TOKEN_USAGE_SUMMARY,
-  KN_API_TOKEN_USAGE_RECENT,
-  KN_API_TOKEN_USAGE_BUDGET,
-} from 'src/utils/constants'
+import { useTokenCosts } from './useTokenCosts'
 
 /** Render a line of PTY output into plain text by interpreting ANSI/CSI cursor
  *  positioning sequences into a virtual line buffer.  This preserves the spatial
@@ -543,59 +539,8 @@ const AppErrorsView: React.FC = () => {
    TOKEN COSTS VIEW
    ========================================================= */
 
-interface UsageSummary {
-  totalCostUsd: number
-  totalRequests: number
-  totalInputTokens: number
-  totalOutputTokens: number
-  byModel: { provider: string; model: string; requestCount: number; totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number }[]
-}
-
-interface BudgetStatus {
-  dailyCostUsd: number
-  monthlyCostUsd: number
-}
-
 export const TokenCostsView: React.FC = () => {
-  const [summary, setSummary] = useState<UsageSummary | null>(null)
-  const [records, setRecords] = useState<TokenUsageRecord[]>([])
-  const [budget, setBudget] = useState<BudgetStatus | null>(null)
-  const [days, setDays] = useState(30)
-  const [isLoading, setIsLoading] = useState(false)
-
-  const fetchData = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const [summaryRes, recentRes, budgetRes] = await Promise.all([
-        fetch(`${KN_API_TOKEN_USAGE_SUMMARY}?days=${days}`),
-        fetch(`${KN_API_TOKEN_USAGE_RECENT}?limit=100`),
-        fetch(KN_API_TOKEN_USAGE_BUDGET),
-      ])
-
-      if (summaryRes.ok) {
-        const data = await summaryRes.json()
-        if (data.success) setSummary(data)
-      }
-      if (recentRes.ok) {
-        const data = await recentRes.json()
-        if (data.success) setRecords(data.records || [])
-      }
-      if (budgetRes.ok) {
-        const data = await budgetRes.json()
-        if (data.success) setBudget(data)
-      }
-    } catch {
-      // Server may not be running yet - silently fail
-    } finally {
-      setIsLoading(false)
-    }
-  }, [days])
-
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 10000)
-    return () => clearInterval(interval)
-  }, [fetchData])
+  const { summary, records, budget, days, setDays, isLoading, error, fetchData } = useTokenCosts<TokenUsageRecord>()
 
   const totalTokens = summary
     ? summary.totalInputTokens + summary.totalOutputTokens
@@ -608,31 +553,31 @@ export const TokenCostsView: React.FC = () => {
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">Total Tokens ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
-            {totalTokens.toLocaleString()}
+            {summary ? totalTokens.toLocaleString() : '—'}
           </div>
           <div className="text-[10px] text-gray-400 mt-1">
-            {(summary?.totalInputTokens || 0).toLocaleString()} in / {(summary?.totalOutputTokens || 0).toLocaleString()} out
+            {summary ? `${summary.totalInputTokens.toLocaleString()} in / ${summary.totalOutputTokens.toLocaleString()} out` : 'Usage unavailable'}
           </div>
         </div>
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">Total Cost ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
-            ${(summary?.totalCostUsd || 0).toFixed(4)}
+            {summary ? `$${summary.totalCostUsd.toFixed(4)}` : '—'}
           </div>
         </div>
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">API Calls ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
-            {summary?.totalRequests || 0}
+            {summary ? summary.totalRequests : '—'}
           </div>
         </div>
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">Budget (today / 30d)</div>
           <div className="text-lg font-semibold text-gray-900">
-            ${(budget?.dailyCostUsd || 0).toFixed(4)}
+            {budget ? `$${budget.dailyCostUsd.toFixed(4)}` : '—'}
           </div>
           <div className="text-[10px] text-gray-400 mt-1">
-            ${(budget?.monthlyCostUsd || 0).toFixed(4)} this month
+            {budget ? `$${budget.monthlyCostUsd.toFixed(4)} this month` : 'Usage unavailable'}
           </div>
         </div>
       </div>
@@ -662,6 +607,7 @@ export const TokenCostsView: React.FC = () => {
         </button>
       </div>
 
+      {error && <p role="alert" className="text-xs text-red-700 mb-3">{error}</p>}
       {/* Model breakdown */}
       {summary?.byModel && summary.byModel.length > 0 && (
         <div className="mb-4">
@@ -684,7 +630,7 @@ export const TokenCostsView: React.FC = () => {
       {/* Recent records table */}
       <div className="flex-1">
         <div className="text-sm font-medium text-gray-700 mb-3">Recent Activity</div>
-        {records.length === 0 ? (
+        {records === null ? <p role="status" className="text-sm text-gray-500">{isLoading ? 'Loading token usage…' : 'Token usage is unavailable. Refresh to try again.'}</p> : records.length === 0 ? (
           <div className="text-center py-10">
             <div className="text-gray-400 text-sm">No token usage recorded yet</div>
             <div className="text-gray-300 text-xs mt-1">

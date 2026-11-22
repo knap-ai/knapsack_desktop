@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom'
 import type { ChatAttachment, ChatQuote } from 'src/utils/selectedChatContext'
 import type { Meeting } from 'src/hooks/dataSources/useCalendar'
 
-export const PROBES = ['transcript','meeting_link','chat_selection','notes_edit','slack_share','person_scout','boundaries'] as const
+export const PROBES = ['search','transcript','meeting_link','chat_selection','notes_edit','slack_share','person_scout','boundaries'] as const
 export type Probe = typeof PROBES[number]
 type Ipc = { cmd?:string; callback:number; error:number; __tauriModule?:string; message?:{cmd?:string;event?:string;windowLabel?:string;payload?:unknown;path?:string} }
 type NativeWindow = Window & { __TAURI_IPC__?:(payload:Ipc)=>void; __knapsackQaTransport__?:(payload:Ipc)=>void; __knapsackNativeQaProbe?:(probe:Probe,nonce:string)=>Promise<void> }
@@ -26,7 +26,7 @@ function select(label:string,value:string){const el=document.querySelector<HTMLS
 export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)=>void){
  const root=createRoot(container)
  const qaOwner=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('qa@example.invalid'))),b=>b.toString(16).padStart(2,'0')).join('')
- const state={clipboard:'',opens:[] as string[],forbidden:0,forbiddenOperations:[] as string[],posts:[] as {requestId:string;teamId:string;channelId:string}[],notes:BASE,revision:1,revoked:false,sourceJump:'',transcripts:new Map<string,()=>Promise<Response>>()}
+ const state={clipboard:'',opens:[] as string[],forbidden:0,forbiddenOperations:[] as string[],posts:[] as {requestId:string;teamId:string;channelId:string}[],notes:BASE,revision:1,revoked:false,sourceJump:'',searchActive:false,transcripts:new Map<string,()=>Promise<Response>>()}
  const target=window as NativeWindow
  const fail=(operation='unrecognized')=>{state.forbidden++;state.forbiddenOperations.push(operation);throw new Error('qa_boundary_blocked')}
  // Forward only the nonce-bound result event to this owned native window.
@@ -48,6 +48,7 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
  globalThis.fetch=window.fetch=async(input,init)=>{
   const u=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url,location.href)
   if(u.origin!=='http://127.0.0.1:8897')return fail(`fetch origin ${u.origin}`)
+  if(u.pathname==='/api/knapsack/workspaces'&&state.searchActive&&(!init?.method||init.method==='GET'))return json({success:true,data:[{id:900202,uuid:'qa-search-person',name:'Fictional search person',description:null,entityType:'person',entityKey:'qa-person@example.invalid'}]})
   if(u.pathname==='/api/knapsack/thread/transcript')return state.transcripts.get(u.searchParams.get('id')||'')?.()||json({data:false},404)
   if(u.pathname==='/api/knapsack/notes/900101')return json({success:true,data:{thread_id:900101,exists:true,notes:state.notes,revision:String(state.revision)}})
   if(u.pathname==='/api/knapsack/notes/revise'){
@@ -66,8 +67,8 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
   return fail(`fetch ${init?.method||'GET'} ${u.pathname}`) // Never forward an unrecognized request, even to the local API.
  }
  // Imports occur only after sealing all side-effect boundaries.
- const [{default:TranscriptView},{default:CalendarMeetingLink},links,{default:ChatSelectionActions},{default:QuotedChatContext},quotes,{useNotesEditReview},{default:SlackNotesShare},slack,format] = await Promise.all([
-  import('src/components/organisms/TranscriptView'),import('src/components/molecules/CalendarMeetingLink'),import('src/utils/calendarMeetingLink'),import('src/components/organisms/ClawdChat/ChatSelectionActions'),import('src/components/organisms/ClawdChat/QuotedChatContext'),import('src/utils/selectedChatContext'),import('src/components/organisms/MeetingNotesMode/useNotesEditReview'),import('src/components/molecules/SlackNotesShare'),import('src/api/slackNotes'),import('src/utils/slackMeetingNotes'),
+ const [{default:TranscriptView},{default:CalendarMeetingLink},links,{default:ChatSelectionActions},{default:QuotedChatContext},quotes,{useNotesEditReview},{default:SlackNotesShare},slack,format,{runSearchSidebarProbe}] = await Promise.all([
+  import('src/components/organisms/TranscriptView'),import('src/components/molecules/CalendarMeetingLink'),import('src/utils/calendarMeetingLink'),import('src/components/organisms/ClawdChat/ChatSelectionActions'),import('src/components/organisms/ClawdChat/QuotedChatContext'),import('src/utils/selectedChatContext'),import('src/components/organisms/MeetingNotesMode/useNotesEditReview'),import('src/components/molecules/SlackNotesShare'),import('src/api/slackNotes'),import('src/utils/slackMeetingNotes'),import('./searchSidebarProbe'),
  ])
  const render=(element:JSX.Element|null)=>flushSync(()=>root.render(element))
  function Chat({scope}:{scope:string}){
@@ -88,6 +89,10 @@ export async function createProbeHarness(container:HTMLElement,nativeIpc:(p:Ipc)
  const share=()=> <SlackNotesShare threadId={900101} userEmail="qa@example.invalid" calendarAccountEmail="qa-calendar@example.invalid" notes={async()=>({markdown:TABLE,title:'Fictional notes'})} onClose={()=>render(null)}/>
  async function run(probe:Probe){
   check(PROBES.includes(probe));render(null);await tick()
+  if(probe==='search'){
+   state.searchActive=true
+   try{await runSearchSidebarProbe(container,render)}finally{render(null);state.searchActive=false}
+  }
   if(probe==='transcript'){
    state.transcripts.set('900101',async()=>json({data:{content:'FICTIONAL ALPHA transcript body'}}))
    render(<TranscriptView threadId={900101} onClose={()=>{}}/>);await until(()=>container.textContent?.includes('FICTIONAL ALPHA')===true);click('Copy transcript');await until(()=>state.clipboard.includes('FICTIONAL ALPHA'))

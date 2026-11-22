@@ -398,6 +398,12 @@ const QA_MODULES = [
   '/src/components/organisms/MeetingNotesMode/useNotesEditReview.tsx',
   '/src/components/molecules/SlackNotesShare/index.tsx',
   '/src/api/slackNotes.ts', '/src/utils/slackMeetingNotes.ts',
+  '/src/qa/searchSidebarProbe.tsx', '/src/qa/searchTeamRosterBoundary.ts',
+  '/src/components/organisms/NotetakerSidebar/index.tsx',
+  '/src/components/organisms/NotetakerSidebar/style.scss',
+  '/src/components/organisms/NotetakerSidebar/useSearchResultInteraction.ts',
+  '/src/components/organisms/NotetakerSidebar/useScopedLibrarySearch.ts',
+  '/src/hooks/feed/feedConstants.ts',
   '/src/qa/personScoutProbe.ts', '/qa-fixtures/person-chat-native.tsx',
 ];
 async function warmQaModules(request = fetch) {

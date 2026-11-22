@@ -25,6 +25,7 @@ import { KN_API_REST_GET_CALENDAR_EVENT } from 'src/utils/constants'
 import { HomeProps } from 'src/App'
 import { KN_API_STOP_LLM_EXECUTION, PRIVACY_POLICY_LINK, TERMS_LINK } from 'src/utils/constants'
 import { buildFollowUpEmailBody, getFollowUpRecipients, normalizeFollowUpEmailVoice } from 'src/utils/emails'
+import { followUpSenderGivenName } from 'src/utils/followUpSender'
 //import { RecordingProvider } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
@@ -876,6 +877,7 @@ function Home({
                     userEmail={userEmail}
                     userEmails={userEmails}
                     userName={userName}
+                    senderGivenName={followUpSenderGivenName(auth.profile, userEmail)}
                     onConnectAccountClick={onConnectAccountClick}
                     profileProvider={auth.profile?.provider}
                     handleErrorContact={handleErrorContact}
@@ -1218,7 +1220,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                     const body = buildFollowUpEmailBody(
                       notesMarkdown,
                       meeting?.title,
-                      userName,
+                      followUpSenderGivenName(auth.profile, userEmail),
                       primaryRecipient?.name || primaryRecipient?.email,
                     )
                     feed.setComposedEmailDraft({ to: toEmails, subject, body, senderEmail: userEmail })
