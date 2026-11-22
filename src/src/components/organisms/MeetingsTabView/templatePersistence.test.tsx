@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ComponentProps } from 'react'
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ThreadType, type IThread } from 'src/api/threads'
 import { NotesGeneration } from 'src/utils/notesGeneration'
 import { runNotesGenerationOnce } from 'src/utils/notesGenerationAdmission'
@@ -200,6 +200,7 @@ it('refuses persisted selection and remount while a submitted save outlives gene
     finish()
     await commit
   })
+  await waitFor(() => expect((screen.getByRole('button', { name: /Client Discovery/ }) as HTMLButtonElement).disabled).toBe(false))
   await chooseB()
   expect(f.persist).toHaveBeenCalledOnce()
 })
