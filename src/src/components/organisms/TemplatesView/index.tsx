@@ -1,6 +1,7 @@
+import { getProfileRevision } from 'src/utils/profileScope'
 import cn from 'classnames'
 import debounce from 'lodash/debounce'
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MeetingTemplatePrompt, INTERNAL_MEETING, CLIENT_DISCOVERY_MEETING, ONBOARDING_DATA_GATHERING, FINANCIAL_PLAN_PRESENTATION, FINANCIAL_PLAN_IMPLEMENTATION } from 'src/utils/template_prompts'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import { IThread } from 'src/api/threads'
@@ -10,7 +11,7 @@ import styles from './styles.module.scss'
 interface TemplatesViewProps {
   onClose: () => void;
   thread: IThread,
-  setMeetingTemplatePrompt: (meetingTemplate: MeetingTemplatePrompt) => void;
+  setMeetingTemplatePrompt: (meetingTemplate: MeetingTemplatePrompt) => void | Promise<void>;
 }
 
 const TemplatesView: React.FC<TemplatesViewProps> = ({
@@ -18,6 +19,14 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
   thread,
   setMeetingTemplatePrompt,
 }) => {
+  const [selectionError, setSelectionError] = useState('')
+  const [selecting, setSelecting] = useState(false)
+  const activeSelection = useRef<symbol | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false; activeSelection.current = null }
+  }, [])
   const meetingTemplates: MeetingTemplatePrompt[] = [
     INTERNAL_MEETING, CLIENT_DISCOVERY_MEETING, ONBOARDING_DATA_GATHERING, FINANCIAL_PLAN_PRESENTATION, FINANCIAL_PLAN_IMPLEMENTATION
   ]
@@ -71,6 +80,8 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
         <img className="h-2.5 my-auto cursor-pointer" src="assets/images/icons/x_close.svg" onClick={() => onClose()} />
       </div>
       <>
+        {selectionError && <p role="alert">{selectionError}</p>}
+        {selecting && <p role="status">Saving template…</p>}
         <div className="flex-1 flex flex-col overflow-hidden mt-6 mb-24">
           <div className={
               cn("space-y-4 flex-1 overflow-auto pl-1 pr-3",
@@ -80,9 +91,28 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
                 key={index}
                 className={`p-3 rounded-md cursor-pointer border-[1px] border-ks-warm-grey-200 hover:bg-ks-warm-grey-100 transition-colors ${selectedMeetingTemplate === index ? "bg-ks-warm-grey-100" : "bg-white "}`
                 }
-                onClick={() => {
-                  setSelectedMeetingTemplate(index)
-                  setMeetingTemplatePrompt(meetingTemplates[index])
+                onClick={async () => {
+                  if (activeSelection.current) {
+                    setSelectionError('A template change is still being saved. Wait, then choose again.')
+                    return
+                  }
+                  const token = Symbol()
+                  const revision = getProfileRevision()
+                  activeSelection.current = token
+                  setSelecting(true)
+                  try {
+                    await setMeetingTemplatePrompt(meetingTemplates[index])
+                    if (!mounted.current || activeSelection.current !== token || revision !== getProfileRevision()) return
+                    setSelectionError('')
+                    setSelectedMeetingTemplate(index)
+                  } catch (error) {
+                    if (mounted.current && activeSelection.current === token && revision === getProfileRevision()) setSelectionError(error instanceof Error ? error.message : 'Could not change template. Try again.')
+                  } finally {
+                    if (mounted.current && activeSelection.current === token) {
+                      activeSelection.current = null
+                      setSelecting(false)
+                    }
+                  }
                 }}
               >
                 <p className="text-start text-ks-warm-grey-950 font-semibold text-xs leading-[18px] mb-2">
