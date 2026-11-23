@@ -1,0 +1,20 @@
+<!doctype html>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'">
+<style>body{font:20px system-ui;padding:24px}button{font:inherit;margin:10px;padding:20px}</style>
+<h1>Synthetic destinations</h1>
+<button id="meeting">Synthetic Meeting</button>
+<button id="library">Synthetic Library</button>
+<p id="destination">No destination</p>
+<script>
+let down=null;
+for(const id of ['meeting','library']) {
+  const b=document.getElementById(id);
+  for(const kind of ['mousedown','mouseup','click']) b.addEventListener(kind,e=>{
+    if(kind==='mousedown') down={id,x:e.clientX,y:e.clientY};
+    const valid=e.isTrusted&&e.button===0&&down&&down.id===id&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<4;
+    window.webkit.messageHandlers.pointer.postMessage({nonce:window.__canaryNonce,id,kind,trusted:!!valid,detail:e.detail});
+    if(kind==='click') {if(valid)document.getElementById('destination').textContent=id==='meeting'?'Synthetic Meeting destination':'Synthetic Library destination';down=null;}
+  });
+}
+window.webkit.messageHandlers.render.postMessage({nonce:window.__canaryNonce,stage:'document-ready'});
+</script>
