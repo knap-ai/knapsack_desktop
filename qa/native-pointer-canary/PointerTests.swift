@@ -21,6 +21,11 @@ import AppKit
         XCTAssertTrue(window.waitForExistence(timeout:10))
         XCTAssertTrue(window.isHittable)
         try record(nonce, phase:"setup", nativeReceipt:nil)
+        let render=app.staticTexts["native-render-state"]
+        let renderExpectation=XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@ OR label == %@",nonce+"|render-ready",nonce+"|render-ready"),object:render)
+        let rendered=XCTWaiter.wait(for:[renderExpectation],timeout:10)
+        try record(nonce,phase:"render",nativeReceipt:nil,nativeRender:(render.value as? String) ?? render.label)
+        XCTAssertEqual(rendered,.completed,"Bundled document must load before testing accessibility")
         for (id,title,destination) in [("meeting","Synthetic Meeting","Synthetic Meeting destination"),("library","Synthetic Library","Synthetic Library destination")] {
             let button = app.webViews.buttons[title]
             XCTAssertTrue(button.waitForExistence(timeout:10))
@@ -39,8 +44,9 @@ import AppKit
         }
         try record(nonce,phase:"complete",nativeReceipt:nil)
     }
-    private func record(_ nonce:String,phase:String,nativeReceipt:String?) throws {
+    private func record(_ nonce:String,phase:String,nativeReceipt:String?,nativeRender:String?=nil) throws {
         var payload:[String:Any] = ["schema":1,"suite":"PointerTests","test":"testTrustedOSPointer()","nonce":nonce,"bundle":"org.knapsack.qa.pointercanary","phase":phase,"foreground":true,"windowVisible":true]
+        if let nativeRender {payload["nativeRender"]=nativeRender}
         if let nativeReceipt {
             payload["nativeReceipt"]=nativeReceipt
             payload["destination"] = phase == "meeting" ? "Synthetic Meeting destination" : "Synthetic Library destination"

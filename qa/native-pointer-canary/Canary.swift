@@ -6,6 +6,10 @@ import WebKit
     var window: NSWindow!
     var web: WKWebView!
     let receipt = NSTextField(labelWithString: "waiting")
+    let renderState = NSTextField(labelWithString: "created")
+    var fixture: URL!
+    var documentReady = false
+    var navigationFinished = false
     var nonce = ""
     var pending = ""
     var phase = 0
@@ -27,42 +31,56 @@ import WebKit
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.userContentController.add(self, name: "pointer")
+        config.userContentController.add(self, name: "render")
+        config.userContentController.addUserScript(WKUserScript(source:"window.__canaryNonce='\(nonce)';",injectionTime:.atDocumentStart,forMainFrameOnly:true))
         web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = self
         window = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 640,height: 440), styleMask: [.titled,.closable], backing: .buffered, defer: false)
         window.title = "Synthetic Pointer Canary \(nonce)"
         let content = NSView(frame: NSRect(x: 0,y: 0,width: 640,height: 440))
-        web.frame = NSRect(x: 0,y: 60,width: 640,height: 380)
+        web.frame = NSRect(x: 0,y: 80,width: 640,height: 360)
         web.autoresizingMask = [.width,.height]
-        receipt.frame = NSRect(x: 12,y: 10,width: 616,height: 42)
+        receipt.frame = NSRect(x: 12,y: 10,width: 616,height: 24)
         receipt.setAccessibilityIdentifier("native-receipt")
-        content.addSubview(web); content.addSubview(receipt)
+        renderState.frame = NSRect(x:12,y:40,width:616,height:24)
+        renderState.setAccessibilityIdentifier("native-render-state")
+        content.addSubview(web); content.addSubview(receipt); content.addSubview(renderState)
         window.contentView = content; window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        web.loadHTMLString("""
-        <!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'">
-        <style>body{font:20px system-ui;padding:24px}button{font:inherit;margin:10px;padding:20px}</style>
-        <h1>Synthetic destinations</h1><button id="meeting">Synthetic Meeting</button><button id="library">Synthetic Library</button><p id="destination">No destination</p>
-        <script>
-        let down=null;
-        for(const id of ['meeting','library']) {
-          const b=document.getElementById(id);
-          for(const kind of ['mousedown','mouseup','click']) b.addEventListener(kind,e=>{
-            if(kind==='mousedown') down={id,x:e.clientX,y:e.clientY};
-            const valid=e.isTrusted&&e.button===0&&down&&down.id===id&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<4;
-            window.webkit.messageHandlers.pointer.postMessage({nonce:'\(nonce)',id,kind,trusted:!!valid,detail:e.detail});
-            if(kind==='click') {if(valid)document.getElementById('destination').textContent=id==='meeting'?'Synthetic Meeting destination':'Synthetic Library destination';down=null;}
-          });
+        guard let resource=Bundle.main.url(forResource:"fixture",withExtension:"html") else {
+            renderState.stringValue="\(nonce)|fixture-missing";return
         }
-        </script>
-        """, baseURL: nil)
+        fixture=resource.resolvingSymlinksInPath()
+        renderState.stringValue="\(nonce)|loading"
+        web.loadFileURL(fixture,allowingReadAccessTo:fixture.deletingLastPathComponent())
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        // Only the initial in-memory document is allowed. No remote or file navigation.
-        decisionHandler(navigationAction.request.url?.absoluteString == "about:blank" ? .allow : .cancel)
+        // Only the exact bundled local document; no alternate files, queries, fragments or remote URLs.
+        guard let url=navigationAction.request.url,url.isFileURL,url.query==nil,url.fragment==nil,
+              url.resolvingSymlinksInPath()==fixture else {
+            renderState.stringValue="\(nonce)|navigation-blocked";decisionHandler(.cancel);return
+        }
+        decisionHandler(.allow)
+    }
+    func webView(_ webView:WKWebView,didFinish navigation:WKNavigation!) {
+        navigationFinished=true;updateRenderState()
+    }
+    func webView(_ webView:WKWebView,didFail navigation:WKNavigation!,withError error:Error) {
+        renderState.stringValue="\(nonce)|navigation-failed"
+    }
+    func webView(_ webView:WKWebView,didFailProvisionalNavigation navigation:WKNavigation!,withError error:Error) {
+        renderState.stringValue="\(nonce)|provisional-failed"
+    }
+    private func updateRenderState() {
+        renderState.stringValue="\(nonce)|"+(documentReady&&navigationFinished ? "render-ready" : documentReady ? "document-ready" : "navigation-finished")
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard NSApp.isActive, window.isKeyWindow, window.isVisible, message.frameInfo.isMainFrame,
+        if message.name=="render" {
+            guard message.frameInfo.isMainFrame,let value=message.body as? [String:Any],
+                  value["nonce"] as? String==nonce,value["stage"] as? String=="document-ready" else {return}
+            documentReady=true;updateRenderState();return
+        }
+        guard message.name=="pointer",NSApp.isActive, window.isKeyWindow, window.isVisible, message.frameInfo.isMainFrame,
               let value = message.body as? [String:Any], value["nonce"] as? String == nonce,
               value["trusted"] as? Bool == true, value["detail"] as? Int == 1,
               let id = value["id"] as? String, ["meeting","library"].contains(id),

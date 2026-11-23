@@ -29,9 +29,12 @@ def project(root, source):
     settings=root/'CanarySettings.swift'
     settings.write_text('enum CanarySettings { static let root = '+json.dumps(str(root))+'; static let app = '+json.dumps(str(root/'derived/Build/Products/Debug/PointerCanary.app'))+' }\n')
     settingfile=obj('SETTINGS','PBXFileReference',lastKnownFileType='sourcecode.swift',path=str(settings),sourceTree='<absolute>')
+    fixturefile=obj('FIXTURE','PBXFileReference',lastKnownFileType='text.html',path=str(source/'fixture.html'),sourceTree='<absolute>')
+    fixturebuild=obj('FIXTUREBUILD','PBXBuildFile',fileRef=fixturefile)
+    resources=obj('RESOURCES','PBXResourcesBuildPhase',buildActionMask=2147483647,files=[fixturebuild],runOnlyForDeploymentPostprocessing=0)
     appproduct=obj('APPPRODUCT','PBXFileReference',explicitFileType='wrapper.application',path='PointerCanary.app',sourceTree='BUILT_PRODUCTS_DIR')
     testproduct=obj('TESTPRODUCT','PBXFileReference',explicitFileType='wrapper.cfbundle',path='PointerTests.xctest',sourceTree='BUILT_PRODUCTS_DIR')
-    group=obj('GROUP','PBXGroup',children=[appfile,testfile,settingfile,'PRODUCTS'],sourceTree='<group>')
+    group=obj('GROUP','PBXGroup',children=[appfile,testfile,settingfile,fixturefile,'PRODUCTS'],sourceTree='<group>')
     obj('PRODUCTS','PBXGroup',children=[appproduct,testproduct],name='Products',sourceTree='<group>')
     def sources(key, refs):
         files=[obj(key+str(i),'PBXBuildFile',fileRef=ref) for i,ref in enumerate(refs)]
@@ -42,7 +45,7 @@ def project(root, source):
         return obj(key,'XCConfigurationList',buildConfigurations=[cfg],defaultConfigurationIsVisible=0,defaultConfigurationName='Debug')
     proxy=obj('PROXY','PBXContainerItemProxy',containerPortal='PROJECT',proxyType=1,remoteGlobalIDString='APP',remoteInfo='PointerCanary')
     dep=obj('DEPENDENCY','PBXTargetDependency',target='APP',targetProxy=proxy)
-    obj('APP','PBXNativeTarget',name='PointerCanary',productName='PointerCanary',productReference=appproduct,productType='com.apple.product-type.application',buildConfigurationList=config('APPCONFIG',{'PRODUCT_BUNDLE_IDENTIFIER':BUNDLE,'PRODUCT_NAME':'PointerCanary','ENABLE_APP_SANDBOX':'YES','INFOPLIST_KEY_NSPrincipalClass':'NSApplication','INFOPLIST_KEY_LSApplicationCategoryType':'public.app-category.developer-tools'}),buildPhases=[sources('APPSOURCES',[appfile])],buildRules=[],dependencies=[])
+    obj('APP','PBXNativeTarget',name='PointerCanary',productName='PointerCanary',productReference=appproduct,productType='com.apple.product-type.application',buildConfigurationList=config('APPCONFIG',{'PRODUCT_BUNDLE_IDENTIFIER':BUNDLE,'PRODUCT_NAME':'PointerCanary','ENABLE_APP_SANDBOX':'YES','INFOPLIST_KEY_NSPrincipalClass':'NSApplication','INFOPLIST_KEY_LSApplicationCategoryType':'public.app-category.developer-tools'}),buildPhases=[sources('APPSOURCES',[appfile]),resources],buildRules=[],dependencies=[])
     obj('TEST','PBXNativeTarget',name='PointerTests',productName='PointerTests',productReference=testproduct,productType='com.apple.product-type.bundle.ui-testing',buildConfigurationList=config('TESTCONFIG',{'PRODUCT_BUNDLE_IDENTIFIER':BUNDLE+'.tests','PRODUCT_NAME':'PointerTests','TEST_TARGET_NAME':'PointerCanary','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks','ENABLE_APP_SANDBOX':'NO'}),buildPhases=[sources('TESTSOURCES',[testfile,settingfile])],buildRules=[],dependencies=[dep])
     obj('PROJECT','PBXProject',attributes={'LastUpgradeCheck':'2660','TargetAttributes':{'TEST':{'TestTargetID':'APP'}}},buildConfigurationList=config('PROJECTCONFIG',{}),compatibilityVersion='Xcode 14.0',developmentRegion='en',hasScannedForEncodings=0,knownRegions=['en','Base'],mainGroup=group,productRefGroup='PRODUCTS',projectDirPath='',projectRoot='',targets=['APP','TEST'])
     # Stable 24-digit IDs: ordinary Xcode object identities, not paths or credentials.

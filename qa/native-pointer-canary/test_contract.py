@@ -24,6 +24,8 @@ class Contract(unittest.TestCase):
                     self.assertEqual(obj['buildSettings']['DEVELOPMENT_TEAM'],'')
             files=[o['path'] for o in objects.values() if o['isa']=='PBXFileReference' and o.get('lastKnownFileType')=='sourcecode.swift']
             self.assertEqual(len(files),3)
+            self.assertEqual(sum(o['isa']=='PBXResourcesBuildPhase' for o in objects.values()),1)
+            self.assertTrue(any(o.get('path')==str(P/'fixture.html') for o in objects.values()))
             self.assertTrue(all('Canary' in f or 'PointerTests.swift' in f for f in files))
     def test_workflow_has_no_privileged_trigger_or_secret(self):
         s=(P.parents[1]/'.github/workflows/native-pointer-canary.yml').read_text()
@@ -31,13 +33,17 @@ class Contract(unittest.TestCase):
             self.assertNotIn(forbidden,s)
         self.assertIn('contents: read',s);self.assertIn('persist-credentials: false',s);self.assertIn('pull_request.head.sha',s)
     def test_pointer_gate_is_native_and_no_human_gate_reuse(self):
-        s=(P/'PointerTests.swift').read_text();app=(P/'Canary.swift').read_text()
+        s=(P/'PointerTests.swift').read_text();app=(P/'Canary.swift').read_text();fixture=(P/'fixture.html').read_text()
         for required in ['XCUIApplication(url: url)','coordinate(withNormalizedOffset:','.click()','.runningForeground','window.isHittable','trusted-down-up-click','Synthetic Meeting destination','Synthetic Library destination']:
             self.assertIn(required,s)
         for forbidden in ['evaluateJavaScript(', 'dispatchEvent(', 'Start checks','resetAuthorizationStatus','CGEvent','AXIsProcessTrustedWithOptions']:
             self.assertNotIn(forbidden,s+app)
         for required in ['e.isTrusted','e.button===0','NSApp.isActive','window.isKeyWindow','window.isVisible','.nonPersistent()','connect-src \'none\'']:
-            self.assertIn(required,app)
+            self.assertIn(required,app+fixture)
+        self.assertIn('web.loadFileURL(fixture',app);self.assertNotIn('loadHTMLString',app)
+        self.assertIn('url.isFileURL,url.query==nil,url.fragment==nil',app)
+        self.assertIn('url.resolvingSymlinksInPath()==fixture',app)
+        self.assertIn('didFailProvisionalNavigation',app);self.assertIn('documentReady&&navigationFinished',app)
         self.assertIn('timeInterval: 100',app.replace('withTimeInterval','timeInterval'))
         self.assertIn('XCTAttachment(data:',s);self.assertIn('.keepAlways',s)
         self.assertNotIn('.write(to:',s);self.assertNotIn('pointer-stage.txt',s)

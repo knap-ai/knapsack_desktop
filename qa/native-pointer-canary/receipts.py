@@ -33,7 +33,7 @@ def verify(summary,tests,manifest,folder,exit_code):
     for item in entry['attachments']:
         name=item.get('suggestedHumanReadableName','')
         if not name.startswith('knapsack-pointer-'):continue # XCTest's own synthetic diagnostics
-        match=re.fullmatch(r'knapsack-pointer-(setup|meeting|library|complete)(?:\.json)?',name)
+        match=re.fullmatch(r'knapsack-pointer-(setup|render|meeting|library|complete)(?:_[0-9]+_[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12})?\.json',name)
         if not match:reject('unknown-receipt-name')
         phase=match.group(1)
         if phase in receipts or item.get('isAssociatedWithFailure') is not False:reject('duplicate-or-failure-receipt')
@@ -48,7 +48,8 @@ def verify(summary,tests,manifest,folder,exit_code):
         if not isinstance(nonce,str) or not re.fullmatch('[a-f0-9]{32}',nonce):reject('invalid-nonce')
         if phase in ['meeting','library'] and payload.get('nativeReceipt')!=nonce+'|'+phase+'|trusted-down-up-click|foreground':reject('untrusted-or-mismatched-pointer-receipt')
         if phase in ['meeting','library'] and payload.get('destination')!='Synthetic '+phase.capitalize()+' destination':reject('missing-destination-proof')
+        if phase=='render' and payload.get('nativeRender')!=nonce+'|render-ready':reject('document-not-render-ready')
         receipts[phase]=payload
-    if set(receipts)!={'setup','meeting','library','complete'}:reject('missing-native-receipt')
+    if set(receipts)!={'setup','render','meeting','library','complete'}:reject('missing-native-receipt')
     if len({v['nonce'] for v in receipts.values()})!=1:reject('stale-nonce')
     return {'status':'native_automated_pass','reason':'one-passing-xctest-and-two-bound-trusted-pointer-receipts'}
