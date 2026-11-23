@@ -1,0 +1,38 @@
+name: Isolated native pointer canary
+on:
+  pull_request:
+    paths:
+      - 'qa/native-pointer-canary/**'
+      - '.github/workflows/native-pointer-canary.yml'
+permissions:
+  contents: read
+concurrency:
+  group: native-pointer-canary-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  pointer-canary:
+    runs-on: macos-26
+    timeout-minutes: 12
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Static and refusal tests
+        run: python3 -m unittest discover -s qa/native-pointer-canary -p 'test_*.py' -v
+      - name: Isolated ad-hoc XCTest canary
+        run: python3 qa/native-pointer-canary/run.py
+      - name: Sanitized outcome
+        if: always()
+        run: |
+          if test -f pointer-result.json; then cat pointer-result.json >> "$GITHUB_STEP_SUMMARY"; else echo 'Canary unavailable before execution' >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Synthetic canary evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-pointer-canary-${{ github.event.pull_request.head.sha }}
+          path: canary-evidence/
+          if-no-files-found: error
+          retention-days: 7
