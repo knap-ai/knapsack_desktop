@@ -20,7 +20,7 @@ import AppKit
         let window = app.windows["Synthetic Pointer Canary \(nonce)"]
         XCTAssertTrue(window.waitForExistence(timeout:10))
         XCTAssertTrue(window.isHittable)
-        try mark(root, "ready")
+        try record(nonce, phase:"setup", nativeReceipt:nil)
         for (id,title,destination) in [("meeting","Synthetic Meeting","Synthetic Meeting destination"),("library","Synthetic Library","Synthetic Library destination")] {
             let button = app.webViews.buttons[title]
             XCTAssertTrue(button.waitForExistence(timeout:10))
@@ -35,11 +35,20 @@ import AppKit
             waitForExpectations(timeout:10)
             XCTAssertTrue(app.webViews.staticTexts[destination].waitForExistence(timeout:5))
             XCTAssertEqual(app.state,.runningForeground)
+            try record(nonce,phase:id,nativeReceipt:(receipt.value as? String) ?? receipt.label)
         }
-        try mark(root,"native_automated_pass")
+        try record(nonce,phase:"complete",nativeReceipt:nil)
     }
-    private func mark(_ root:URL,_ value:String) throws {
-        try value.write(to:root.appendingPathComponent("pointer-stage.txt"),atomically:true,encoding:.utf8)
+    private func record(_ nonce:String,phase:String,nativeReceipt:String?) throws {
+        var payload:[String:Any] = ["schema":1,"suite":"PointerTests","test":"testTrustedOSPointer()","nonce":nonce,"bundle":"org.knapsack.qa.pointercanary","phase":phase,"foreground":true,"windowVisible":true]
+        if let nativeReceipt {
+            payload["nativeReceipt"]=nativeReceipt
+            payload["destination"] = phase == "meeting" ? "Synthetic Meeting destination" : "Synthetic Library destination"
+        }
+        let attachment=XCTAttachment(data:try JSONSerialization.data(withJSONObject:payload,options:[.sortedKeys]),uniformTypeIdentifier:"public.json")
+        attachment.name="knapsack-pointer-\(phase).json"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
     enum XCTIssueError:Error { case unavailable }
 }

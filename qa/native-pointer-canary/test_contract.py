@@ -39,4 +39,6 @@ class Contract(unittest.TestCase):
         for required in ['e.isTrusted','e.button===0','NSApp.isActive','window.isKeyWindow','window.isVisible','.nonPersistent()','connect-src \'none\'']:
             self.assertIn(required,app)
         self.assertIn('timeInterval: 100',app.replace('withTimeInterval','timeInterval'))
+        self.assertIn('XCTAttachment(data:',s);self.assertIn('.keepAlways',s)
+        self.assertNotIn('.write(to:',s);self.assertNotIn('pointer-stage.txt',s)
 if __name__=='__main__':unittest.main()

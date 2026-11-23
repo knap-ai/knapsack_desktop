@@ -108,14 +108,25 @@ def run():
         report={'status':'unavailable','reason':'automation-not-ready'}
         with (root/'test.log').open('w') as log:
             result=bounded(base+['-resultBundlePath',str(root/'result.xcresult'),'test-without-building'],log,150)
-        stage=root/'pointer-stage.txt'
-        value=stage.read_text().strip() if stage.exists() else ''
-        if result==0 and value=='native_automated_pass':
-            report={'status':'native_automated_pass','reason':'two-trusted-os-clicks-and-destinations'}
-        elif result==0:
-            report={'status':'test_failure','reason':'missing-native-receipt'}
-        elif not value:
-            report={'status':'unavailable','reason':'automation-unavailable-see-xcode-result'}
+        # XCTest owns attachment persistence; the sandboxed UI runner never writes RUNNER_TEMP.
+        from receipts import verify,InvalidEvidence
+        result_path=root/'result.xcresult'
+        def xcjson(kind):
+            value=subprocess.run(['/usr/bin/xcrun','xcresulttool','get','test-results',kind,'--path',str(result_path),'--compact'],capture_output=True,text=True,timeout=20)
+            if value.returncode: raise InvalidEvidence('xcresult-unreadable')
+            parsed=json.loads(value.stdout)
+            (root/(kind+'.json')).write_text(json.dumps(parsed))
+            return parsed
+        try:
+            summary=xcjson('summary');tests=xcjson('tests')
+            exports=root/'attachments'
+            exported=subprocess.run(['/usr/bin/xcrun','xcresulttool','export','attachments','--path',str(result_path),'--output-path',str(exports)],capture_output=True,timeout=20)
+            if exported.returncode: raise InvalidEvidence('xcresult-attachments-unreadable')
+            manifest=json.loads((exports/'manifest.json').read_text())
+            report=verify(summary,tests,manifest,exports,result)
+        except (InvalidEvidence,ValueError,OSError):
+            # A test/assertion, including setup persistence failure, is not environment unavailability.
+            report={'status':'test_failure','reason':'xcresult-or-native-evidence-rejected'}
         print('Sanitized result:',json.dumps(report))
     except (ValueError,FileNotFoundError) as e:
         report={'status':'unavailable','reason':str(e) if isinstance(e,ValueError) else 'required-tool-unavailable'}
@@ -128,8 +139,9 @@ def run():
         evidence=pathlib.Path('canary-evidence');evidence.mkdir(exist_ok=True)
         shutil.copyfile(reportpath,evidence/'pointer-result.json')
         if root:
-            for name in ['build.log','test.log','pointer-stage.txt']:
+            for name in ['build.log','test.log','summary.json','tests.json']:
                 if (root/name).is_file(): shutil.copyfile(root/name,evidence/name)
+            if (root/'attachments').is_dir(): shutil.copytree(root/'attachments',evidence/'attachments',dirs_exist_ok=True)
     return 0 if report['status']=='native_automated_pass' else 1
 
 if __name__=='__main__': sys.exit(run())
