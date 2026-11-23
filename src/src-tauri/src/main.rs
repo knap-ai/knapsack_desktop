@@ -2197,6 +2197,10 @@ async fn run_app() {
     })
     .invoke_handler(tauri::generate_handler![
       notes_transcript::read_saved_notes_transcript,
+      api::recovered_copy_commands::desktop_recovered_prepare,
+      api::recovered_copy_commands::desktop_recovered_list,
+      api::recovered_copy_commands::desktop_recovered_save,
+      api::recovered_copy_commands::desktop_recovered_restore,
       notes_transcript::read_saved_meeting_notes,
       diagnostics::set_diagnostic_capture,
       diagnostics::diagnostic_capture_snapshot,
