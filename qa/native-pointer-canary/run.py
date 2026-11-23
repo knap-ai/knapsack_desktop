@@ -112,7 +112,7 @@ def run():
         with (root/'test.log').open('w') as log:
             result=bounded(base+['-resultBundlePath',str(root/'result.xcresult'),'test-without-building'],log,150)
         # XCTest owns attachment persistence; the sandboxed UI runner never writes RUNNER_TEMP.
-        from receipts import verify,InvalidEvidence
+        from receipts import verify,InvalidEvidence,appkit_diagnostic
         result_path=root/'result.xcresult'
         def xcjson(kind):
             value=subprocess.run(['/usr/bin/xcrun','xcresulttool','get','test-results',kind,'--path',str(result_path),'--compact'],capture_output=True,text=True,timeout=20)
@@ -120,6 +120,7 @@ def run():
             parsed=json.loads(value.stdout)
             (root/(kind+'.json')).write_text(json.dumps(parsed))
             return parsed
+        summary=tests=manifest=None
         try:
             summary=xcjson('summary');tests=xcjson('tests')
             exports=root/'attachments'
@@ -130,6 +131,9 @@ def run():
         except (InvalidEvidence,ValueError,OSError):
             # A test/assertion, including setup persistence failure, is not environment unavailability.
             report={'status':'test_failure','reason':'xcresult-or-native-evidence-rejected'}
+            if summary is not None and tests is not None and manifest is not None:
+                report['appkitPointer']='passed' if appkit_diagnostic(summary,tests,manifest,exports) else 'not_proven'
+                report['webKitPointer']='not_passed'
         print('Sanitized result:',json.dumps(report))
     except (ValueError,FileNotFoundError) as e:
         report={'status':'unavailable','reason':str(e) if isinstance(e,ValueError) else 'required-tool-unavailable'}

@@ -1,6 +1,6 @@
 import copy,json,pathlib,sys,tempfile,unittest
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent))
-from receipts import verify,InvalidEvidence
+from receipts import verify,InvalidEvidence,appkit_diagnostic
 class Receipts(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.folder=pathlib.Path(self.temp.name)
@@ -9,10 +9,11 @@ class Receipts(unittest.TestCase):
         self.case={'nodeType':'Test Case','name':'testTrustedOSPointer()','nodeIdentifier':'PointerTests/testTrustedOSPointer()','result':'Passed'}
         self.tests={'testNodes':[{'nodeType':'UI test bundle','name':'PointerTests','children':[{'nodeType':'Test Suite','name':'PointerTests','children':[self.case]}]}]}
         self.manifest=[{'testIdentifier':self.case['nodeIdentifier'],'attachments':[]}]
-        for phase in ['setup','render','meeting','library','complete']:
+        for phase in ['setup','appkit','render','meeting','library','complete']:
             value={'schema':1,'suite':'PointerTests','test':'testTrustedOSPointer()','nonce':self.nonce,'bundle':'org.knapsack.qa.pointercanary','phase':phase,'foreground':True,'windowVisible':True}
             if phase in ['meeting','library']:
                 value['nativeReceipt']=self.nonce+'|'+phase+'|trusted-down-up-click|foreground';value['destination']='Synthetic '+phase.capitalize()+' destination'
+            if phase=='appkit':value['nativeReceipt']=self.nonce+'|appkit|native-down-up|foreground'
             if phase=='render':value['nativeRender']=self.nonce+'|render-ready'
             (self.folder/(phase+'.json')).write_text(json.dumps(value))
             self.manifest[0]['attachments'].append({'exportedFileName':phase+'.json','suggestedHumanReadableName':'knapsack-pointer-'+phase+'.json','isAssociatedWithFailure':False})
@@ -31,6 +32,13 @@ class Receipts(unittest.TestCase):
     def test_render_failure_is_not_pointer_success(self):
         self.alter('render',nativeRender=self.nonce+'|provisional-failed')
         with self.assertRaisesRegex(InvalidEvidence,'render-ready'):self.check()
+    def test_appkit_only_is_partial_and_never_webkit_pass(self):
+        self.summary.update(result='Failed',passedTests=0,failedTests=1);self.case['result']='Failed'
+        self.manifest[0]['attachments']=self.manifest[0]['attachments'][:2]
+        self.assertTrue(appkit_diagnostic(self.summary,self.tests,self.manifest,self.folder))
+        with self.assertRaises(InvalidEvidence):self.check(65)
+        self.alter('appkit',nonce='b'*32)
+        self.assertFalse(appkit_diagnostic(self.summary,self.tests,self.manifest,self.folder))
     def test_failed_setup_is_failure_not_environment_unavailable(self):
         self.summary.update(result='Failed',passedTests=0,failedTests=1);self.case['result']='Failed';self.manifest=[]
         with self.assertRaisesRegex(InvalidEvidence,'passing-test'):self.check(65)

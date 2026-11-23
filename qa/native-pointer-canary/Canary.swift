@@ -2,7 +2,35 @@ import AppKit
 import WebKit
 
 // A separate synthetic application. No product code, servers or account storage.
+final class CoordinateCanary:NSView {
+    var completed:(()->Void)?
+    private var down:NSPoint?
+    override init(frame:NSRect) {
+        super.init(frame:frame);setAccessibilityElement(true);setAccessibilityRole(.button)
+        setAccessibilityLabel("Native coordinate canary");setAccessibilityIdentifier("native-coordinate-canary")
+    }
+    required init?(coder:NSCoder){fatalError("No archive")}
+    override func draw(_ dirtyRect:NSRect){
+        NSColor.controlBackgroundColor.setFill();NSBezierPath(roundedRect:bounds,xRadius:5,yRadius:5).fill()
+        ("Native coordinate canary" as NSString).draw(at:NSPoint(x:8,y:6),withAttributes:[.font:NSFont.systemFont(ofSize:13)])
+    }
+    override func mouseDown(with event:NSEvent){
+        down=nil
+        if event.type == .leftMouseDown && event.buttonNumber==0 && NSApp.isActive && window?.isKeyWindow==true && window?.isVisible==true {down=event.locationInWindow}
+    }
+    override func mouseDragged(with event:NSEvent){down=nil}
+    override func mouseUp(with event:NSEvent){
+        defer{down=nil}
+        guard let start=down,event.type == .leftMouseUp,event.buttonNumber==0,NSApp.isActive,window?.isKeyWindow==true,window?.isVisible==true,hypot(start.x-event.locationInWindow.x,start.y-event.locationInWindow.y)<4 else{return}
+        completed?()
+    }
+}
 @main final class Canary: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate {
+    static var retainedDelegate:Canary?
+    var diagnostics:[String]=[]
+    var observations:[NSKeyValueObservation]=[]
+    let diagnosticState=NSTextField(labelWithString:"created")
+    let appkitReceipt=NSTextField(labelWithString:"waiting")
     var window: NSWindow!
     var web: WKWebView!
     let receipt = NSTextField(labelWithString: "waiting")
@@ -16,6 +44,7 @@ import WebKit
     static func main() {
         let app = NSApplication.shared
         let delegate = Canary()
+        retainedDelegate=delegate
         app.delegate = delegate
         app.setActivationPolicy(.regular)
         app.run()
@@ -38,13 +67,18 @@ import WebKit
         window = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 640,height: 440), styleMask: [.titled,.closable], backing: .buffered, defer: false)
         window.title = "Synthetic Pointer Canary \(nonce)"
         let content = NSView(frame: NSRect(x: 0,y: 0,width: 640,height: 440))
-        web.frame = NSRect(x: 0,y: 80,width: 640,height: 360)
+        web.frame = NSRect(x: 0,y: 140,width: 640,height: 300)
         web.autoresizingMask = [.width,.height]
         receipt.frame = NSRect(x: 12,y: 10,width: 616,height: 24)
         receipt.setAccessibilityIdentifier("native-receipt")
         renderState.frame = NSRect(x:12,y:40,width:616,height:24)
         renderState.setAccessibilityIdentifier("native-render-state")
+        let coordinate=CoordinateCanary(frame:NSRect(x:12,y:105,width:230,height:28))
+        coordinate.completed={ [weak self] in guard let self else{return};self.appkitReceipt.stringValue="\(self.nonce)|appkit|native-down-up|foreground" }
+        appkitReceipt.frame=NSRect(x:250,y:105,width:378,height:24);appkitReceipt.setAccessibilityIdentifier("native-appkit-receipt")
+        diagnosticState.frame=NSRect(x:12,y:72,width:616,height:24);diagnosticState.setAccessibilityIdentifier("native-webkit-diagnostic")
         content.addSubview(web); content.addSubview(receipt); content.addSubview(renderState)
+        content.addSubview(coordinate);content.addSubview(appkitReceipt);content.addSubview(diagnosticState)
         window.contentView = content; window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         guard let resource=Bundle.main.url(forResource:"fixture",withExtension:"html") else {
@@ -52,7 +86,17 @@ import WebKit
         }
         fixture=resource.resolvingSymlinksInPath()
         renderState.stringValue="\(nonce)|loading"
-        web.loadFileURL(fixture,allowingReadAccessTo:fixture.deletingLastPathComponent())
+        note("constructed-delegate-"+(web.navigationDelegate === self ? "retained" : "missing"))
+        observations.append(web.observe(\.isLoading,options:[.new]) { [weak self] view,_ in self?.note(view.isLoading ? "loading-true" : "loading-false") })
+        // Read only this self-contained bundled file, as Apple documents.
+        let navigation=web.loadFileURL(fixture,allowingReadAccessTo:fixture)
+        note(navigation == nil ? "load-returned-nil" : "load-returned-navigation")
+        for delay in [2.0,5.0,8.0] {
+            Timer.scheduledTimer(withTimeInterval:delay,repeats:false) { [weak self] _ in
+                guard let self else{return}
+                self.note("tick-\(Int(delay))-loading-\(self.web.isLoading)-progress-\(Int(self.web.estimatedProgress*100))")
+            }
+        }
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         // Only the exact bundled local document; no alternate files, queries, fragments or remote URLs.
@@ -60,16 +104,23 @@ import WebKit
               url.resolvingSymlinksInPath()==fixture else {
             renderState.stringValue="\(nonce)|navigation-blocked";decisionHandler(.cancel);return
         }
-        decisionHandler(.allow)
+        note("navigation-allowed");decisionHandler(.allow)
     }
     func webView(_ webView:WKWebView,didFinish navigation:WKNavigation!) {
-        navigationFinished=true;updateRenderState()
+        note("did-finish");navigationFinished=true;updateRenderState()
     }
     func webView(_ webView:WKWebView,didFail navigation:WKNavigation!,withError error:Error) {
-        renderState.stringValue="\(nonce)|navigation-failed"
+        note("did-fail");renderState.stringValue="\(nonce)|navigation-failed"
     }
     func webView(_ webView:WKWebView,didFailProvisionalNavigation navigation:WKNavigation!,withError error:Error) {
-        renderState.stringValue="\(nonce)|provisional-failed"
+        note("provisional-failed");renderState.stringValue="\(nonce)|provisional-failed"
+    }
+    func webView(_ webView:WKWebView,didStartProvisionalNavigation navigation:WKNavigation!){note("did-start")}
+    func webView(_ webView:WKWebView,didCommit navigation:WKNavigation!){note("did-commit")}
+    func webViewWebContentProcessDidTerminate(_ webView:WKWebView){note("web-process-terminated");renderState.stringValue="\(nonce)|web-process-terminated"}
+    private func note(_ value:String){
+        if diagnostics.count<24 {diagnostics.append(value)}
+        diagnosticState.stringValue="\(nonce)|"+diagnostics.joined(separator:",")
     }
     private func updateRenderState() {
         renderState.stringValue="\(nonce)|"+(documentReady&&navigationFinished ? "render-ready" : documentReady ? "document-ready" : "navigation-finished")
@@ -78,7 +129,7 @@ import WebKit
         if message.name=="render" {
             guard message.frameInfo.isMainFrame,let value=message.body as? [String:Any],
                   value["nonce"] as? String==nonce,value["stage"] as? String=="document-ready" else {return}
-            documentReady=true;updateRenderState();return
+            note("document-script-ready");documentReady=true;updateRenderState();return
         }
         guard message.name=="pointer",NSApp.isActive, window.isKeyWindow, window.isVisible, message.frameInfo.isMainFrame,
               let value = message.body as? [String:Any], value["nonce"] as? String == nonce,
