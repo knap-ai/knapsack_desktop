@@ -71,6 +71,10 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: unused
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features workspaces::timeline::tests -- --test-threads=1
 
+      - name: Test Desktop-only recovered copy storage and boundaries
+        working-directory: src
+        run: npm run test:desktop-recovered-copy
+
       - name: Create .env from example
         working-directory: src
         run: cp .env.example .env

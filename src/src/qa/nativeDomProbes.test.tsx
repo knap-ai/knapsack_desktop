@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {afterAll,beforeAll,describe,it,expect,vi} from 'vitest'
 import {webcrypto} from 'node:crypto'
+vi.mock('src/agents/teamRoster',()=>import('./searchTeamRosterBoundary'))
 vi.mock('@tauri-apps/api/tauri',()=>import('./qaTauriFacade'))
 vi.mock('@tauri-apps/api/event',async()=>{
  const {invoke,transformCallback}=await import('./qaTauriFacade')
@@ -73,5 +74,5 @@ describe('fixed native DOM probe scenarios (JS DOM transport validation only)',(
   }finally{release?.();if(!disposed)fixture.dispose();Response.prototype.json=readJson;host.remove()}
  })
  it('preserves the immutable native bridge',()=>{expect(Object.getOwnPropertyDescriptor(window,'__TAURI_IPC__')?.writable).toBe(false);expect(()=>((window as unknown as {__TAURI_IPC__:()=>void}).__TAURI_IPC__)()).toThrow('native_bridge_must_remain_untouched')})
- it('never forwards unrecognized fetch, IPC, opener, or microphone calls',async()=>{await expect(fetch('https://example.invalid/not-allowed')).rejects.toThrow('qa_boundary_blocked');expect(()=>window.open('https://example.invalid')).toThrow('qa_boundary_blocked');await expect(navigator.mediaDevices.getUserMedia({audio:true})).rejects.toThrow('qa_boundary_blocked');expect(()=>new WebSocket('ws://127.0.0.1:18789')).toThrow('qa_boundary_blocked');expect(()=>new XMLHttpRequest()).toThrow('qa_boundary_blocked');expect(()=>new EventSource('https://example.invalid')).toThrow('qa_boundary_blocked');expect(navigator.sendBeacon('https://example.invalid')).toBe(false);expect(()=>((window as unknown as {__knapsackQaTransport__:(p:unknown)=>void}).__knapsackQaTransport__)({cmd:'privacy_provider_candidates',callback:0,error:0})).toThrow('qa_boundary_blocked');expect(harness.state.forbidden).toBe(8)})
+ it('never forwards unrecognized fetch, IPC, opener, or microphone calls',async()=>{await expect(fetch('https://example.invalid/not-allowed')).rejects.toThrow('qa_boundary_blocked');expect(()=>window.open('https://example.invalid')).toThrow('qa_boundary_blocked');await expect(navigator.mediaDevices.getUserMedia({audio:true})).rejects.toThrow('qa_boundary_blocked');expect(()=>new WebSocket('ws://127.0.0.1:18789')).toThrow('qa_boundary_blocked');expect(()=>new XMLHttpRequest()).toThrow('qa_boundary_blocked');expect(()=>new EventSource('https://example.invalid')).toThrow('qa_boundary_blocked');expect(navigator.sendBeacon('https://example.invalid')).toBe(false);expect(()=>((window as unknown as {__knapsackQaTransport__:(p:unknown)=>void}).__knapsackQaTransport__)({cmd:'privacy_provider_candidates',callback:0,error:0})).toThrow('qa_boundary_blocked');await expect(fetch('http://127.0.0.1:8897/api/knapsack/workspaces')).rejects.toThrow('qa_boundary_blocked');expect(harness.state.forbidden).toBe(9)})
 })

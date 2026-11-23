@@ -157,7 +157,7 @@ test('meeting follow-up actions visibly expand and reliably refill Scout', () =>
   assert.match(chat, /if \(!ownsForeground\) return[\s\S]*?clawd-send-user/)
   assert.match(notes, /initialInputKey: meetingChatInputNonce/)
   assert.match(chat, /initialValueKey\?: number/)
-  assert.match(chat, /\}, \[initialValue, initialValueKey\]\)/)
+  assert.match(chat, /\}, \[initialValue, initialValueKey, autoResize\]\)/)
   assert.match(chat, /initialValueKey=\{scheduleDraft\?\.key \?\? initialInputKey\}/)
 })
 

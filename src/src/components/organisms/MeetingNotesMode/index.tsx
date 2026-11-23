@@ -1,3 +1,4 @@
+import RecoveredCopy from './RecoveredCopy'
 import MeetingPublicResearch from 'src/components/molecules/MeetingPublicResearch'
 import { publicPrepEvidence, type PublicPrepSource } from 'src/utils/meetingPublicResearch'
 import { readMeetingBrief, claimMeetingBrief, forgetMeetingBrief, meetingBriefAuthority, meetingBriefModelFingerprint, promoteMeetingBriefDisplay } from 'src/utils/meetingBriefCache'
@@ -2285,6 +2286,7 @@ Be direct, specific, and concise. No filler text.`
           <span>{microphoneLevel > 0.001 ? 'Receiving sound' : 'Quiet — check Settings → Audio if speaking'}</span>
         </div>}
         {notesReadError && <div role="alert" className="notetaker-note__retry"><span>{notesReadError}</span><button type="button" onClick={() => void fetchNotes()}>Retry loading notes</button></div>}
+        {!isMeetingRecording && (wasRecorded || transcriptAvailable) && <RecoveredCopy key={`${thread.id}:${userEmail}`} threadId={thread.id} accountEmail={userEmail || ''} manualDraft={notesMarkdown} disabled={notesSynthesisActive} queue={addToLLMQueue} />}
         <SavedAudioRecovery pendingAudio={pendingAudio} transcriptionError={transcriptionError} setTranscriptionError={setTranscriptionError} reconnecting={reconnecting} reconnectTranscription={reconnectTranscription} />
         {permissionError && !recordingHandlers.isRecording(thread.id) && (
           <div className="notetaker-note__permission-error">

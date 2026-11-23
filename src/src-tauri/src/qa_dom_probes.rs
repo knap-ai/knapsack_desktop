@@ -13,6 +13,7 @@ const SUITE_LIMIT: Duration = Duration::from_secs(30);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum Probe {
+  Search,
   Transcript,
   MeetingLink,
   ChatSelection,
@@ -21,7 +22,8 @@ enum Probe {
   PersonScout,
   Boundaries,
 }
-const PROBES: [Probe; 7] = [
+const PROBES: [Probe; 8] = [
+  Probe::Search,
   Probe::Transcript,
   Probe::MeetingLink,
   Probe::ChatSelection,
@@ -457,7 +459,7 @@ mod tests {
     let s = script(Probe::MeetingLink, "fictional\";alert(1)//");
     assert!(s.contains("__knapsackNativeQaProbe(\"meeting_link\",\"fictional\\\";alert(1)//\")"));
     assert!(!s.contains("fetch("));
-    assert_eq!(PROBES.len(), 7);
+    assert_eq!(PROBES.len(), 8);
     assert_eq!(PROBE_LIMIT.as_secs(), 5);
     assert_eq!(SUITE_LIMIT.as_secs(), 30);
   }

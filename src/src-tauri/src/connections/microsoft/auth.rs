@@ -93,6 +93,7 @@ struct TokenAccessResponse {
 #[derive(Deserialize, Debug)]
 struct MicrosoftProfile {
   displayName: Option<String>,
+  givenName: Option<String>,
   mail: Option<String>,
   userPrincipalName: Option<String>,
   id: String,
@@ -419,6 +420,7 @@ pub async fn fetch_microsoft_profile(
     let user_profile = UserInfoResponse {
       success: true,
       name: profile.displayName.clone(),
+      given_name: profile.givenName.clone(),
       email: profile.mail.clone(),
       profile_image: format!("https://graph.microsoft.com/v1.0/me/photo/$value").into(),
       message: None,
