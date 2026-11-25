@@ -1,0 +1,38 @@
+name: Transcript-only notes handoff (stacked QA)
+on:
+  pull_request:
+    branches: [codex/desktop-recovered-copy-review]
+    paths:
+      - 'src/src/components/organisms/MeetingNotesMode/**'
+      - 'src/src/hooks/useMeetingMode.tsx'
+      - 'src/scripts/meeting-notes-hydration.test.cjs'
+      - '.github/workflows/desktop-transcript-notes-handoff-qa.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-notes-handoff:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/desktop-transcript-notes-handoff-20261125'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Verify current stack base and exact event candidate
+        run: |
+          test "${{ github.event.pull_request.base.sha }}" = 'c8d36e9bb6a443b2055be8ebec5141a68549d2d4'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install exact frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify real fetchNotes handoff and persistence failure boundaries
+        run: node --test scripts/meeting-notes-hydration.test.cjs
+      - name: Verify existing Desktop usability, stop and recovery component paths
+        run: npm run test:desktop-usability
+      - name: Verify profile-bound notes and preservation of manual edits
+        run: npm run test:meeting-spellings
