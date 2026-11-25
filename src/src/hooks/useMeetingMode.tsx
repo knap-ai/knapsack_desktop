@@ -66,6 +66,7 @@ export const useMeetingSynthesis = (
   templatePrompt: MeetingTemplatePrompt,
   speakerIdentity?: MeetingSpeakerIdentity,
   accountEmail?: string,
+  viewThreadId?: number,
 ): IMeetingSynthesis => {
   const speakerIdentityRules = meetingSpeakerIdentityPrompt(speakerIdentity)
   const [content, setContent] = useState<string>('')
@@ -79,7 +80,7 @@ export const useMeetingSynthesis = (
   const [retryPreview, setRetryPreview] = useState<{threadId:number;markdown:string;identity:string;profileRevision:number;bindingRevision:number}|null>(null)
   useEffect(() => {const clear=()=>setRetryPreview(null);window.addEventListener(PROFILE_CHANGED_EVENT,clear);return()=>window.removeEventListener(PROFILE_CHANGED_EVENT,clear)},[])
 
-  const displayIdentity = JSON.stringify([accountEmail ?? speakerIdentity?.email ?? '', speakerIdentity?.name ?? ''])
+  const displayIdentity = JSON.stringify([accountEmail ?? speakerIdentity?.email ?? '', speakerIdentity?.name ?? '', viewThreadId ?? null])
   const generationIdentity = useRef(displayIdentity)
   const activeGeneration = useRef<NotesGeneration | null>(null)
 

@@ -62,12 +62,14 @@ export default function RecoveredCopy({
   threadId,
   accountEmail,
   manualDraft,
+  missingSavedNotes = false,
   disabled,
   queue,
 }: {
   threadId: number
   accountEmail: string
   manualDraft: string
+  missingSavedNotes?: boolean
   disabled: boolean
   queue: (p: LLMParams) => void
 }) {
@@ -312,8 +314,9 @@ export default function RecoveredCopy({
         disabled={busy || disabled}
         onClick={() => (open ? setOpen(false) : void load())}
       >
-        Recovered notes · Desktop only
+        {missingSavedNotes ? 'Create notes from saved transcript' : 'Recovered notes · Desktop only'}
       </button>
+      {missingSavedNotes && <p>Transcript saved. No original notes are saved. You can review and save a separate Desktop-only copy.</p>}
       {open && (
         <>
           <p>
