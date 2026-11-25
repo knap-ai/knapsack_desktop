@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   loseRestore: false,
   bad: false,
   sourceConflict: false,
+  sourceMissing: false,
 }))
 vi.mock('src/utils/KNLocalStorage', () => ({
   KNLocalStorage: { getItem: async () => state.owner },
@@ -42,7 +43,7 @@ vi.mock('@tauri-apps/api/tauri', () => ({
       return {
         scope,
         snapshot: 'synthetic-snapshot',
-        savedNotes: saved,
+        savedNotes: state.sourceMissing ? null : saved,
         transcript: {
           id: 3,
           filename: 'synthetic.txt',
@@ -60,7 +61,7 @@ vi.mock('@tauri-apps/api/tauri', () => ({
           version: state.copies.length + 1,
           body: r.body,
           bodyHash: await digest(r.body),
-          savedManual: saved,
+          savedManual: state.sourceMissing ? null : saved,
           draftManual: r.draftManual,
           transcriptId: 3,
           transcriptHash: 'a'.repeat(64),
@@ -123,6 +124,7 @@ beforeEach(() => {
   state.loseRestore = false
   state.bad = false
   state.sourceConflict = false
+  state.sourceMissing = false
   vi.stubGlobal('crypto', webcrypto)
   vi.stubGlobal('fetch', () => {
     throw Error('External IO forbidden')
@@ -132,7 +134,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
-function fixture() {
+function fixture(missingSavedNotes = false) {
   const jobs: LLMParams[] = [],
     queue = vi.fn((p: LLMParams) => jobs.push(p))
   const ui = render(
@@ -140,6 +142,7 @@ function fixture() {
       threadId={10}
       accountEmail={state.owner.email}
       manualDraft={draft}
+      missingSavedNotes={missingSavedNotes}
       disabled={false}
       queue={queue}
     />,
@@ -324,4 +327,39 @@ it('native source conflict requires a fresh preview rather than claiming a save'
   await screen.findByText('Source changed. Preview again before saving; originals are unchanged.')
   expect(screen.queryByRole('button', { name: 'Save recovered copy' })).toBeNull()
   expect(state.copies).toHaveLength(0)
+})
+
+it('after reopening a transcript-only meeting, explicitly previews one job and saves a separate copy', async () => {
+  state.sourceMissing = true
+  const first = fixture(true)
+  expect(screen.getByRole('button', { name: 'Create notes from saved transcript' })).toBeTruthy()
+  expect(first.queue).not.toHaveBeenCalled()
+  first.ui.unmount()
+
+  const reopened = fixture(true)
+  expect(screen.getByText(/Transcript saved. No original notes are saved/)).toBeTruthy()
+  expect(reopened.queue).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Create notes from saved transcript' }))
+  await screen.findByRole('button', { name: 'Preview recovered notes' })
+  expect(reopened.queue).not.toHaveBeenCalled()
+  await generate(reopened)
+  expect(reopened.queue).toHaveBeenCalledTimes(1)
+  expect(reopened.jobs[0].requestKind).toBe('notes')
+  expect(reopened.jobs[0].additionalDocuments).toEqual([
+    { title: 'Verified saved transcript', content: transcript },
+    { title: 'Original saved notes (may include manual notes)', content: '' },
+    { title: 'Current editor manual draft', content: draft },
+  ])
+  expect(state.calls.some(v => v.cmd === 'desktop_recovered_save')).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Save recovered copy' }))
+  await screen.findByText('Recovered copy saved on this Desktop. Original notes and transcript unchanged.')
+  expect(state.copies[0].savedManual).toBeNull()
+  expect(state.copies[0].draftManual).toBe(draft)
+  reopened.ui.unmount()
+
+  const third = fixture(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Create notes from saved transcript' }))
+  await screen.findByText(body)
+  expect(third.queue).not.toHaveBeenCalled()
+  expect(state.copies).toHaveLength(1)
 })
