@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { RecordingProvider, useRecording } from './RecordingContext'
+import { classifyMeetingNotesRead, hasVerifiedMissingMeetingNotes } from './meetingNotesReadAdmission'
 
 const mocks = vi.hoisted(() => ({ stop: vi.fn(), log: vi.fn(), emit: vi.fn() }))
 vi.mock('src/api/recording', () => ({
@@ -97,4 +98,45 @@ it('preserves stop failure without attempting generation', async () => {
   expect(h.result.current.isLoadingNotes(196)).toBe(false)
   expect(read).not.toHaveBeenCalled()
   expect(synthesize).not.toHaveBeenCalled()
+})
+
+it('queues once after native stop even when ordinary hydration supersedes the source read', async () => {
+  mocks.stop.mockResolvedValue(true)
+  mocks.emit.mockResolvedValue(undefined)
+  let finishRead!: () => void
+  let hydrationIsCurrent = true
+  const reading = new Promise<void>(resolve => { finishRead = resolve })
+  const read = vi.fn(async () => {
+    await reading
+    const decision = classifyMeetingNotesRead({
+      aborted:false, sameMeeting:true, sameProfile:true, sameEdit:true,
+      currentHydration:hydrationIsCurrent, forSynthesis:true,
+    })
+    if (decision !== 'read-for-synthesis') throw Error('Source read was superseded')
+    return 'Verified manual notes from disk'
+  })
+  const synthesize = vi.fn().mockResolvedValue(undefined)
+  const h = renderHook(() => useRecording(), { wrapper: RecordingProvider })
+  await act(async () => {
+    const stopping = h.result.current.stopRecording(read, vi.fn(), synthesize, vi.fn(),
+      vi.fn().mockResolvedValue(undefined), 'stale editor', 196, true, undefined)
+    hydrationIsCurrent = false
+    finishRead()
+    await stopping
+  })
+  expect(synthesize).toHaveBeenCalledExactlyOnceWith(196, 'Verified manual notes from disk', undefined)
+  expect(h.result.current.isLoadingNotes(196)).toBe(false)
+})
+it('fails closed on view/owner/edit changes and allows reopened transcript-only recovery only from verified metadata', () => {
+  const live={aborted:false,sameMeeting:true,sameProfile:true,sameEdit:true,currentHydration:false,forSynthesis:true}
+  for (const delta of [{aborted:true},{sameMeeting:false},{sameProfile:false},{sameEdit:false}])
+    expect(classifyMeetingNotesRead({...live,...delta})).toBe('reject-synthesis')
+  expect(classifyMeetingNotesRead({...live,forSynthesis:false})).toBe('ignore')
+  const snapshot={threadId:196,accountEmail:'a@example.invalid',profileRevision:9,transcriptAvailable:true,notesExist:false}
+  expect(hasVerifiedMissingMeetingNotes(snapshot,196,'a@example.invalid',9)).toBe(true)
+  expect(hasVerifiedMissingMeetingNotes(snapshot,197,'a@example.invalid',9)).toBe(false)
+  expect(hasVerifiedMissingMeetingNotes(snapshot,196,'b@example.invalid',9)).toBe(false)
+  expect(hasVerifiedMissingMeetingNotes(snapshot,196,'a@example.invalid',10)).toBe(false)
+  for (const delta of [{transcriptAvailable:false},{notesExist:true}])
+    expect(hasVerifiedMissingMeetingNotes({...snapshot,...delta},196,'a@example.invalid',9)).toBe(false)
 })
