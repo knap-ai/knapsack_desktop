@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   initialize: vi.fn(),
   save: vi.fn(),
   open: vi.fn(),
+  invoke: vi.fn(),
+  copy: vi.fn(),
   status: {} as PrivacyModeStatus,
 }))
 vi.mock('src/utils/privacyMode', () => ({
@@ -17,6 +19,7 @@ vi.mock('src/utils/privacyMode', () => ({
   setPrivacyMode: mocks.save,
 }))
 vi.mock('@tauri-apps/api/shell', () => ({ open: mocks.open }))
+vi.mock('@tauri-apps/api/tauri', () => ({ invoke: mocks.invoke }))
 vi.mock('./LocalSpeechSetup', () => ({ default: () => <p>Local speech setup fixture</p> }))
 vi.mock('src/pages/onboarding/PrivacySetup', () => ({
   default: () => <p>Local AI setup fixture</p>,
@@ -44,12 +47,16 @@ beforeEach(() => {
     return mocks.status
   })
   mocks.open.mockResolvedValue(undefined)
+  mocks.invoke.mockResolvedValue(undefined)
+  mocks.copy.mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mocks.copy } })
   vi.stubGlobal('fetch', vi.fn())
 })
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'clipboard')
 })
 async function openDialog() {
   render(<PrivacyModeControl />)
@@ -105,12 +112,38 @@ it('explains standard provider policy when Off is explicitly selected', async ()
   await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(false, 'zero-retention', undefined))
   expect(screen.getByText(/Analytics may be enabled/)).toBeTruthy()
 })
-it('opens only the chosen public reference and never treats it as a privacy change', async () => {
+const zdrUrl = 'https://openagreements.org/practice-guides/ai-vendors/zdr-cross-provider-comparison'
+it('explains ZDR in place and opens the selected provider-neutral public reference only on click', async () => {
   await openDialog()
-  const link = screen.getByRole('link', { name: /On-device AI — Ollama local FAQ/ })
-  expect(link.getAttribute('href')).toBe('https://docs.ollama.com/faq')
+  expect(screen.getByText(/doesn’t keep the inputs or outputs afterward/)).toBeTruthy()
+  expect(mocks.invoke).not.toHaveBeenCalled()
+  const link = screen.getByRole('link', { name: /ZDR explained/ })
+  expect(link.getAttribute('href')).toBe(zdrUrl)
   fireEvent.click(link)
-  expect(mocks.open).toHaveBeenCalledWith('https://docs.ollama.com/faq')
+  expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith('open_privacy_reference', { reference: 'zdr' })
+  expect(mocks.open).not.toHaveBeenCalled()
+  expect(mocks.save).not.toHaveBeenCalled()
+  expect(fetch).not.toHaveBeenCalled()
+})
+it('offers copy even if the opener acknowledges but no browser window appears', async () => {
+  await openDialog()
+  expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull()
+  fireEvent.click(screen.getByRole('link', { name: /Ollama FAQ/ }))
+  expect(screen.queryByText(/opened successfully/i)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+  await waitFor(() => expect(screen.getByText('Link copied.')).toBeTruthy())
+  expect(mocks.copy).toHaveBeenCalledExactlyOnceWith('https://docs.ollama.com/faq')
+})
+it('shows a selectable URL if neither the external opener nor clipboard is available', async () => {
+  mocks.invoke.mockRejectedValueOnce(new Error('synthetic native error'))
+  mocks.copy.mockRejectedValueOnce(new Error('synthetic clipboard error'))
+  await openDialog()
+  fireEvent.click(screen.getByRole('link', { name: /ZDR explained/ }))
+  await waitFor(() => expect(screen.getByText(/Could not open the reference/)).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+  const field = await screen.findByRole('textbox', { name: /ZDR explained.*URL/ })
+  expect((field as HTMLInputElement).value).toBe(zdrUrl)
+  expect((field as HTMLInputElement).readOnly).toBe(true)
   expect(mocks.save).not.toHaveBeenCalled()
   expect(fetch).not.toHaveBeenCalled()
 })

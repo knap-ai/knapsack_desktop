@@ -13,12 +13,15 @@ const code = ts.transpileModule(source.slice(start, end) + '\n exports.fetchNote
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText
 
+const sourceAdmission = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/components/organisms/MeetingNotesMode/meetingNotesReadAdmission.ts'),'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText, {exports:sourceAdmission})
+
 function fixture(data, current = 44, responseOk = true, options = {}) {
-  const edits={current:0}, ticket={current:0}; let profileRevision=0
+  const edits={current:0}, ticket={current:0}, view={current:0}; let profileRevision=0
   const state = { error: null, notes: 'stale previous notes', synthesis: 'stale synthesis notes', editor: 'stale editor', loading: true, writes: 0, gets: 0, recordingMetadata: null }
   const exports = {}
   vm.runInNewContext(code, {
-    localStorage: { getItem: () => null }, notesReadTicket:ticket, notesHydrationRevision:edits, getProfileRevision:()=>profileRevision, userEmail:'fixture@example.test', KNLocalStorage:{getItem:async()=>({email:'fixture@example.test',uuid:'fixture-owner'})}, setNotesReadError:value=>{state.error=value}, exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
+    localStorage: { getItem: () => null }, notesReadTicket:ticket, notesHydrationRevision:edits, notesViewEpoch:view, classifyMeetingNotesRead:sourceAdmission.classifyMeetingNotesRead, getProfileRevision:()=>profileRevision, userEmail:'fixture@example.test', KNLocalStorage:{getItem:async()=>({email:'fixture@example.test',uuid:'fixture-owner'})}, setNotesReadError:value=>{state.error=value}, exports, thread: { id: 44 }, KN_API_NOTES: 'fixture-notes', activeNotesThreadIdRef: { current },
     getSavedMeetingNotes: async (id,owner) => { assert.equal(id,44); assert.equal(owner.uuid,'fixture-owner'); state.gets++;return options.responses ? options.responses[state.gets-1] : {success:responseOk,data:data ? {...data,thread_id:id} : data} },
     editor: {
       storage: { markdown: { parser: { parse: text => text } } },
@@ -30,7 +33,7 @@ function fixture(data, current = 44, responseOk = true, options = {}) {
     setRecordingMetadata: value => { state.recordingMetadata = value },
     logError: () => {}, DOMException, Error,
   })
-  return { state, read: exports.fetchNotes, changed:()=>{edits.current++}, accountRoundTrip:()=>{profileRevision+=2} }
+  return { state, read: exports.fetchNotes, changed:()=>{edits.current++}, accountRoundTrip:()=>{profileRevision+=2}, viewRoundTrip:()=>{view.current+=2} }
 }
 
 test('saved notes GET displays content without scheduling autosave', async () => {
@@ -354,3 +357,28 @@ test('an older native snapshot cannot replace the latest completed read',async()
 for(const bad of [{},{exists:'bad',notes:null},{exists:true,notes:null},{exists:false,notes:'unexpected'}])test(`malformed note snapshot preserves the editor: ${JSON.stringify(bad)}`,async()=>{
  const f=fixture(bad);await f.read();assert.equal(f.state.notes,'stale previous notes');assert.equal(f.state.editor,'stale editor');assert.ok(f.state.error);assert.equal(f.state.writes,0);
 });
+
+test('actual post-stop read does not lose admission when newer editor hydration finishes first', async () => {
+  let finish
+  const pending = new Promise(resolve => { finish = resolve })
+  const verified = { success:true, data:{thread_id:44,exists:false,notes:null,recording:{recorded:true,transcriptAvailable:true}} }
+  const f = fixture(null,44,true,{responses:[pending,verified]})
+  const readForSynthesis = f.read(undefined,true)
+  await f.read()
+  assert.equal(sourceAdmission.hasVerifiedMissingMeetingNotes(f.state.recordingMetadata,44,'fixture@example.test',0),true)
+  finish(verified)
+  assert.equal(await readForSynthesis,null)
+  assert.equal(f.state.gets,2)
+  assert.equal(f.state.writes,0)
+})
+test('actual post-stop source read refuses if view is closed or changed before it returns', async () => {
+  let finish
+  const pending = new Promise(resolve => { finish=resolve })
+  const f=fixture(null,44,true,{responses:[pending]})
+  const reading=f.read(undefined,true)
+  f.viewRoundTrip()
+  finish({ success:true, data:{thread_id:44,exists:false,notes:null} })
+  await assert.rejects(reading,/meeting notes or account changed/i)
+  assert.equal(f.state.editor,'stale editor')
+  assert.equal(f.state.writes,0)
+})

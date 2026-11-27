@@ -1,3 +1,5 @@
+import RecoveredCopy from './RecoveredCopy'
+import { classifyMeetingNotesRead, hasVerifiedMissingMeetingNotes } from './meetingNotesReadAdmission'
 import MeetingPublicResearch from 'src/components/molecules/MeetingPublicResearch'
 import { publicPrepEvidence, type PublicPrepSource } from 'src/utils/meetingPublicResearch'
 import { readMeetingBrief, claimMeetingBrief, forgetMeetingBrief, meetingBriefAuthority, meetingBriefModelFingerprint, promoteMeetingBriefDisplay } from 'src/utils/meetingBriefCache'
@@ -275,10 +277,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   userName,
   onMeetingChatMinimizedChange,
 } ) => {
-  const [recordingMetadata,setRecordingMetadata]=useState<{threadId:number;recorded:boolean;transcriptAvailable:boolean}|null>(null)
+  const [recordingMetadata,setRecordingMetadata]=useState<{threadId:number;accountEmail:string;profileRevision:number;recorded:boolean;transcriptAvailable:boolean;notesExist:boolean}|null>(null)
   const currentRecordingMetadata=recordingMetadata?.threadId===thread.id?recordingMetadata:null
   const wasRecorded=!!thread.recorded || currentRecordingMetadata?.recorded===true
   const transcriptAvailable=currentRecordingMetadata?.transcriptAvailable ?? !!thread.savedTranscript
+  const missingSavedMeetingNotes=hasVerifiedMissingMeetingNotes(currentRecordingMetadata,thread.id,userEmail || '',getProfileRevision())
   const isMeetingRecording = recordingHandlers.isRecording(thread.id)
   useEffect(() => {
     if (!isMeetingRecording) return
@@ -437,6 +440,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const notesHydrationRevision = useRef(0)
   const notesReadTicket = useRef(0)
   const [notesReadError, setNotesReadError] = useState<string | null>(null)
+  const notesViewEpoch = useRef(0)
   const activeNotesThreadIdRef = useRef(thread.id)
   activeNotesThreadIdRef.current = thread.id
   // The event's calendar account is available before asynchronous connection
@@ -1071,7 +1075,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setContent,
     setMarkdown,
   } =
-    useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) }, userEmail || '')
+    useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt, { name: userName, email: userEmail, emails: Array.from(userEmailSet) }, userEmail || '', thread.id)
 
   const currentRetryPreview=retryPreview?.threadId===thread.id?retryPreview:null
   const previewRetryNotes=()=>{void synthesizeContent(thread.id,'',meeting,'preview').catch(()=>{})}
@@ -1123,12 +1127,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     // The editor instance is shared while navigating between meetings. Clear
     // it before the browser paints the next meeting so private notes from the
     // previous selection cannot flash while the new request is in flight.
+    notesViewEpoch.current++
+    setRecordingMetadata(null)
     setIsInitialLoading(true)
     setNotesReadError(null)
     setNotesMarkdown('')
     setMarkdown('')
     editor?.commands.setContent('', false)
-  }, [thread.id])
+    return () => { notesViewEpoch.current++ }
+  }, [thread.id, userEmail])
 
   useEffect(() => {
     const requestedThreadId = thread.id
@@ -1446,7 +1453,9 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
 
   const fetchNotes = async (signal?: AbortSignal, failClosed = false): Promise<string | null> => {
     const requestedThreadId = thread.id
-    const ticket = ++notesReadTicket.current
+    // A post-stop source read supplies the queue; it does not own editor hydration.
+    const ticket = failClosed ? null : ++notesReadTicket.current
+    const viewEpoch=notesViewEpoch.current
     try {
       const profileRevision = getProfileRevision()
       const editRevision = notesHydrationRevision.current
@@ -1454,26 +1463,31 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
       if (!profile?.email || !profile.uuid || (userEmail && profile.email.toLowerCase() !== userEmail.toLowerCase())) throw new Error('This meeting account needs attention before saved notes can be read.')
       const data = await getSavedMeetingNotes(requestedThreadId,{email:profile.email,uuid:profile.uuid})
       if (data.success !== true || !data.data || data.data.thread_id !== requestedThreadId || typeof data.data.exists !== 'boolean' || (data.data.exists ? typeof data.data.notes !== 'string' : data.data.notes !== null)) throw new Error('Saved notes could not be read.')
-      if (profileRevision !== getProfileRevision() || editRevision !== notesHydrationRevision.current || ticket !== notesReadTicket.current) {
-        if (failClosed) throw new Error('Meeting notes or account changed during preparation. Retry notes.')
-        return null
+      const outcome=classifyMeetingNotesRead({
+        aborted:signal?.aborted === true,
+        sameMeeting:activeNotesThreadIdRef.current === requestedThreadId && notesViewEpoch.current === viewEpoch,
+        sameProfile:profileRevision === getProfileRevision(),
+        sameEdit:editRevision === notesHydrationRevision.current,
+        currentHydration:ticket === notesReadTicket.current,
+        forSynthesis:failClosed,
+      })
+      if (outcome === 'reject-synthesis') throw new Error('Meeting notes or account changed during preparation. Retry notes.')
+      if (outcome === 'ignore') return null
+      const draft=localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`)
+      const notesExist=data.data.exists
+      if (outcome === 'read-for-synthesis') {
+        return draft ?? (notesExist ? normalizeMeetingNotesMarkdown(data.data.notes || '') : null)
       }
       {
-        // A slower request for the previously selected meeting must never
-        // populate the editor after navigation. Besides looking "one meeting
-        // behind", that can expose another meeting's private notes.
-        if (signal?.aborted || activeNotesThreadIdRef.current !== requestedThreadId) {
-          return null
-        }
         setNotesReadError(null)
         const recording=data?.data?.recording
         if (typeof recording?.recorded==='boolean' && typeof recording?.transcriptAvailable==='boolean') {
-          setRecordingMetadata({threadId:requestedThreadId,recorded:recording.recorded,transcriptAvailable:recording.transcriptAvailable})
+          setRecordingMetadata({threadId:requestedThreadId,accountEmail:profile.email,profileRevision,recorded:recording.recorded,transcriptAvailable:recording.transcriptAvailable,notesExist})
+        } else {
+          setRecordingMetadata(null)
         }
-        const notesExist = data?.data?.exists === true
-        if (notesExist || localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`) !== null) {
+        if (notesExist || draft !== null) {
           // Never replace an unsaved edit with a background read or generation refresh.
-          const draft = localStorage.getItem(`meeting-notes-draft:${requestedThreadId}`)
           const normalizedNotes = draft ?? normalizeMeetingNotesMarkdown(data?.data?.notes || '')
           if (draft !== null) { setIsEditing(true); setSaveState('Unsaved draft restored') }
           setNotesMarkdown(normalizedNotes)
@@ -1613,15 +1627,29 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
   }
 
   const handleStopRecording = async (type: string) => {
+    const stopThreadId = thread.id
+    const stopViewEpoch = notesViewEpoch.current
+    const stopProfileRevision = getProfileRevision()
+    const assertStopViewCurrent = () => {
+      if (activeNotesThreadIdRef.current !== stopThreadId || notesViewEpoch.current !== stopViewEpoch || getProfileRevision() !== stopProfileRevision) {
+        throw new Error('The meeting or account changed. Saved transcript and notes are preserved.')
+      }
+    }
     let eventId = getEventId()
     KNAnalytics.trackEvent('Stop recording', { type: type, meetingId: eventId })
     const saveTranscript = await shouldSaveTranscript()
 
     try {
       await recordingHandlers.stopRecording(
-        () => fetchNotes(undefined, true),
+        () => {
+          assertStopViewCurrent()
+          return fetchNotes(undefined, true)
+        },
         setFeedIsRecording,
-        synthesizeContent,
+        (id, draft, context) => {
+          assertStopViewCurrent()
+          return synthesizeContent(id, draft, context)
+        },
         saveNotes,
         checkTranscriptSaved,
         notesMarkdown,
@@ -2285,6 +2313,7 @@ Be direct, specific, and concise. No filler text.`
           <span>{microphoneLevel > 0.001 ? 'Receiving sound' : 'Quiet — check Settings → Audio if speaking'}</span>
         </div>}
         {notesReadError && <div role="alert" className="notetaker-note__retry"><span>{notesReadError}</span><button type="button" onClick={() => void fetchNotes()}>Retry loading notes</button></div>}
+        {!isMeetingRecording && (wasRecorded || transcriptAvailable) && <RecoveredCopy key={`${thread.id}:${userEmail}`} threadId={thread.id} accountEmail={userEmail || ''} missingSavedNotes={!notesReadError && missingSavedMeetingNotes} manualDraft={notesMarkdown} disabled={notesSynthesisActive} queue={addToLLMQueue} />}
         <SavedAudioRecovery pendingAudio={pendingAudio} transcriptionError={transcriptionError} setTranscriptionError={setTranscriptionError} reconnecting={reconnecting} reconnectTranscription={reconnectTranscription} />
         {permissionError && !recordingHandlers.isRecording(thread.id) && (
           <div className="notetaker-note__permission-error">

@@ -36,6 +36,11 @@ function webkitRegexCompat(): Plugin {
 const qaDomSdkMock = process.env.KNAPSACK_QA_DOM_PROBES === '1' && process.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1'
 const qaSdkFacade = (): Plugin => ({
   name: 'qa-dom-sdk-facade', apply: 'serve', enforce: 'pre',
+  transform(code, id) {
+    if (!id.split('?')[0].replace(/\\/g, '/').endsWith('/components/organisms/NotetakerSidebar/index.tsx')) return null
+    if (!code.includes("from 'src/agents/teamRoster'")) throw new Error('QA sidebar team boundary changed; review fixture imports.')
+    return code.replace("from 'src/agents/teamRoster'", "from 'src/qa/searchTeamRosterBoundary'")
+  },
   async load(id) {
     const file = id.split('?')[0].replace(/\\/g, '/')
     if (!file.endsWith('/@tauri-apps/api/tauri.js')) return null

@@ -1,3 +1,4 @@
+import { STATIONARY_ITEMS } from './feedConstants'
 import { withNotesTemplateWrite } from 'src/utils/notesGenerationAdmission'
 import { canAutomaticallyRecord } from 'src/utils/autoRecordPreference'
 import { startCalendarRecordingAction } from 'src/utils/calendarMeetingLink'
@@ -92,7 +93,7 @@ const reply_actions = [
 ]
 
 const MAX_RETRIES = 5
-export const STATIONARY_ITEMS = 'stationary'
+export { STATIONARY_ITEMS } from './feedConstants'
 
 const emailThreadKey = (email: EmailDocument): string | undefined =>
   email.threadId

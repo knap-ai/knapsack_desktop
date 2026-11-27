@@ -1,4 +1,7 @@
+import { useAssistantControls } from './useAssistantControls'
 import ChatSelectionActions from './ChatSelectionActions'
+import { useAutoGrowingComposer } from './useAutoGrowingComposer'
+import { scheduleChatFollow, visibleScopedMessages } from './chatPresentation'
 import QuotedChatContext from './QuotedChatContext'
 import { appendChatQuote, chatAttachmentsForSend, scopedChatAttachments, type ChatAttachment, type ChatQuote } from 'src/utils/selectedChatContext'
 import SharedConversationPanel from '../SharedConversationPanel'
@@ -24,7 +27,7 @@ import { linkedDriveUrls, readLinkedDriveContext } from 'src/utils/nativeDriveCo
 import { getGoogleDriveFileText } from 'src/api/data_source'
 import { getConnections, getGoogleDriveConnections } from 'src/api/connections'
 
-import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useCallback, memo, useRef, useId, type ReactNode } from 'react'
 import { useClawdChatKeyboardShortcuts } from './useClawdChatKeyboardShortcuts'
 import { useForegroundNativeFileDropEvents, useVoiceDialogFocusTrap } from './useForegroundInputHandlers'
 import { useSubmittedChatRequest } from './useSubmittedChatRequest'
@@ -1619,6 +1622,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const autoResize = useAutoGrowingComposer(textareaRef)
 
   // Auto-focus textarea on mount so users can start typing immediately
   useEffect(() => {
@@ -1633,9 +1637,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
       hasInputRef.current = initialValue.trim().length > 0
       setHasInput(hasInputRef.current)
       if (textareaRef.current) textareaRef.current.value = initialValue
+      autoResize()
       setTimeout(() => textareaRef.current?.focus(), 150)
     }
-  }, [initialValue, initialValueKey])
+  }, [initialValue, initialValueKey, autoResize])
 
   const clearInput = () => {
     inputRef.current = ''
@@ -1643,7 +1648,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     setHasInput(false)
     if (textareaRef.current) {
       textareaRef.current.value = ''
-      textareaRef.current.style.height = 'auto'
+      autoResize()
     }
   }
 
@@ -1654,23 +1659,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     onSend(text)
     clearInput()
   }
-
-  // Auto-resize after a short idle window. Resetting height and reading
-  // scrollHeight forces layout; doing that in every keystroke frame made the
-  // composer feel sticky in long chats and while browser screenshots updated.
-  const resizeTimer = useRef<number>()
-  const autoResize = useCallback(() => {
-    window.clearTimeout(resizeTimer.current)
-    resizeTimer.current = window.setTimeout(() => {
-      const ta = textareaRef.current
-      if (!ta) return
-      ta.style.height = 'auto'
-      const next = Math.min(ta.scrollHeight, 160) + 'px'
-      if (ta.style.height !== next) ta.style.height = next
-    }, 48)
-  }, [])
-
-  useEffect(() => () => window.clearTimeout(resizeTimer.current), [])
 
   // Allow parent to trigger send with specific text (for prompt actions, voice, etc.)
   // via the onSend callback directly — the parent calls onSend(text).
@@ -1760,7 +1748,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 hasInputRef.current = nextHasInput
                 setHasInput(nextHasInput)
               }
-              autoResize()
               if (debugPerf) {
                 performance.mark('ks:chatInput:onChange:end')
                 performance.measure('ks:chatInput:onChange', 'ks:chatInput:onChange:start', 'ks:chatInput:onChange:end')
@@ -1775,7 +1762,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                   if (text || attachedFiles.length > 0) {
                     onQueue(text, attachedFiles)
                     clearInput()
-                    autoResize()
                   }
                 } else {
                   handleSend()
@@ -1809,7 +1795,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 if (text || attachedFiles.length > 0) {
                   onQueue(text, attachedFiles)
                   clearInput()
-                  autoResize()
                 }
               }}
               title="Queue this message to send after current response"
@@ -2101,34 +2086,15 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   const [busy, setBusy] = useState(false)
   const [providerSelectionRefreshing, setProviderSelectionRefreshing] = useState(active)
   const providerSelectionRefreshRef = useRef<Promise<void> | null>(null)
+  const scopedInlineChat = compact || !!contextPrefix?.trim()
   const [showCompactControls, setShowCompactControls] = useState(false)
+  const compactControlsId = useId()
   const compactControlsRef = useRef<HTMLDivElement | null>(null)
   const compactControlsButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
-  useEffect(() => {
-    if (!ownsForeground || !showCompactControls) return
-    const closeCompactControls = (event: MouseEvent | KeyboardEvent) => {
-      if (event instanceof KeyboardEvent && event.key !== 'Escape') return
-      if (
-        event instanceof MouseEvent
-        && compactControlsRef.current?.contains(event.target as Node)
-      ) {
-        return
-      }
-      const restoreFocus = event instanceof KeyboardEvent
-        && compactControlsRef.current?.contains(document.activeElement)
-      setShowCompactControls(false)
-      if (restoreFocus) compactControlsButtonRef.current?.focus()
-    }
-    document.addEventListener('mousedown', closeCompactControls)
-    document.addEventListener('keydown', closeCompactControls)
-    return () => {
-      document.removeEventListener('mousedown', closeCompactControls)
-      document.removeEventListener('keydown', closeCompactControls)
-    }
-  }, [compact, ownsForeground, showCompactControls])
+  useAssistantControls(showCompactControls && ownsForeground, compactControlsRef, compactControlsButtonRef, () => setShowCompactControls(false))
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
   const queuedMessagesRef = useRef<QueuedDraft[]>([])
@@ -2489,7 +2455,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
     isChannelRuntimeConnected(channelStatus.genericChannels.irc) ||
     isChannelRuntimeConnected(channelStatus.genericChannels.googlechat)
   )
-  const showChannelBanner = hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
+  const showChannelBanner = !scopedInlineChat && hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
 
   // Build channel status tooltip and button color class
   const channelButtonInfo = useMemo(() => {
@@ -4518,8 +4484,15 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   useEffect(() => {
     const el = chatBodyRef.current
     if (!el) return
+    const scrollbackIntent = (event: WheelEvent) => {
+      if (event.deltaY < 0) { isNearBottomRef.current = false; setShowScrollButton(true) }
+    }
     el.addEventListener('scroll', handleChatScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleChatScroll)
+    el.addEventListener('wheel', scrollbackIntent, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', handleChatScroll)
+      el.removeEventListener('wheel', scrollbackIntent)
+    }
   }, [handleChatScroll])
 
   // When the AI finishes responding, surface any pending skill suggestion.
@@ -4609,22 +4582,19 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
     return () => window.removeEventListener('focus', refreshStudioConnections)
   }, [active, refreshStudioConnections])
 
-  // Auto-scroll to bottom when messages change, but only if user is near the bottom
+  // Recheck follow intent inside the frame: a scrollback after scheduling wins.
   useEffect(() => {
-    if (chatBodyRef.current) {
-      if (isNearBottomRef.current) {
-        requestAnimationFrame(() => {
-          if (chatBodyRef.current) {
-            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
-          }
-        })
-      } else {
-        setShowScrollButton(true)
-      }
+    const element = chatBodyRef.current
+    if (!element) return
+    if (!isNearBottomRef.current) {
+      setShowScrollButton(true)
+      return
     }
+    return scheduleChatFollow(element, () => isNearBottomRef.current)
   }, [msgs, thinkingMessage, queuedMessages])
 
   const scrollToBottom = useCallback(() => {
+    isNearBottomRef.current = true
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTo({ top: chatBodyRef.current.scrollHeight, behavior: 'smooth' })
     }
@@ -6575,19 +6545,23 @@ ${actualText}`
               className="ClawdCompactControlsButton"
               aria-label={compact ? 'Meeting chat settings' : 'Scout options'}
               aria-expanded={showCompactControls}
+              aria-controls={compactControlsId}
               onMouseDown={event => event.stopPropagation()}
               onClick={() => setShowCompactControls(prev => !prev)}
             >
-              <span aria-hidden="true">•••</span>
+              <span aria-hidden="true">⋮</span>
             </button>
           )}
         </div>
         <div
           ref={compactControlsRef}
+          id={compactControlsId}
+          role="region" aria-label="Assistant controls"
           className={`ClawdChatActions ${compact ? 'ClawdChatActions--compact' : 'ClawdChatActions--responsive'} ${showCompactControls ? 'ClawdChatActions--open' : ''}`}
           onMouseDown={compact ? event => event.stopPropagation() : undefined}
           onClick={compact ? () => setShowCompactControls(false) : undefined}
         >
+          <span className="ClawdControlsGroupLabel">Assistant</span>
           <button
             disabled={busy}
             onClick={() => enableAssistant(!status?.running)}
@@ -6595,6 +6569,7 @@ ${actualText}`
           >
             {status?.running ? '✓ Enabled' : '○ Disabled'}
           </button>
+          <span className="ClawdControlsGroupLabel">Connections</span>
           <button
             onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
             className={`${showChannelsPanel ? 'toggle-on' : ''} ${channelButtonInfo.colorClass}`}
@@ -6687,6 +6662,7 @@ ${actualText}`
             agentName={agentName} active={active}
             onDraft={text => setScheduleDraft({ text, key: Date.now() })}
           />}
+          <span className="ClawdControlsGroupLabel">Conversation</span>
           <button disabled={busy} onClick={clearHistory} title="Clear chat history and start fresh">
             Clear
           </button>
@@ -6837,7 +6813,7 @@ ${actualText}`
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div
-        className={`ClawdChatBody ${msgs.every(m => m.id.startsWith('welcome-')) ? 'ClawdChatBody--welcome-only' : ''}`}
+        className={`ClawdChatBody ${!scopedInlineChat && msgs.every(m => m.id.startsWith('welcome-')) ? 'ClawdChatBody--welcome-only' : ''}`}
         ref={el => { chatBodyRef.current = el }}
       >
         {chatFindOpen && (
@@ -6885,7 +6861,7 @@ ${actualText}`
             </button>
           </div>
         )}
-        {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
+        {visibleScopedMessages(parsedMsgs, scopedInlineChat).map(({ msg: m, cleaned, actions }) => (
           <div
             key={m.id}
             className={[
@@ -6913,7 +6889,7 @@ ${actualText}`
           </div>
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
-        {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
+        {!scopedInlineChat && skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
           msgs.every(m => m.id.startsWith('welcome-')) && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble">

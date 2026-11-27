@@ -35,9 +35,12 @@ export function runNotesGenerationOnce(
   return promise
 }
 
+export const isNotesTemplateBusy = (threadId: number): boolean =>
+  pending.has(threadId) || hasPendingNotesWrite(threadId) || templateWrites.has(threadId)
+
 /** Synchronous guard before a template can be persisted; includes preflight and save. */
 export function assertNotesTemplateChangeAllowed(threadId: number): void {
-  if (pending.has(threadId) || hasPendingNotesWrite(threadId) || templateWrites.has(threadId)) {
+  if (isNotesTemplateBusy(threadId)) {
     throw new Error(
       'Notes generation or saving is still running. Wait for it to finish, then choose a template.',
     )
