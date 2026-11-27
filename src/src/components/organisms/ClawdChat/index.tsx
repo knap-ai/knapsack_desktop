@@ -92,6 +92,12 @@ import {
   type PrivacyPilotConnectedDataSource,
 } from 'src/utils/privacyPilotEvidence'
 
+const ChatMarkdownTable: Components['table'] = ({ node: _node, ...props }) => (
+  <div className="ClawdTableViewport" role="region" aria-label="Table" tabIndex={0}>
+    <table {...props} />
+  </div>
+)
+
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
 // We strip these from the markdown and render them as numbered clickable buttons.
@@ -1473,7 +1479,7 @@ const ChatMessage = memo(function ChatMessage({
       className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
       onClick={m.isClickable && onExampleClick ? (e) => onExampleClick(e, m.text) : undefined}
     >
-      <div className="ClawdBubble">
+      <div className={`ClawdBubble${m.role === 'assistant' && !m.isClickable ? ' ClawdBubble--assistant-response' : ''}`}>
         {/* Quoted reply block — shown when this message replies to another */}
         {replyToMsg && (
           <div
@@ -5223,7 +5229,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
             Run in Terminal
           </button>
         </div>
-        <pre>{children}</pre>
+        <pre tabIndex={0} role="region" aria-label="Code block">{children}</pre>
       </div>
     )
   }, []) as Components['pre']
@@ -5231,7 +5237,7 @@ export default function ClawdChat({ onNotesEditRequest, active = true, foregroun
   // Stable references for ReactMarkdown props — avoids re-parsing all messages
   // on parent re-renders (e.g. during health polling).
   const mdPlugins = useMemo(() => [remarkGfm], [])
-  const mdComponents = useMemo(() => ({ a: ChatLink, pre: ChatCodeBlock }), [ChatLink, ChatCodeBlock])
+  const mdComponents = useMemo(() => ({ a: ChatLink, pre: ChatCodeBlock, table: ChatMarkdownTable }), [ChatLink, ChatCodeBlock])
 
   // Toggle voice mode - stop audio when disabling
   const toggleVoiceOutput = useCallback(() => {

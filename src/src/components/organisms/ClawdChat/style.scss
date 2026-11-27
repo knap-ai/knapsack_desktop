@@ -838,6 +838,25 @@
   justify-content: flex-start;
 
   .ClawdBubble { max-width: min(72ch, 100%); padding: 14px 16px; line-height: 1.6; }
+
+  // Center the reading column without moving user bubbles, banners, or controls.
+  .ClawdBubble--assistant-response {
+    --chat-prose-width: 80ch;
+    width: min(var(--chat-prose-width), 100%);
+    max-width: 100%;
+    margin-inline: auto;
+
+    &:has(.ClawdSelectableText :is(.ClawdTableViewport, pre)) {
+      width: min(64rem, 100%);
+
+      // Rich blocks may expand; prose remains within the readable measure.
+      .ClawdSelectableText > :not(.ClawdTableViewport, .ClawdCodeBlockWrapper, pre) {
+        // Match the ordinary reply's 16px padding plus 1px border per side.
+        max-width: calc(var(--chat-prose-width) - 34px);
+        margin-inline: auto;
+      }
+    }
+  }
 }
 
 .ClawdMsg-clickable {
@@ -1180,7 +1199,12 @@
     color: #cdd6f4;
     border-radius: 6px;
     padding: 0.75em 1em;
+    box-sizing: border-box;
+    max-width: 100%;
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    white-space: pre;
+    overflow-wrap: normal;
     margin: 0.5em 0;
     &:last-child {
       margin-bottom: 0;
@@ -1307,6 +1331,22 @@
     border: none;
     border-top: 1px solid rgba(0, 0, 0, 0.1);
     margin: 0.75em 0;
+  }
+
+  .ClawdTableViewport {
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0.5em 0;
+    overscroll-behavior-inline: contain;
+
+    table { width: 100%; margin: 0; }
+    th { overflow-wrap: normal; word-break: normal; hyphens: none; }
+  }
+
+  .ClawdTableViewport:focus-visible, pre[tabindex]:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
   }
 
   table {
