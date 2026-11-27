@@ -6,8 +6,49 @@ import { initializePrivacyMode, privacyModeStatus, setPrivacyMode } from 'src/ut
 import { Dialog } from 'src/components/molecules/Dialog'
 
 import { open } from '@tauri-apps/api/shell'
+import { invoke } from '@tauri-apps/api/tauri'
 
 import LocalSpeechSetup from './LocalSpeechSetup'
+
+const privacyResources = [
+  { id: 'zdr', label: 'ZDR explained (OpenAgreements)', url: 'https://openagreements.org/practice-guides/ai-vendors/zdr-cross-provider-comparison' },
+  { id: 'on-device', label: 'On-device AI (Ollama FAQ)', url: 'https://docs.ollama.com/faq' },
+  { id: 'inference', label: 'Cloud and on-device inference (Google Cloud guide)', url: 'https://cloud.google.com/discover/what-is-ai-inference' },
+] as const
+type PrivacyResource = typeof privacyResources[number]
+
+function PrivacyResourceLink({ resource }: { resource: PrivacyResource }) {
+  const [attempted, setAttempted] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const [showUrl, setShowUrl] = useState(false)
+  return (
+    <li>
+      <a className="underline" href={resource.url} onClick={event => {
+        event.preventDefault()
+        setAttempted(true)
+        setFeedback('')
+        void invoke('open_privacy_reference', { reference: resource.id }).catch(() =>
+          setFeedback('Could not open the reference. Copy the link to open it yourself.'),
+        )
+      }}>
+        {resource.label} ↗
+      </a>
+      {attempted && <button type="button" className="ml-2 underline" onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(resource.url)
+          setShowUrl(false)
+          setFeedback('Link copied.')
+        } catch {
+          setShowUrl(true)
+          setFeedback('Could not copy automatically. Select and copy the link below.')
+        }
+      }}>Copy link</button>}
+      {feedback && <p role="status" className="text-xs">{feedback}</p>}
+      {showUrl && <input className="w-full text-xs" aria-label={`${resource.label} URL`} readOnly
+        value={resource.url} onFocus={event => event.currentTarget.select()} />}
+    </li>
+  )
+}
 
 type Mode = 'local-only' | 'zero-retention'
 export default function PrivacyModeControl() {
@@ -255,31 +296,12 @@ export default function PrivacyModeControl() {
           </details>
           <nav aria-label="Privacy resources" className="text-sm space-y-2">
             <p className="font-semibold">Learn more</p>
+            <p className="text-xs text-zinc-600">
+              In ZDR, the model provider processes your request in the cloud but doesn’t keep the
+              inputs or outputs afterward. Usage records and notes you save are separate.
+            </p>
             <ul className="space-y-1">
-              {[
-                [
-                  'ZDR explained — OpenAI’s provider-specific example',
-                  'https://developers.openai.com/api/docs/guides/your-data',
-                ],
-                ['On-device AI — Ollama local FAQ', 'https://docs.ollama.com/faq'],
-                [
-                  'Cloud and on-device inference — Google Cloud guide',
-                  'https://cloud.google.com/discover/what-is-ai-inference',
-                ],
-              ].map(([label, url]) => (
-                <li key={url}>
-                  <a
-                    className="underline"
-                    href={url}
-                    onClick={event => {
-                      event.preventDefault()
-                      void open(url).catch(e => setError(String(e)))
-                    }}
-                  >
-                    {label} ↗
-                  </a>
-                </li>
-              ))}
+              {privacyResources.map(resource => <PrivacyResourceLink key={resource.id} resource={resource} />)}
             </ul>
             <p className="text-xs text-zinc-500">
               General references, not guarantees for your Knapsack route. Each provider’s policy and
